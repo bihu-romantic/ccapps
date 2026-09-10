@@ -1,0 +1,1076 @@
+#
+# Copyright (C) 2007-2012 by Johan De Taeye
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Joao Ranita <jranita@ccAPPS.com>, 2015.
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2023-10-24 12:34+0200\n"
+"Last-Translator: Joao Ranita <jranita@ccAPPS.com>\n"
+"Language-Team: ccAPPS\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Poedit 2.4.3\n"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:518
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:551
+msgid "%s allocated out of %s"
+msgstr "%s 分配出 %s"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1262
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1283
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1301
+msgid "Add to the graph"
+msgstr "添加到圖表"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1488
+msgid ""
+"An operation gets the color of its category.<br>\n"
+"                        The operation categories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"一个操作获得其类别的颜色。<br>\n"
+"                        操作类别应填写操作表上。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1523
+msgid ""
+"An operation gets the color of its subcategory.<br>\n"
+"                        The operation subcategories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"一个操作获得其子类别的颜色。<br>\n"
+"                        操作子类别应填写操作表上。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1420
+msgid ""
+"An operation gets the color the category of the item it produces.<br>\n"
+"                        The item categories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"一个操作获得颜色它所生成项目的类别。<br>\n"
+"                        项目类别应填写在项目表中。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1454
+msgid ""
+"An operation gets the color the subcategory of the item it produces.<br>\n"
+"                        The item subcategories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"一个操作获得颜色它所生成项目的子类别。<br>\n"
+"                        项目子类别应填写在项目表中。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:383
+msgid "Automatic"
+msgstr "自动"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:892
+msgid "Available Cross"
+msgstr "可用的交叉"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:902
+msgid "Cancel"
+msgstr "取消"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1265
+msgid "Clear the plan of selected demands"
+msgstr "删除所选需求的计划"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:875
+msgid "Close"
+msgstr "关闭"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:62
+msgid "Configure time buckets"
+msgstr "配置日期类型"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:388
+msgid "Constant"
+msgstr "常数"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:455
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:62
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:142
+#: ccAPPSdb/quoting/static/quoting/quoting.html:227
+msgid "Continue"
+msgstr "继续"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1332
+msgid "Criticality color setup"
+msgstr "关键颜色设置"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:79
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:878
+msgid "Customize"
+msgstr "定制"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1360
+msgid "Delay color setup"
+msgstr "延迟的颜色设置"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:34
+msgid "Delivery"
+msgstr "交货"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecastgridDrv.js:36
+msgid "Demand outlier"
+msgstr "需求异常值"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:32
+msgid "Distribution Order"
+msgstr "配送订单"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:450
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:53
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:133
+msgid "Do you want to save your changes first?"
+msgstr "先要保存更改吗?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:264
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:343
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:467
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:591
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:717
+msgid "Duplicate"
+msgstr "重複"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:426
+msgid "Estimated forecast error"
+msgstr "估计预报错误"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:372
+msgid "Forecast method"
+msgstr "预测方法"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:82
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:71
+msgid "Help"
+msgstr "帮助"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:400
+msgid "Intermittent"
+msgstr "间歇的"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1414
+msgid "Item category color setup"
+msgstr "项目类别颜色设置"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1448
+msgid "Item subcategory color setup"
+msgstr "项目子类别颜色设置"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:408
+msgid "Manual"
+msgstr "手动"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:30
+msgid "Manufacturing Order"
+msgstr "生产订单"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:404
+msgid "Moving average"
+msgstr "移动平均数"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:247
+msgid "No comments yet"
+msgstr "还没有注释"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:139
+msgid "No plan yet"
+msgstr "还没有计划"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:901
+msgid "OK"
+msgstr "确定"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1482
+msgid "Operation category color setup"
+msgstr "操作类别的颜色设置"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1517
+msgid "Operation subcategory color setup"
+msgstr "操作子类别的颜色设置"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:302
+msgid "Operationplan"
+msgstr "操作计划"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:818
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:235
+msgid "Plan selected demands backward from their due date"
+msgstr "从它的截止日期逆向计划选定的需求"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1259
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:821
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:236
+msgid "Plan selected demands forward from the current date"
+msgstr "从它的截止日期预先计划选定的需求"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:57
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:137
+msgid "Please be patient, the chart may take some time to complete."
+msgstr "请耐心等待，图表可能需要一段时间才能完成。"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1387
+msgid "Priority color setup"
+msgstr "优先的颜色设置"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1392
+msgid ""
+"Priority is a demand property, available in the demands table. The priority "
+"value will have effect in the plan results.<br>\n"
+"                        The highest priority value is 0, and the greater the "
+"value the lower the priority.\n"
+"                        <br><br>"
+msgstr ""
+"优先级是一个需求属性，在需求表中。优先级值将对计划结果产生影响。<br>\n"
+"                       最高优先级值是0，值越大优先级越低。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:31
+msgid "Purchase Order"
+msgstr "采购订单"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:223
+msgid "Quoting error"
+msgstr "报价错误"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Recalculate"
+msgstr "重新计算"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:267
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:346
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:594
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:720
+msgid "Remove"
+msgstr "删除"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:815
+msgid "Remove this demand from planning"
+msgstr "从规划中删除这种需求"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:903
+msgid "Reset"
+msgstr "重置"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+#: ccAPPSdb/forecast/static/forecast/forecast.html:454
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:61
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:141
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save"
+msgstr "保存"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+msgid "Save changes to the database"
+msgstr "先保存或取消你的变动"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save plan from memory to the database"
+msgstr "将计划从内存保存到数据库"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:396
+msgid "Seasonal"
+msgstr "周期性的"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:376
+msgid ""
+"Select forecast method, only possible at single item/location/customer level"
+msgstr "选择预报方法，只可能在单个产品/地点/客户级别"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:5
+msgid "Select panel sequence"
+msgstr "选择面板序列"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:884
+msgid "Selected Cross"
+msgstr "选定的交叉"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:417
+msgid "Selected forecast method"
+msgstr "已选择预报的方法"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Simulate changes without saving"
+msgstr "不保存的模拟改变"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:270
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:349
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:473
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:597
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:723
+msgid "Split in half"
+msgstr "分成两半"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:33
+msgid "Stock"
+msgstr "库存"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:56
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:136
+msgid "The Gantt chart is limited to {{rowlimit}} rows."
+msgstr "甘特图仅限于{{rowlimit}}行。"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1337
+msgid ""
+"The criticality of an operationplan measures the slack time available till "
+"the delivery of the customer demand.<br>\n"
+"                        A criticality of 0 indicates that the order is on "
+"the critical path of one or more demands.<br>\n"
+"                        Higher criticality values indicate that a delay will "
+"not immediately impact the delivery of any demand.\n"
+"                        <br><br>"
+msgstr ""
+"操作计划的关键性测量可用的松弛时间直到客户需求交付期。<br>\n"
+"                        关键性为0表示这个订单是在一个或多个要求的关键路径上。"
+"<br>\n"
+"                        较高的关键值表明延迟不会立即影响任何需求的交付。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1365
+msgid ""
+"The delay of an operationplan compares its end date with the delivery due "
+"date of the customer demand(s) it feeds.<br>\n"
+"                        This also consider the duration of the follow-up "
+"operations still required to produce the finished end item.\n"
+"                        <br><br>"
+msgstr ""
+"操作计划的延迟将其结束日期与提供的客户需求的交货期进行比较。<br>\n"
+"                        这也考虑到后续操作的持续时间还需要生产完成的最终項"
+"目。\n"
+"                        <br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:392
+msgid "Trend"
+msgstr "趋势"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo"
+msgstr "撤销"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo changes"
+msgstr "取消更改"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:45
+msgid "action"
+msgstr "动作"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:375
+msgid "aggregate"
+msgstr "总计"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:122
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:433
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:559
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:683
+msgid "approved"
+msgstr "经核准的"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:158
+msgid "attributes"
+msgstr "属性"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:167
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:190
+msgid "buffer"
+msgstr "库存"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:98
+msgid "cancel"
+msgstr "取消"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:274
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:335
+msgid "category"
+msgstr "类别"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:125
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:448
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:572
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:697
+msgid "closed"
+msgstr "已结束"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:11
+msgid "color by"
+msgstr "颜色的"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:173
+msgid "colors"
+msgstr "颜色"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:170
+msgid "comments"
+msgstr "评论"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:68
+msgid "configure time buckets"
+msgstr "配置时间表"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:100
+msgid "confirm"
+msgstr "确认"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:123
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:438
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:563
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:688
+msgid "confirmed"
+msgstr "已确定"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:40
+msgid "cost"
+msgstr "成本"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:97
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:18
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:412
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:538
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:658
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:742
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:795
+msgid "criticality"
+msgstr "影响程度"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:63
+msgid "current onhand"
+msgstr "当前库存"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:838
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:89
+#: ccAPPSdb/quoting/static/quoting/quoting.html:40
+msgid "customer"
+msgstr "客户"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:195
+msgid "customer delivery"
+msgstr "客户交期"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:120
+msgid "customers"
+msgstr "客户"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:447
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:50
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:130
+msgid "database transaction failed"
+msgstr "数据库事务失败"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:37
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1098
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1142
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1143
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:279
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1095
+msgid "date"
+msgstr "日期"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1436
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1539
+msgid "default"
+msgstr "默认"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:104
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:21
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:418
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:544
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:666
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:801
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:163
+msgid "delay"
+msgstr "延期"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:149
+msgid "delivery date"
+msgstr "交货日期"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:139
+msgid "delivery quantity"
+msgstr "交货数量"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:161
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:188
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:762
+msgid "demand"
+msgstr "需求"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1206
+msgid "demands"
+msgstr "需求"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:368
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:492
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:618
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:986
+#: ccAPPSdb/quoting/static/quoting/quoting.html:171
+#: ccAPPSdb/quoting/static/quoting/quoting.html:198
+#: ccAPPSdb/quoting/static/quoting/quoting.html:21
+msgid "description"
+msgstr "描述"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:57
+msgid "destination"
+msgstr "转入地点"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:193
+msgid "distribution order"
+msgstr "配送订单"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:40
+msgid "distribution orders"
+msgstr "配送订单"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:35
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1218
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:848
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:126
+msgid "due"
+msgstr "交期"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:79
+msgid "due date"
+msgstr "交期日"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:48
+msgid "effective end"
+msgstr "生效结束"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:46
+msgid "effective start"
+msgstr "生效开始"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1144
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:211
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:391
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:519
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:639
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:777
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:992
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1092
+msgid "end"
+msgstr "结束"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:76
+#: ccAPPSdb/quoting/static/quoting/quoting.html:133
+#: ccAPPSdb/quoting/static/quoting/quoting.html:177
+msgid "end date"
+msgstr "结束日期"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:35
+msgid "expected onhand"
+msgstr "预计数量"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:126
+msgid "export"
+msgstr "导出"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:15
+msgid "feasibility"
+msgstr "可行性"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:139
+#: ccAPPSdb/forecast/static/forecast/forecast.html:167
+msgid "forecast"
+msgstr "预测"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:198
+msgid "forecast baseline"
+msgstr "预测基线"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:206
+msgid "forecast consumed"
+msgstr "预测消耗"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:204
+msgid "forecast net"
+msgstr "预测淨数"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:200
+msgid "forecast override"
+msgstr "预测覆盖"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:202
+msgid "forecast total"
+msgstr "预测总数"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:49
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:129
+msgid "gantt chart rows limit"
+msgstr "甘特图行数限制"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:173
+msgid "history"
+msgstr "历史"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:482
+msgid "identifier"
+msgstr "标识符"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:94
+msgid "inquiry"
+msgstr "查询"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:194
+msgid "inventory"
+msgstr "库存"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:22
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:27
+msgid "inventory status"
+msgstr "库存状态"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:186
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:40
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1215
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:857
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:946
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:324
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:78
+#: ccAPPSdb/quoting/static/quoting/quoting.html:27
+msgid "item"
+msgstr "对象"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:30
+msgid "item category"
+msgstr "项目类别"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:33
+msgid "item subcategory"
+msgstr "项目子类别"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:107
+msgid "items"
+msgstr "产品"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:38
+msgid "lead time"
+msgstr "交货提前期"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:218
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:48
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:58
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:867
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:920
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:956
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:263
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:353
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:67
+#: ccAPPSdb/quoting/static/quoting/quoting.html:53
+msgid "location"
+msgstr "地点"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:94
+msgid "locations"
+msgstr "地点"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:191
+msgid "manufacturing order"
+msgstr "生产单"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:42
+msgid "manufacturing orders"
+msgstr "生产单"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1083
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:187
+msgid "material"
+msgstr "物料"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:85
+msgid "maximum lateness (in days)"
+msgstr "最大延迟时间(天数)"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:170
+msgid "messages"
+msgstr "消息"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:73
+msgid "minimum shipment"
+msgstr "最低出货量"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:26
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:32
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:31
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1022
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1089
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1212
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:313
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:462
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:585
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:711
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:752
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:811
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:907
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:934
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:251
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:312
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:55
+#: ccAPPSdb/quoting/static/quoting/quoting.html:15
+msgid "name"
+msgstr "名称"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:245
+msgid "new customer comment"
+msgstr "新客户的注释"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:242
+msgid "new item comment"
+msgstr "新产品的注释"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:243
+msgid "new item-location comment"
+msgstr "新产品-地点的注释"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:244
+msgid "new location comment"
+msgstr "新地点的注释"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:44
+msgid "no demands"
+msgstr "没有需求"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:44
+msgid "no movements"
+msgstr "没有移动"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:43
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:998
+msgid "no problems"
+msgstr "没有任何问题"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:40
+msgid "no resources"
+msgstr "没有资源"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1095
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1137
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1138
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:295
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:966
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1094
+msgid "onhand"
+msgstr "现有库存量"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:29
+msgid "onhand at lead time"
+msgstr "交货期末库存"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:194
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:215
+msgid "open orders"
+msgstr "未完成订单"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1131
+msgid "operation"
+msgstr "操作"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:36
+msgid "operation category"
+msgstr "操作类别"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:39
+msgid "operation subcategory"
+msgstr "操作子类别"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1122
+msgid "operationplans"
+msgstr "操作计划"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:117
+msgid "operations"
+msgstr "操作"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:196
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:217
+msgid "orders adjustment"
+msgstr "订单调整"
+
+# "origin" translation must be different from "source" translation
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:52
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:606
+msgid "origin"
+msgstr "转出地点"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:44
+msgid "overdue sales orders"
+msgstr "过期的销售订单"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:367
+msgid "parameters"
+msgstr "参数"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:24
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:883
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:100
+msgid "priority"
+msgstr "优先级"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:29
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:980
+#: ccAPPSdb/quoting/static/quoting/quoting.html:165
+msgid "problems"
+msgstr "问题"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:121
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:428
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:554
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:678
+msgid "proposed"
+msgstr "提议"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:192
+msgid "purchase order"
+msgstr "采购订单"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:38
+msgid "purchase orders"
+msgstr "采购订单"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:89
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:37
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:33
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1025
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1092
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1134
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1221
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:220
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:287
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:402
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:528
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:648
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:732
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:786
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:893
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1093
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:113
+#: ccAPPSdb/quoting/static/quoting/quoting.html:127
+#: ccAPPSdb/quoting/static/quoting/quoting.html:67
+msgid "quantity"
+msgstr "数量"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:96
+msgid "quote"
+msgstr "报价"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1128
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:358
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:612
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1090
+msgid "reference"
+msgstr "参考"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:59
+msgid "remove row"
+msgstr "删除行"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:234
+msgid "remove this demand from planning"
+msgstr "从规划中删除这种需求"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:189
+msgid "resource"
+msgstr "资源"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1016
+msgid "resources"
+msgstr "资源"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:46
+msgid "sales orders"
+msgstr "销售订单"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1028
+msgid "setup"
+msgstr "换线准备"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:42
+msgid "size minimum"
+msgstr "最小量"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:44
+msgid "size multiple"
+msgstr "大小的倍数"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1139
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:374
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:624
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:768
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:989
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1091
+msgid "start"
+msgstr "开始"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:63
+#: ccAPPSdb/quoting/static/quoting/quoting.html:130
+#: ccAPPSdb/quoting/static/quoting/quoting.html:174
+msgid "start date"
+msgstr "开始日期"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:118
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:228
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:424
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:550
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:674
+#: ccAPPSdb/quoting/static/quoting/quoting.html:91
+msgid "status"
+msgstr "状态"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:283
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:344
+msgid "subcategory"
+msgstr "子类别"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:44
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:498
+msgid "supplier"
+msgstr "供应商"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:192
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:213
+msgid "total orders"
+msgstr "订单总数"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:446
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:48
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:128
+msgid "unsaved changes"
+msgstr "不保存更改"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:193
+msgid "why short or late?"
+msgstr "为何短缺或延迟?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:53
+msgid "zoom in"
+msgstr "放大"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:56
+msgid "zoom out"
+msgstr "缩小"
+
+msgid "no selection"
+msgstr "未选择"
+
+msgid "selected"
+msgstr "已选"
+
+msgid "owner"
+msgstr "所有者"
+
+msgid "batch"
+msgstr "批次"
+
+msgid "ordering date"
+msgstr "下单日期"
+
+msgid "shipping date"
+msgstr "发货日期"
+
+msgid "setup end date"
+msgstr "换型结束日期"
+
+msgid "receipt date"
+msgstr "收货日期"
+
+msgid "quantity completed"
+msgstr "已完成数量"
+
+msgid "remark"
+msgstr "备注"
+
+msgid "completed"
+msgstr "已完成"
+
+msgid "stock"
+msgstr "库存"
+
+msgid "delivery"
+msgstr "交货"
+
+msgid "downstream operations"
+msgstr "下游工序"
+
+msgid "level"
+msgstr "层级"
+
+msgid "type"
+msgstr "类型"
+
+msgid "no downstream information"
+msgstr "无下游信息"
+
+msgid "upstream operations"
+msgstr "上游工序"
+
+msgid "no upstream information"
+msgstr "无上游信息"
+
+msgid "days early"
+msgstr "提前天数"
+
+msgid "days late"
+msgstr "延迟天数"
+
+msgid "hide"
+msgstr "隐藏"
+
+msgid "on time"
+msgstr "按时"
+
+msgid "shown"
+msgstr "已显示"
+
+msgid "types"
+msgstr "类型"

@@ -1,0 +1,447 @@
+import ccAPPS
+
+import asyncio
+import json
+
+from channels.db import database_sync_to_async
+from channels.generic.http import AsyncHttpConsumer
+
+from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+
+
+from ccAPPSdb.webservice.utils import lock
+from ccAPPSdb.common.localization import parseLocalizedDateTime
+from ccAPPSdb.common.models import Comment
+from ccAPPSdb.forecast.models import Forecast
+from ccAPPSdb.input.models import Item, Location, Customer, Buffer
+from ccAPPSdb.webservice.utils import fcst_solver
+
+
+class ForecastService(AsyncHttpConsumer):
+    """
+    Processes forecast update messages in these formats:
+    - From forecast editor:
+      {item, location, customer, buckets:[{startdate, endate, bucket, msr1, msr2}]}
+    - From forecast report (regular jqgrid save) and excel upload:
+      [{item, location, customer, bucket, startdate, endate, msr1, msr2}]
+    """
+
+    msgtemplate = """
+        <!doctype html>
+        <html lang="en">
+            <head>
+            <meta http-equiv="content-type" content="text/html; charset=utf-8">
+            </head>
+            <body>%s</body>
+        </html>
+        """
+
+    @database_sync_to_async
+    def updateForecastMethod(self, f):
+        Forecast.objects.all().using(self.scope["database"]).filter(
+            item=f.item.name, location=f.location.name, customer=f.customer.name
+        ).update(method=f.methods)
+
+    @database_sync_to_async
+    def replan(self, item, location):
+        from ccAPPSdb.forecast.commands import ExportForecastMetrics
+
+        cluster = ccAPPS.buffer(
+            name="%s @ %s" % (item.name, location.name),
+            item=item,
+            location=location,
+        ).cluster
+        # Recompute the forecast
+        fcst_solver.solve(
+            cluster=cluster,
+        )
+
+        # Minimal export - full cluster replan is taking too long.
+        ExportForecastMetrics().run(database=self.scope["database"], cluster=[cluster])
+
+    @database_sync_to_async
+    def updateComment(self, commenttype, comment, item, location, customer):
+        if commenttype == "item" and item:
+            Comment(
+                content_object=Item.objects.using(self.scope["database"]).get(
+                    name=item.name
+                ),
+                user=self.scope["user"],
+                comment=comment,
+                type="comment",
+            ).save(using=self.scope["database"])
+        elif commenttype == "location" and location:
+            Comment(
+                content_object=Location.objects.using(self.scope["database"]).get(
+                    name=location.name
+                ),
+                user=self.scope["user"],
+                comment=comment,
+                type="comment",
+            ).save(using=self.scope["database"])
+        elif commenttype == "customer" and customer:
+            Comment(
+                content_object=Customer.objects.using(self.scope["database"]).get(
+                    name=customer.name
+                ),
+                user=self.scope["user"],
+                comment=comment,
+                type="comment",
+            ).save(using=self.scope["database"])
+        elif commenttype == "itemlocation" and item and location:
+
+            b = Buffer(
+                id="%s %s",
+            )
+            b.pk = "%s @ %s" % (item.name, location.name)
+            Comment(
+                content_object=b,
+                user=self.scope["user"],
+                comment=comment,
+                type="comment",
+            ).save(using=self.scope["database"])
+        else:
+            raise Exception("Invalid comment type")
+
+    async def handle(self, body):
+        async with lock:
+            errors = []
+            try:
+                if self.scope["method"] != "POST":
+                    self.scope["response_headers"].append(
+                        (b"Content-Type", b"text/html")
+                    )
+                    await self.send_response(
+                        401,
+                        (self.msgtemplate % "Only POST requests allowed").encode(),
+                        headers=self.scope["response_headers"],
+                    )
+                    return
+
+                # Check permissions
+                if not self.scope["user"].has_perm("forecast.change_forecast"):
+                    self.scope["response_headers"].append(
+                        (b"Content-Type", b"text/html")
+                    )
+                    await self.send_response(
+                        403,
+                        (self.msgtemplate % "Permission denied").encode(),
+                        headers=self.scope["response_headers"],
+                    )
+                    return
+
+                data = json.loads(body.decode("utf-8"))
+
+                try:
+                    replan = False
+                    ccAPPS.cache.write_immediately = False
+                    if isinstance(data, list):
+                        # Message format #1
+                        for bckt in data:
+                            # Validate
+                            item = None
+                            location = None
+                            customer = None
+
+                            # do we have a forecast field ?
+                            if bckt.get("forecast", None):
+                                try:
+                                    fcst = ccAPPS.demand_forecast(
+                                        name=bckt.get("forecast"), action="C"
+                                    )
+                                except Exception:
+                                    errors.append(
+                                        "Forecast not found: %s" % bckt["forecast"]
+                                    )
+                                item = fcst.item
+                                location = fcst.location
+                                customer = fcst.customer
+                            # otherwise item, location and customer must be specified
+                            else:
+                                if bckt.get("item", None):
+                                    try:
+                                        item = ccAPPS.item(
+                                            name=bckt["item"], action="C"
+                                        )
+                                    except Exception:
+                                        errors.append(
+                                            "Item not found: %s" % bckt["item"]
+                                        )
+                                if bckt.get("location", None):
+                                    try:
+                                        location = ccAPPS.location(
+                                            name=bckt["location"], action="C"
+                                        )
+                                    except Exception:
+                                        errors.append(
+                                            "Location not found: %s" % bckt["location"]
+                                        )
+                                if bckt.get("customer", None):
+                                    try:
+                                        customer = ccAPPS.customer(
+                                            name=bckt["customer"], action="C"
+                                        )
+                                    except Exception:
+                                        errors.append(
+                                            "Customer not found: %s" % bckt["customer"]
+                                        )
+                            if customer and item and location:
+                                try:
+                                    args = {
+                                        "item": item,
+                                        "location": location,
+                                        "customer": customer,
+                                    }
+                                    bucket = bckt.get("bucket", None)
+                                    if bucket:
+                                        args["bucket"] = bucket.lower()
+                                    startdate = bckt.get("startdate", None)
+                                    if startdate:
+                                        args["startdate"] = parseLocalizedDateTime(
+                                            startdate
+                                        )
+                                    enddate = bckt.get("enddate", None)
+                                    if enddate:
+                                        args["enddate"] = parseLocalizedDateTime(
+                                            enddate
+                                        )
+                                    for key, val in bckt.items():
+                                        if (
+                                            key
+                                            not in (
+                                                "id",
+                                                "item",
+                                                "location",
+                                                "customer",
+                                                "bucket",
+                                                "startdate",
+                                                "enddate",
+                                                "forecast",
+                                            )
+                                            and val is not None
+                                            and val != ""
+                                        ):
+                                            args[key] = float(val)
+                                    ccAPPS.setForecast(**args)
+                                    replan = True
+                                except Exception as e:
+                                    errors.append("Error processing %s" % e)
+                    else:
+                        # Message format #2
+                        item = None
+                        location = None
+                        customer = None
+                        # check if forecast exists
+                        if data.get("forecast", None):
+                            try:
+                                fcst = ccAPPS.demand_forecast(
+                                    name=bckt.get("forecast"), action="C"
+                                )
+                            except Exception:
+                                errors.append(
+                                    "Forecast not found: %s" % bckt["forecast"]
+                                )
+                            item = fcst.item
+                            location = fcst.location
+                            customer = fcst.customer
+                        # else Pick up item, customer and location
+                        else:
+                            if data.get("item", None):
+                                try:
+                                    item = ccAPPS.item(name=data["item"], action="C")
+                                except Exception:
+                                    errors.append("Item not found: %s" % data["item"])
+                            if data.get("location", None):
+                                try:
+                                    location = ccAPPS.location(
+                                        name=data["location"], action="C"
+                                    )
+                                except Exception:
+                                    errors.append(
+                                        "Location not found: %s" % data["location"]
+                                    )
+                            if data.get("customer", None):
+                                try:
+                                    customer = ccAPPS.customer(
+                                        name=data["customer"], action="C"
+                                    )
+                                except Exception:
+                                    errors.append(
+                                        "Customer not found: %s" % data["customer"]
+                                    )
+
+                        # Update forecast method
+                        method = data.get("forecastmethod", None)
+                        if method and self.scope["user"].has_perm(
+                            "forecast.change_forecast"
+                        ):
+                            try:
+                                if item and location and customer:
+                                    for f in item.demands:
+                                        if (
+                                            isinstance(f, ccAPPS.demand_forecastbucket)
+                                            and f.location
+                                            and f.location.name == location.name
+                                            and f.customer == customer
+                                            and f.owner.methods != method
+                                        ):
+                                            f.owner.methods = method
+                                            replan = True
+                                            await self.updateForecastMethod(f.owner)
+                                        elif (
+                                            isinstance(f, ccAPPS.demand_forecast)
+                                            and f.location
+                                            and f.location.name == location.name
+                                            and f.customer == customer
+                                            and f.methods != method
+                                        ):
+                                            f.methods = method
+                                            replan = True
+                                            await self.updateForecastMethod(f)
+                                else:
+                                    if not item:
+                                        errors.append(
+                                            "Item not found: %s" % data["item"]
+                                        )
+                                    if not location:
+                                        errors.append(
+                                            "Location not found: %s" % data["location"]
+                                        )
+                                    if not customer:
+                                        errors.append(
+                                            "Customer not found: %s" % data["customer"]
+                                        )
+                            except Exception:
+                                errors.append("Exception updating forecast method")
+
+                        # Update forecast values
+                        if (
+                            "buckets" in data
+                            and item
+                            and location
+                            and customer
+                            and self.scope["user"].has_perm("forecast.change_forecast")
+                        ):
+                            for bckt in data["buckets"]:
+                                try:
+                                    args = {
+                                        "item": item,
+                                        "location": location,
+                                        "customer": customer,
+                                    }
+                                    bucket = bckt.get("bucket", None)
+                                    if bucket:
+                                        args["bucket"] = bucket.lower()
+                                    startdate = bckt.get("startdate", None)
+                                    if startdate:
+                                        args["startdate"] = parseLocalizedDateTime(
+                                            startdate
+                                        )
+                                    enddate = bckt.get("enddate", None)
+                                    if enddate:
+                                        args["enddate"] = parseLocalizedDateTime(
+                                            enddate
+                                        )
+                                    for key, val in bckt.items():
+                                        if (
+                                            key
+                                            not in (
+                                                "id",
+                                                "bucket",
+                                                "startdate",
+                                                "enddate",
+                                            )
+                                            and val is not None
+                                            and val != ""
+                                        ):
+                                            args[key] = float(val)
+                                            if key != "forecastoverride":
+                                                replan = True
+                                    ccAPPS.setForecast(**args)
+                                except Exception as e:
+                                    errors.append("Error processing %s" % e)
+
+                        if replan:
+                            try:
+                                await self.replan(item, location)
+                            except Exception:
+                                errors.append(b"Exception during replanning")
+
+                finally:
+                    ccAPPS.cache.flush()
+                    ccAPPS.cache.write_immediately = True
+
+                # Save a new comment
+                if (
+                    "commenttype" in data
+                    and "comment" in data
+                    and self.scope["user"].has_perm("common.add_comment")
+                ):
+                    try:
+                        await self.updateComment(
+                            data["commenttype"],
+                            data["comment"],
+                            item,
+                            location,
+                            customer,
+                        )
+                    except Exception:
+                        errors.append("Exception entering comment")
+
+                # Reply
+                await asyncio.sleep(0)  # Allow event loop to clear pending events
+                self.scope["response_headers"].append(
+                    (b"Content-Type", b"application/json")
+                )
+                if errors:
+                    answer = {"errors": errors}
+                else:
+                    answer = {"OK": 1}
+                await self.send_response(
+                    500 if errors else 200,
+                    json.dumps(answer).encode(),
+                    headers=self.scope["response_headers"],
+                )
+            except Exception as e:
+                errors.append(str(e).encode())
+                await self.send_response(
+                    500,
+                    json.dumps({"errors": errors}).encode(),
+                    headers=self.scope["response_headers"],
+                )
+
+
+class FlushService(AsyncHttpConsumer):
+    async def handle(self, body):
+        self.scope["response_headers"].append((b"Content-Type", b"text/html"))
+        try:
+            if self.scope["method"] != "POST":
+                await self.send_response(
+                    401,
+                    b"Only POST requests allowed",
+                    headers=self.scope["response_headers"],
+                )
+                return
+            if self.scope["path"] == "/flush/manual/":
+                async with lock:
+                    ccAPPS.cache.write_immediately = False
+                    if settings.CACHE_MAXIMUM > 300:
+                        ccAPPS.cache.maximum = settings.CACHE_MAXIMUM
+            elif self.scope["path"] == "/flush/auto/":
+                async with lock:
+                    ccAPPS.cache.flush()
+                    ccAPPS.cache.write_immediately = True
+                    if ccAPPS.cache.maximum > 300:
+                        ccAPPS.cache.maximum = 300
+            else:
+                await self.send_response(
+                    404,
+                    b"Only supported modes are 'manual' and 'auto'",
+                    headers=self.scope["response_headers"],
+                )
+            await self.send_response(200, b"OK", headers=self.scope["response_headers"])
+        except Exception as e:
+            await self.send_response(
+                500, b"Error flushing forecast", headers=self.scope["response_headers"]
+            )

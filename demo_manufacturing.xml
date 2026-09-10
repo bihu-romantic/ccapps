@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <name>Furniture Factory Manufacturing Demo</name>
+  <description>
+    Full manufacturing scenario with BOM, resources, calendars and demands.
+    Wooden materials → sawing/grinding → assembly → varnishing → finished goods.
+  </description>
+  <current>2026-05-01T00:00:00</current>
+
+  <!-- ===== CALENDARS ===== -->
+  <calendars>
+    <calendar name="Working Days">
+      <default>1</default>
+      <buckets>
+        <bucket start="2026-05-01T00:00:00" end="2027-12-31T00:00:00" days="62" starttime="PT28800S" endtime="PT61200S"/>
+        <!-- Summer shutdown 2026: Aug 1-15, override with value 0 -->
+        <bucket priority="99" start="2026-08-01T00:00:00" end="2026-08-15T00:00:00" days="127" starttime="PT0S" endtime="PT86399S">
+          <value>0</value>
+        </bucket>
+      </buckets>
+    </calendar>
+  </calendars>
+
+  <!-- ===== LOCATIONS ===== -->
+  <locations>
+    <location name="factory">
+      <available name="Working Days"/>
+    </location>
+  </locations>
+
+  <!-- ===== SUPPLIERS ===== -->
+  <suppliers>
+    <supplier name="Wood Supplier Ltd"/>
+    <supplier name="Hardware Supplier Inc"/>
+    <supplier name="Cushion Supplier Co"/>
+  </suppliers>
+
+  <!-- ===== ITEMS ===== -->
+  <items>
+    <item name="wooden beam"><cost>10</cost></item>
+    <item name="wooden panel"><cost>35</cost></item>
+    <item name="screws"><cost>1</cost></item>
+    <item name="cushion"><cost>20</cost></item>
+    <item name="table leg"><cost>18</cost></item>
+    <item name="chair leg"><cost>15</cost></item>
+    <item name="grinded wooden panel"><cost>40</cost></item>
+    <item name="chair"><cost>150</cost></item>
+    <item name="round table"><cost>300</cost></item>
+    <item name="square table"><cost>200</cost></item>
+    <item name="varnished chair"><cost>170</cost></item>
+  </items>
+
+  <!-- ===== ITEM SUPPLIERS (purchasing) ===== -->
+  <itemsuppliers>
+    <itemsupplier>
+      <supplier name="Wood Supplier Ltd"/>
+      <item name="wooden beam"/>
+      <location name="factory"/>
+      <leadtime>P14D</leadtime>
+      <size_minimum>10</size_minimum>
+    </itemsupplier>
+    <itemsupplier>
+      <supplier name="Wood Supplier Ltd"/>
+      <item name="wooden panel"/>
+      <location name="factory"/>
+      <leadtime>P10D</leadtime>
+      <size_minimum>5</size_minimum>
+    </itemsupplier>
+    <itemsupplier>
+      <supplier name="Hardware Supplier Inc"/>
+      <item name="screws"/>
+      <location name="factory"/>
+      <leadtime>P5D</leadtime>
+      <size_minimum>100</size_minimum>
+    </itemsupplier>
+    <itemsupplier>
+      <supplier name="Cushion Supplier Co"/>
+      <item name="cushion"/>
+      <location name="factory"/>
+      <leadtime>P7D</leadtime>
+      <size_minimum>20</size_minimum>
+    </itemsupplier>
+  </itemsuppliers>
+
+  <!-- ===== RESOURCES ===== -->
+  <resources>
+    <resource name="Saw machine">
+      <location name="factory"/>
+      <available name="Working Days"/>
+      <maximum>1</maximum>
+    </resource>
+    <resource name="Grinder machine">
+      <location name="factory"/>
+      <available name="Working Days"/>
+      <maximum>1</maximum>
+    </resource>
+    <resource name="Assembly line">
+      <location name="factory"/>
+      <available name="Working Days"/>
+      <maximum>2</maximum>
+    </resource>
+    <resource name="Varnish station">
+      <location name="factory"/>
+      <available name="Working Days"/>
+      <maximum>1</maximum>
+    </resource>
+  </resources>
+
+  <!-- ===== OPERATIONS ===== -->
+  <operations>
+    <!-- Saw table leg: consumes wooden beam, produces table leg -->
+    <operation name="Saw table leg" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="table leg"/>
+      <duration>P0D</duration>
+      <duration_per>PT1200S</duration_per>  <!-- 20 min per leg -->
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Saw machine"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="wooden beam"/>
+          <quantity>0.5</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="table leg"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Saw chair leg" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="chair leg"/>
+      <duration>P0D</duration>
+      <duration_per>PT900S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Saw machine"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="wooden beam"/>
+          <quantity>0.3</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="chair leg"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Grind wooden panel" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="grinded wooden panel"/>
+      <duration>P0D</duration>
+      <duration_per>PT3600S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Grinder machine"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="wooden panel"/>
+          <quantity>1</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="grinded wooden panel"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Assemble chair" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="chair"/>
+      <duration>P0D</duration>
+      <duration_per>PT3600S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Assembly line"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="chair leg"/>
+          <quantity>4</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="cushion"/>
+          <quantity>1</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="screws"/>
+          <quantity>8</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="chair"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Assemble round table" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="round table"/>
+      <duration>P0D</duration>
+      <duration_per>PT7200S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Assembly line"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="table leg"/>
+          <quantity>4</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="grinded wooden panel"/>
+          <quantity>1</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="screws"/>
+          <quantity>12</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="round table"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Assemble square table" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <item name="square table"/>
+      <duration>P0D</duration>
+      <duration_per>PT5400S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Assembly line"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="table leg"/>
+          <quantity>4</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="grinded wooden panel"/>
+          <quantity>1</quantity>
+        </flow>
+        <flow xsi:type="flow_start">
+          <item name="screws"/>
+          <quantity>12</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="square table"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <!-- Varnish chair routing: apply varnish → drying -->
+    <operation name="Varnish chair" xsi:type="operation_routing">
+      <location name="factory"/>
+      <item name="varnished chair"/>
+      <priority>1</priority>
+      <size_minimum>1</size_minimum>
+      <suboperations>
+        <suboperation priority="1">
+          <operation name="Apply varnish for chair"/>
+        </suboperation>
+        <suboperation priority="2">
+          <operation name="Drying varnish for chair"/>
+        </suboperation>
+      </suboperations>
+      <flows>
+        <flow xsi:type="flow_start">
+          <item name="chair"/>
+          <quantity>1</quantity>
+        </flow>
+        <flow xsi:type="flow_end">
+          <item name="varnished chair"/>
+          <quantity>1</quantity>
+        </flow>
+      </flows>
+    </operation>
+
+    <operation name="Apply varnish for chair" xsi:type="operation_time_per">
+      <location name="factory"/>
+      <duration>P0D</duration>
+      <duration_per>PT1800S</duration_per>
+      <size_minimum>1</size_minimum>
+      <loads>
+        <load xsi:type="load">
+          <resource name="Varnish station"/>
+          <quantity>1</quantity>
+        </load>
+      </loads>
+    </operation>
+
+    <operation name="Drying varnish for chair" xsi:type="operation_fixed_time">
+      <location name="factory"/>
+      <duration>PT21600S</duration>
+      <size_minimum>1</size_minimum>
+    </operation>
+  </operations>
+
+  <!-- ===== BUFFERS (initial inventory) ===== -->
+  <buffers>
+    <buffer name="wooden beam @ factory">
+      <item name="wooden beam"/>
+      <location name="factory"/>
+      <onhand>200</onhand>
+    </buffer>
+    <buffer name="wooden panel @ factory">
+      <item name="wooden panel"/>
+      <location name="factory"/>
+      <onhand>50</onhand>
+    </buffer>
+    <buffer name="screws @ factory">
+      <item name="screws"/>
+      <location name="factory"/>
+      <onhand>500</onhand>
+    </buffer>
+    <buffer name="cushion @ factory">
+      <item name="cushion"/>
+      <location name="factory"/>
+      <onhand>40</onhand>
+    </buffer>
+    <buffer name="table leg @ factory">
+      <item name="table leg"/>
+      <location name="factory"/>
+      <onhand>20</onhand>
+    </buffer>
+    <buffer name="chair leg @ factory">
+      <item name="chair leg"/>
+      <location name="factory"/>
+      <onhand>16</onhand>
+    </buffer>
+  </buffers>
+
+  <!-- ===== DEMANDS ===== -->
+  <demands>
+    <!-- Customer orders -->
+    <demand name="Order #1001 - Chairs">
+      <item name="chair"/>
+      <location name="factory"/>
+      <quantity>10</quantity>
+      <due>2026-06-15T00:00:00</due>
+      <priority>10</priority>
+    </demand>
+    <demand name="Order #1002 - Chairs">
+      <item name="chair"/>
+      <location name="factory"/>
+      <quantity>5</quantity>
+      <due>2026-06-20T00:00:00</due>
+      <priority>10</priority>
+    </demand>
+    <demand name="Order #1003 - Round Tables">
+      <item name="round table"/>
+      <location name="factory"/>
+      <quantity>3</quantity>
+      <due>2026-06-18T00:00:00</due>
+      <priority>15</priority>
+    </demand>
+    <demand name="Order #1004 - Square Tables">
+      <item name="square table"/>
+      <location name="factory"/>
+      <quantity>4</quantity>
+      <due>2026-06-25T00:00:00</due>
+      <priority>10</priority>
+    </demand>
+    <demand name="Order #1005 - Varnished Chairs">
+      <item name="varnished chair"/>
+      <location name="factory"/>
+      <quantity>8</quantity>
+      <due>2026-07-10T00:00:00</due>
+      <priority>20</priority>
+    </demand>
+
+    <!-- Forecast demand -->
+    <demand name="FC Chair Jul">
+      <item name="chair"/>
+      <location name="factory"/>
+      <quantity>20</quantity>
+      <due>2026-07-15T00:00:00</due>
+      <priority>5</priority>
+    </demand>
+    <demand name="FC Round Table Jul">
+      <item name="round table"/>
+      <location name="factory"/>
+      <quantity>6</quantity>
+      <due>2026-07-15T00:00:00</due>
+      <priority>5</priority>
+    </demand>
+    <demand name="FC Varnished Chair Jul">
+      <item name="varnished chair"/>
+      <location name="factory"/>
+      <quantity>15</quantity>
+      <due>2026-07-20T00:00:00</due>
+      <priority>5</priority>
+    </demand>
+  </demands>
+
+  <!-- ===== RUN PLANNING SOLVERS ===== -->
+<?python
+print("=" * 70)
+print("FURNITURE FACTORY MANUFACTURING DEMO")
+print("=" * 70)
+
+print("\nMODEL SUMMARY:")
+print(f"  Items: {len(list(frepple.items()))}")
+print(f"  Operations: {len(list(frepple.operations()))}")
+print(f"  Resources: {len(list(frepple.resources()))}")
+print(f"  Demands: {len(list(frepple.demands()))}")
+print(f"  Buffers: {len(list(frepple.buffers()))}")
+
+# Step 1: Unconstrained plan
+print("\n" + "=" * 70)
+print("STEP 1: Unconstrained MRP (ignore resource limits)")
+print("=" * 70)
+frepple.solver_mrp(plantype=2, constraints=0, loglevel=2).solve()
+frepple.saveplan("demo_unconstrained.xml")
+
+# Step 2: Constrained plan
+print("\n" + "=" * 70)
+print("STEP 2: Constrained MRP (respect resource limits)")
+print("=" * 70)
+frepple.solver_mrp(plantype=1, constraints=15, loglevel=2).solve()
+frepple.saveplan("demo_constrained.xml")
+
+# Report results
+print("\n" + "=" * 70)
+print("PLAN RESULTS (Constrained)")
+print("=" * 70)
+
+plans = sorted(frepple.operationplans(), key=lambda p: (p.start, p.operation.name))
+
+print(f"\nTotal operation plans generated: {len(plans)}")
+for cat, label in [
+    ("OperationTimePer", "Manufacturing (time_per)"),
+    ("OperationFixedTime", "Manufacturing (fixed_time)"),
+    ("OperationRouting", "Manufacturing (routing)"),
+    ("OperationItemSupplier", "Purchase orders"),
+]:
+    count = sum(1 for p in plans if cat in str(type(p)))
+    if count > 0:
+        print(f"  {label}: {count}")
+
+print(f"\n{'Type':<25} {'Operation':<30} {'Qty':>10} {'Start':>22} {'End':>22}")
+print("-" * 115)
+for op_plan in plans[:40]:
+    qty = op_plan.quantity
+    if qty > 0:
+        t = type(op_plan).__name__.replace("OperationPlan","").replace("_"," ")
+        print(f"{t:<25} {op_plan.operation.name:<30} {qty:>10.1f} {str(op_plan.start):>22} {str(op_plan.end):>22}")
+
+# Demand fulfillment
+print(f"\n{'Demand':<40} {'Ordered':>8} {'Planned':>8} {'Status'}")
+print("-" * 70)
+for d in sorted(frepple.demands(), key=lambda x: x.name):
+    planned = d.planned_quantity
+    short = max(0, d.quantity - planned)
+    status = "OK" if short <= 0 else f"SHORT {short:.0f}"
+    print(f"{d.name:<40} {d.quantity:>8.0f} {planned:>8.0f} {status}")
+
+# Resource load
+print(f"\n{'Resource':<25} {'Total Load (hours)':>20} {'Utilization':>15}")
+print("-" * 62)
+for res in sorted(frepple.resources(), key=lambda r: r.name):
+    total_load = sum(lp.quantity for lp in res.loadplans)
+    if total_load > 0:
+        # Calculate utilization from start of plan to end
+        print(f"{res.name:<25} {total_load / 3600:>20.1f}")
+
+print("\nDone! Plans exported to demo_unconstrained.xml and demo_constrained.xml")
+?>
+</plan>

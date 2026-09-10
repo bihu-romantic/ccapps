@@ -1,0 +1,125 @@
+{
+  "system": {
+    "instance_id": "plant-a-node-1",
+    "log_level": "INFO",
+    "log_dir": "logs"
+  },
+  "acquisition": {
+    "poll_interval_ms": 1000,
+    "read_timeout_ms": 2000,
+    "retry_times": 3,
+    "buffer_seconds": 3600.0,
+    "cleansing": {
+      "range_check": true,
+      "dead_value_check": true,
+      "dead_value_window": 30,
+      "spike_check": true,
+      "spike_sigma": 5.0
+    }
+  },
+  "features": {
+    "window_seconds": 10.0,
+    "enable_spectrum": true,
+    "envelope_analysis": true
+  },
+  "condition": {
+    "novelty_threshold": 3.5,
+    "steady_cv_threshold": 0.05,
+    "steady_min_dwell_s": 120.0,
+    "steady_min_samples": 20,
+    "debounce_count": 3,
+    "max_conditions": 32
+  },
+  "health": {
+    "baseline_min_samples": 50,
+    "ewma_alpha": 0.2,
+    "ewma_sigma_k": 3.0,
+    "weights": {
+      "vibration": 0.35,
+      "temperature": 0.25,
+      "current": 0.2,
+      "efficiency": 0.2
+    }
+  },
+  "optimization": {
+    "algorithm": "auto",
+    "max_iterations": 60,
+    "surrogate_min_samples": 12,
+    "max_changed_params": 3,
+    "min_confidence": 0.7,
+    "objective_weights": {
+      "energy": 0.45,
+      "throughput": 0.3,
+      "health_cost": 0.25
+    }
+  },
+  "control": {
+    "mode": "observe",
+    "max_delta_ratio": 0.05,
+    "min_dispatch_interval_s": 600.0,
+    "max_dispatch_per_hour": 4,
+    "readback_tolerance": 0.02,
+    "auto_rollback": true,
+    "block_when_grade": "degraded",
+    "approval_required_above": "warning"
+  },
+  "feedback": {
+    "before_seconds": 600.0,
+    "after_seconds": 600.0,
+    "settle_seconds": 120.0,
+    "t_threshold": 2.0
+  },
+  "storage": {
+    "root": "data/store",
+    "retain_days": 30,
+    "audit_file": "data/store/audit.jsonl"
+  },
+  "api": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8780
+  },
+  "devices": [
+    {
+      "device_id": "FAN-01",
+      "profile": "fan",
+      "scenario": "fan_vfd",
+      "driver": {
+        "type": "modbus_tcp",
+        "options": {
+          "host": "10.1.2.30",
+          "port": 502,
+          "unit_id": 1,
+          "timeout_ms": 2000
+        }
+      },
+      "control": {
+        "type": "plc",
+        "options": {
+          "readback_tolerance": 0.02,
+          "readback_timeout_s": 10.0
+        }
+      }
+    },
+    {
+      "device_id": "AC-01",
+      "profile": "compressor",
+      "scenario": "compressor_band",
+      "driver": {
+        "type": "opcua",
+        "options": {
+          "endpoint": "opc.tcp://10.1.2.41:4840",
+          "use_subscription": true,
+          "publishing_interval_ms": 1000
+        }
+      },
+      "control": {
+        "type": "dcs",
+        "options": {
+          "loop_status_point": "loop_mode",
+          "loop_allow_values": [2.0, 3.0]
+        }
+      }
+    }
+  ]
+}

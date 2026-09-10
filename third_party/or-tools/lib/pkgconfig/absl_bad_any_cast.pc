@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_bad_any_cast
+Description: Abseil bad_any_cast library
+URL: https://abseil.io/
+Version: 20250814
+Requires:
+Libs: -L${libdir}  
+Cflags: -I${includedir}

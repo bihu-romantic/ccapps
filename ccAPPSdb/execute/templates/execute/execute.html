@@ -1,0 +1,281 @@
+{% extends "admin/base_site_grid.html" %}
+{% load i18n %}
+{% block extrahead %}{{block.super}}
+<script>
+  var refresh = null;
+  var lastcompleted = -1;
+
+  function extraPreference() {
+    return {
+       "height": Math.round($("#gbox_grid").height() - 48),
+       "refresh": (refresh !== null),
+       "widgets": widget.getConfig()
+       };
+  }
+
+  function updateRefresh()
+  {
+    if (refresh !== null)
+    {
+       // Disable the refresh which is currently active
+       clearInterval(refresh);
+       $('#autorefresh span').removeClass("fa-pause").addClass("fa-refresh");
+       refresh = null;
+    }
+    else
+    {
+      // Enable the refresh which is currently inactive
+      refresh = setInterval(function() {
+        if (typeof gridTooltipList != 'undefined') {
+          gridTooltipList.forEach(function (t) {
+            try{
+              t.dispose();
+            }
+            catch {};
+          })
+        }
+        $("#grid").trigger("reloadGrid",[{current:true}]);
+        }, 5000);
+      $('#autorefresh span').removeClass("fa-refresh").addClass("fa-pause");
+    }
+    grid.saveColumnConfiguration();
+  }
+
+  function status (cellvalue, options, rowdata) {
+    if (cellvalue == 'Failed')
+      return "<span class='bg-danger' style='display:block; margin:-5px; line-height:32px'>{% trans 'failed'|capfirst %}</span>";
+    else if (cellvalue == 'Waiting')
+      return "{% trans 'waiting'|capfirst|force_escape %}&nbsp;&nbsp;<button class='btn btn-primary' style='padding:0 0.5em 0 0.5em; font-size:66%' onclick='cancelTask(" + rowdata['id'] + ")'>{% filter force_escape %}{% trans 'Cancel' %}{% endfilter %}</button>";
+    else if (cellvalue == 'Done')
+      return "{% trans 'done'|capfirst %}";
+    else if (cellvalue == 'Canceled')
+      return "{% trans 'canceled'|capfirst %}";
+    else if (rowdata.cancelable == "True")
+      return cellvalue + "&nbsp;&nbsp;<button class='btn btn-primary' style='padding:0 0.5em 0 0.5em; font-size:66%' onclick='cancelTask(" + rowdata['id'] + ")'>{% filter force_escape %}{% trans 'Cancel' %}{% endfilter %}</button>";
+    else
+      return cellvalue;
+  }
+
+  function deletebutton(url) {
+    $.ajax({
+        url: url,
+        type: "POST",
+        error: ajaxerror
+      });
+  }
+
+  function logbutton (cellvalue, options, rowdata) {
+    if (typeof(cellvalue) !== 'undefined') {
+      var taskid = rowdata['id'];
+      var taskname = rowdata['name'];
+      if (taskname == "backup")
+        return '<a class="btn btn-primary" style="padding:0 0.5em 0 0.5em; font-size:66%" href="{{request.prefix}}/execute/logdownload/'
+          + taskid + '/">{% trans "download"|capfirst|force_escape %}</a>&nbsp;'
+          + '<a class="btn btn-primary" style="padding:0 0.5em 0 0.5em; font-size:66%" onclick="deletebutton(\'{{request.prefix}}/execute/logdelete/'
+          + taskid + '/\')">{% trans "Delete"|capfirst|force_escape %}</a>';
+      else
+        return '<a class="btn btn-primary" style="padding:0 0.5em 0 0.5em; font-size:66%" href="{{request.prefix}}/execute/logccAPPS/'+taskid+'/">{% trans "view"|capfirst|force_escape %}</a>';
+    } else {
+      return "";
+    }
+  }
+
+  function cancelTask(id) {
+    $.jgrid.hideModal("#searchmodfbox_grid");
+    $("#popup").html('<div class="modal-dialog">'+
+        '<div class="modal-content">'+
+          '<div class="modal-header" style="border-top-left-radius: inherit; border-top-right-radius: inherit">'+
+            '<h5 class="modal-title">'+gettext('Cancel task')+'</h5>'+
+            '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>'+
+          '</div>'+
+          '<div class="modal-body"><p>'+
+          interpolate(gettext('You are about to cancel task %s'), [id]) +
+          '</p></div>'+
+          '<div class="modal-footer justify-content-between">'+
+            '<input type="submit" id="cancelbutton" role="button" class="btn btn-gray" data-bs-dismiss="modal" value="'+gettext('close')+'">'+
+            '<input type="submit" id="confirmbutton" role="button" class="btn btn-danger" value="'+gettext('Cancel task')+'">'+
+          '</div>'+
+        '</div>'+
+    '</div>' );
+    showModal('popup');
+    $('#confirmbutton').on('click', function() {
+        $.ajax({
+          url: "{{request.prefix}}/execute/cancel/" + id + "/",
+          type: "POST",
+          success: function () {
+            hideModal('popup');
+          },
+          error: function (result, stat, errorThrown) {
+            if (result.status == 401) {
+              location.reload();
+              return;
+            }
+            $('#popup .modal-body p').html(result.responseText);
+            $('#popup .modal-title').html(gettext("Error"));
+            $('#confirmbutton').prop("disabled", true).hide();
+            }
+        })
+      })
+  }
+
+  $(function() {
+    if(location.hash != null && location.hash != "") {      
+        $("#commandlist .collapse.show").removeClass('show');
+        $("#commandlist").find('.collapse[data-task="' + location.hash + '"]').addClass("show");
+    }
+
+    widget.init(grid.saveColumnConfiguration);
+    
+    $('#commandlist .collapse')
+      .on("shown.bs.collapse", grid.saveColumnConfiguration)
+      .on("hidden.bs.collapse", grid.saveColumnConfiguration);
+
+    {% if not "refresh" in preferences or preferences.refresh %}
+    // Refresh the grid every 5 seconds
+    refresh = setInterval(function() {
+      if (typeof gridTooltipList != 'undefined') {
+        gridTooltipList.forEach(function (t) {
+          try{
+            t.dispose();
+          }
+          catch {};
+        })
+      }
+      $("#grid").trigger("reloadGrid",[{current:true}]);
+      }, 5000);{% endif %}
+
+    $("#resize-handle").css({'display':'inline-block'});
+    $("#content-main").resizable({
+      handleSelector: "#resize-handle",
+      resizeWidth: false,
+      resizeHeight: true,
+      onDrag: function (e, $el, opt) {$("#grid").setGridHeight($('#content-main').height()-52);},
+      onDragEnd: function (e, $el, opt) {grid.saveColumnConfiguration();}
+    });
+
+  });
+  var models = {% getModelDependencies %};      
+</script>
+
+<style>
+#scenarios td {
+  padding: 5px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+#grid tr td {
+  line-height: 22px;
+}
+#grid_frozen tr td {
+  line-height: 22px;
+}
+
+.chck_all, .chck_entity, .empty_all, .empty_entity {
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.toast {
+  visibility: hidden;
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+}
+
+.toast.show {
+  visibility: visible;
+  -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+  animation: fadein 0.5s, fadeout 0.5s 2.5s;
+}
+
+@-webkit-keyframes fadein {
+  from {opacity: 0}
+  to {opacity: 1}
+}
+
+@keyframes fadein {
+  from {opacity: 0}
+  to {opacity: 1}
+}
+
+@-webkit-keyframes fadeout {
+  from {opacity: 1}
+  to {opacity: 0}
+}
+
+@keyframes fadeout {
+  from {opacity: 1;}
+  to {opacity: 0;}
+}
+
+</style>
+{% endblock %}
+
+{% block extra_grid %}
+loadComplete : function(data) {
+ $('#curerror').html("");
+ if (data.lastcompleted != lastcompleted) {
+   if (lastcompleted != -1)
+     location.reload();
+   lastcompleted = data.lastcompleted;
+ }
+},
+{% endblock %}
+
+{% block actions %}
+	<button class="btn btn-sm btn-primary" id="autorefresh" onclick="updateRefresh()" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'autorefresh'|capfirst|force_escape %}" >
+	   <span class="fa {% if "refresh" in preferences and not preferences.refresh %} fa-refresh{% else %} fa-pause{% endif %}"></span>
+	</button>
+{{block.super}}
+{% endblock %}
+{% block after_table %}
+<div class="row" id="tasks">
+<div class="col">
+  <h1>{% trans "launch tasks"|capfirst %}</h1>
+</div></div>
+<div class="row mb-2" id="commandlist">
+	{% if perms.auth.auth.generate_plan or perms.auth.copy_scenario or perms.auth.release_scenario or perms.auth.promote_scenario or perms.auth.run_db %}
+	<!--User has some permissions -->
+    <div class="col-lg-6 col-12 widget-list" data-widget="column1">
+    {% for cmd in commandlist1 %}
+      <div class="card mb-2 widget" data-widget="{{cmd.command.name}}">
+        <div class="card-header d-flex align-items-center" id="Heading1-{{ forloop.counter }}" data-bs-toggle="collapse" data-bs-target="#Accord1-{{ forloop.counter }}" aria-expanded="true" aria-controls="Accord1-{{ forloop.counter }}">
+          <h5 class="fs-5 me-auto card-title">
+              {{ cmd.command.title|capfirst }}
+          </h5>          
+          {% if cmd.command.help_url %}
+            <span class='fa fa-question align-middle w-auto me-2' onclick="window.open('{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/{{ cmd.command.help_url }}')"></span>
+          {% endif %}
+          <span class="fa fa-arrows align-middle w-auto widget-handle"></span>
+        </div>
+        <div id="Accord1-{{ forloop.counter }}" data-task="#{{ cmd.command.name }}" data-bs-parent="#tasks" class="card-body collapse{% if not cmd.options.collapsed %} show{% endif %}" aria-labelledby="Heading1-{{ forloop.counter }}">
+            {{ cmd.html }}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+    <div class="col-lg-6 col-12 widget-list" data-widget="column2">
+    {% for cmd in commandlist2 %}
+      <div class="card mb-2 widget" data-widget="{{cmd.command.name}}">
+        <div class="card-header d-flex align-items-center" id="Heading2-{{ forloop.counter }}" data-bs-toggle="collapse" data-bs-target="#Accord2-{{ forloop.counter }}" aria-expanded="true" aria-controls="Accord2-{{ forloop.counter }}">
+          <h5 class="fs-5 me-auto card-title">
+              {{ cmd.command.title|capfirst }}
+          </h5>          
+          {% if cmd.command.help_url %}
+            <span class='fa fa-question align-middle w-auto me-2' onclick="window.open('{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/{{ cmd.command.help_url }}')"></span>
+          {% endif %}
+          <span class="fa fa-arrows align-middle w-auto widget-handle"></span>
+        </div>
+        <div id="Accord2-{{ forloop.counter }}" data-task="#{{ cmd.command.name }}" data-bs-parent="#tasks" class="card-body collapse{% if not cmd.options.collapsed %} show{% endif %}" aria-labelledby="Heading2-{{ forloop.counter }}">            
+          {{ cmd.html }}
+        </div>
+      </div>
+    {% endfor %}
+    </div>    
+	{% else %}
+  <div class="col-12">
+	{% trans "Sorry, You don't have any execute permissions..." %}
+  </div>
+  {% endif %}
+	</div> <!-- end row -->
+{% endblock %}

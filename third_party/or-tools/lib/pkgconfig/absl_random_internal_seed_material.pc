@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_random_internal_seed_material
+Description: Abseil random_internal_seed_material library
+URL: https://abseil.io/
+Version: 20250814
+Requires: absl_config = 20250814, absl_optional = 20250814, absl_random_internal_fast_uniform_bits = 20250814, absl_raw_logging_internal = 20250814, absl_span = 20250814, absl_strings = 20250814
+Libs: -L${libdir}  -labsl_random_internal_seed_material 
+Cflags: -I${includedir} -DNOMINMAX

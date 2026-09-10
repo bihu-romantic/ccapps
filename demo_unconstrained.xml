@@ -1,0 +1,78 @@
+BUFFER	chair @ factory	2026-06-15T00:00:00	10	10
+BUFFER	chair @ factory	2026-06-15T00:00:00	-10	0
+BUFFER	chair @ factory	2026-06-20T00:00:00	5	5
+BUFFER	chair @ factory	2026-06-20T00:00:00	-5	0
+BUFFER	chair @ factory	2026-07-09T18:00:00	8	8
+BUFFER	chair @ factory	2026-07-15T00:00:00	12	20
+BUFFER	chair @ factory	2026-07-15T00:00:00	-20	0
+BUFFER	chair @ factory	2026-07-19T18:00:00	15	15
+BUFFER	chair leg @ factory	1971-01-01T00:00:00	16	16
+BUFFER	chair leg @ factory	2026-06-14T14:00:00	40	56
+BUFFER	chair leg @ factory	2026-06-19T19:00:00	20	76
+BUFFER	chair leg @ factory	2026-07-14T03:00:00	48	124
+BUFFER	cushion @ factory	1971-01-01T00:00:00	40	40
+BUFFER	cushion @ factory	2026-06-14T14:00:00	10	50
+BUFFER	cushion @ factory	2026-06-19T19:00:00	5	55
+BUFFER	cushion @ factory	2026-07-14T03:00:00	12	67
+BUFFER	grinded wooden panel @ factory	2026-06-17T18:00:00	3	3
+BUFFER	grinded wooden panel @ factory	2026-06-24T18:00:00	4	7
+BUFFER	grinded wooden panel @ factory	2026-07-14T03:00:00	6	13
+BUFFER	round table @ factory	2026-06-18T00:00:00	3	3
+BUFFER	round table @ factory	2026-06-18T00:00:00	-3	0
+BUFFER	round table @ factory	2026-07-15T00:00:00	6	6
+BUFFER	round table @ factory	2026-07-15T00:00:00	-6	0
+BUFFER	screws @ factory	1971-01-01T00:00:00	500	500
+BUFFER	screws @ factory	2026-06-14T14:00:00	80	580
+BUFFER	screws @ factory	2026-06-17T18:00:00	36	616
+BUFFER	screws @ factory	2026-06-19T19:00:00	40	656
+BUFFER	screws @ factory	2026-06-24T18:00:00	48	704
+BUFFER	screws @ factory	2026-07-14T03:00:00	96	800
+BUFFER	screws @ factory	2026-07-14T03:00:00	72	872
+BUFFER	square table @ factory	2026-06-25T00:00:00	4	4
+BUFFER	square table @ factory	2026-06-25T00:00:00	-4	0
+BUFFER	table leg @ factory	1971-01-01T00:00:00	20	20
+BUFFER	table leg @ factory	2026-06-17T18:00:00	12	32
+BUFFER	table leg @ factory	2026-06-24T18:00:00	16	48
+BUFFER	table leg @ factory	2026-07-14T03:00:00	24	72
+BUFFER	varnished chair @ factory	2026-07-10T00:00:00	8	8
+BUFFER	varnished chair @ factory	2026-07-10T00:00:00	-8	0
+BUFFER	varnished chair @ factory	2026-07-20T00:00:00	15	15
+BUFFER	varnished chair @ factory	2026-07-20T00:00:00	-15	0
+BUFFER	wooden beam @ factory	1971-01-01T00:00:00	200	200
+BUFFER	wooden panel @ factory	1971-01-01T00:00:00	50	50
+DEMAND	FC Chair Jul	2026-07-15T00:00:00	20
+DEMAND	FC Round Table Jul	2026-07-15T00:00:00	6
+DEMAND	FC Varnished Chair Jul	2026-07-20T00:00:00	15
+DEMAND	Order #1001 - Chairs	2026-06-15T00:00:00	10
+DEMAND	Order #1002 - Chairs	2026-06-20T00:00:00	5
+DEMAND	Order #1003 - Round Tables	2026-06-18T00:00:00	3
+DEMAND	Order #1004 - Square Tables	2026-06-25T00:00:00	4
+DEMAND	Order #1005 - Varnished Chairs	2026-07-10T00:00:00	8
+RESOURCE	Assembly line	2026-06-14T14:00:00	1	1
+RESOURCE	Assembly line	2026-06-15T00:00:00	-1	0
+RESOURCE	Assembly line	2026-06-17T18:00:00	1	1
+RESOURCE	Assembly line	2026-06-18T00:00:00	-1	0
+RESOURCE	Assembly line	2026-06-19T19:00:00	1	1
+RESOURCE	Assembly line	2026-06-20T00:00:00	-1	0
+RESOURCE	Assembly line	2026-06-24T18:00:00	1	1
+RESOURCE	Assembly line	2026-06-25T00:00:00	-1	0
+RESOURCE	Assembly line	2026-07-14T03:00:00	1	1
+RESOURCE	Assembly line	2026-07-14T03:00:00	1	2
+RESOURCE	Assembly line	2026-07-15T00:00:00	-1	1
+RESOURCE	Assembly line	2026-07-15T00:00:00	-1	0
+RESOURCE	Varnish station	2026-07-09T18:00:00	1	1
+RESOURCE	Varnish station	2026-07-09T18:00:00	-1	0
+RESOURCE	Varnish station	2026-07-19T18:00:00	1	1
+RESOURCE	Varnish station	2026-07-19T18:00:00	-1	0
+OPERATION	Apply varnish for chair	2026-07-09T18:00:00	2026-07-09T18:00:00	8
+OPERATION	Apply varnish for chair	2026-07-19T18:00:00	2026-07-19T18:00:00	15
+OPERATION	Assemble chair	2026-06-14T14:00:00	2026-06-15T00:00:00	10
+OPERATION	Assemble chair	2026-06-19T19:00:00	2026-06-20T00:00:00	5
+OPERATION	Assemble chair	2026-07-14T03:00:00	2026-07-15T00:00:00	12
+OPERATION	Assemble round table	2026-06-17T18:00:00	2026-06-18T00:00:00	3
+OPERATION	Assemble round table	2026-07-14T03:00:00	2026-07-15T00:00:00	6
+OPERATION	Assemble square table	2026-06-24T18:00:00	2026-06-25T00:00:00	4
+OPERATION	Drying varnish for chair	2026-07-09T18:00:00	2026-07-10T00:00:00	8
+OPERATION	Drying varnish for chair	2026-07-19T18:00:00	2026-07-20T00:00:00	15
+OPERATION	Varnish chair	2026-07-09T18:00:00	2026-07-10T00:00:00	8
+OPERATION	Varnish chair	2026-07-19T18:00:00	2026-07-20T00:00:00	15

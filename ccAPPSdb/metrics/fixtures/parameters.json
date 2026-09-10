@@ -1,0 +1,10 @@
+[
+    {
+        "model": "common.parameter",
+        "fields": {
+            "name": "metrics.demand_window",
+            "description": "计算物料属性'延迟需求数量/价值'和'非计划需求数量/价值'的时间范围（天）。默认：999。",
+            "value": "999"
+        }
+    }
+]

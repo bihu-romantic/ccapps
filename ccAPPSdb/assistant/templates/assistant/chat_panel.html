@@ -1,0 +1,70 @@
+{% load i18n %}
+<div id="assistant-panel">
+  <div class="assistant-header">
+    <span class="assistant-header-title">
+      <span class="fa fa-comments"></span>
+      AI助手
+    </span>
+    <div class="assistant-header-actions">
+      <button type="button" class="assistant-header-btn" id="assistant-history-toggle" title="查看历史记录">
+        <span class="fa fa-history"></span>
+        <span class="assistant-header-btn-text">历史记录</span>
+      </button>
+      <button type="button" class="assistant-header-btn" id="assistant-new-session" title="新建会话">
+        <span class="fa fa-plus"></span>
+        <span class="assistant-header-btn-text">新建会话</span>
+      </button>
+      <span class="fa fa-times assistant-close" id="assistant-close" title="关闭面板"></span>
+    </div>
+  </div>
+  <div id="assistant-history-panel" class="assistant-history-panel">
+    <div class="assistant-history-title">
+      <span>历史记录</span>
+      <span id="assistant-history-count" class="assistant-history-count"></span>
+    </div>
+    <div id="assistant-history-list" class="assistant-history-list"></div>
+  </div>
+  <div id="assistant-messages" class="assistant-messages">
+    <div class="assistant-message assistant-message-system">
+      <div class="assistant-message-content">
+        你好！我是AI助手。我可以查看当前页面数据，帮你解答问题、导航操作和分析数据。
+      </div>
+    </div>
+  </div>
+  <div id="assistant-confirm" class="assistant-confirm-overlay">
+    <div class="assistant-confirm-box">
+      <div class="assistant-confirm-icon fa fa-robot"></div>
+      <div class="assistant-confirm-title">AI助手</div>
+      <div class="assistant-confirm-text">
+        为提供上下文帮助，AI助手会读取当前页面数据。AI生成的回复可能不完全准确，重要信息请独立核实。会话数据将由AI服务处理。<br><br>
+        <strong>注意：涉及 sudo、数据库删除、系统配置修改等高风险操作时，AI助手会先请求你的确认才会执行。</strong>
+      </div>
+      <button class="assistant-confirm-btn" onclick="assistantConfirm()">
+        我已了解，开始使用
+      </button>
+    </div>
+  </div>
+  <div class="assistant-input-area">
+    <div class="assistant-upload-wrapper">
+      <input type="file" id="assistant-file-input" class="assistant-file-input"
+        accept=".csv,.json,.txt,.log,.md,.py,.js,.html,.css,.xml,.yaml,.yml,.xlsx,.xls,.sql,.gz"
+        onchange="assistantHandleFile(event)" multiple>
+      <button id="assistant-upload-btn" class="assistant-upload-btn"
+        title="上传文件" onclick="document.getElementById('assistant-file-input').click()">
+        <span class="fa fa-paperclip"></span>
+      </button>
+    </div>
+    <div id="assistant-file-preview" class="assistant-file-preview" style="display:none;"></div>
+    <textarea id="assistant-input" class="assistant-input" rows="2"
+      placeholder="输入你的问题..."
+      onkeydown="assistantKeyDown(event)"></textarea>
+    <button id="assistant-send" class="assistant-send" onclick="assistantSend()"
+      title="发送 (Enter)">
+      <span class="fa fa-paper-plane"></span>
+    </button>
+    <button id="assistant-stop" class="assistant-stop" onclick="assistantStop()"
+      title="停止生成 (Esc)" style="display:none;">
+      <span class="fa fa-stop"></span>
+    </button>
+  </div>
+</div>

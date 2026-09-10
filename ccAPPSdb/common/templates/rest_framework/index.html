@@ -1,0 +1,168 @@
+{% extends "admin/base_site_nav.html" %}
+{% load rest_framework %}
+{% load i18n %}
+
+{% block extrahead %}{{block.super}}
+<script>
+$(function() {
+  $("#jwt").on('input', function() {
+  	window.location.href = '{{request.prefix}}/api/?exp=' + $("#jwt").val();
+  });
+});
+
+function copyToClipboard(el){
+  var t =  $(el).children().first();
+  navigator.clipboard.writeText(t.html());
+  var icon = $(el).find(".fa").first();
+  var tooltip = bootstrap.Tooltip.getInstance(icon[0]);
+  if (tooltip) tooltip.dispose();
+  icon.attr("data-bs-title", "Copied");
+  tooltip = bootstrap.Tooltip.getOrCreateInstance(icon[0]);
+  tooltip.show();
+  setTimeout(function() {
+      tooltip.dispose();
+      icon.attr("data-bs-title", "Copy to clipboard");
+      bootstrap.Tooltip.getOrCreateInstance(icon[0])
+  }, 1000)
+}
+</script>
+{% endblock %}
+
+{% block tools %}
+<h1 class="d-inline-flex float-end">
+  <a href="{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/integration-guide/rest-api/index.html"
+    data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'help'|capfirst|force_escape %}"
+    target="_blank">
+    <span class="fa fa-question"></span>
+  </a>
+</h1>
+{% endblock %}
+
+{% block content %}
+<div id="content-summary" class="row"><div class="col">
+
+<p>{% trans "This page helps developers to learn and experiment with the" %}
+<a class="text-decoration-underline" target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Representational_state_transfer">REST</a>
+{% trans "API of ccAPPS." %}<br>
+{% trans "This API allows your application to exchange information with ccAPPS." %}<br>
+<br>
+{% trans "The \"list API\" link takes you to the object list page." %}<br>
+{% trans "And the \"detail API\" link takes you to a specific object when you enter the object's primary key." %}<br>
+{% trans "In these pages you will be able to perform HTTP requests with methods GET, POST, OPTIONS, PUT, PATCH and DELETE." %}<br>
+{% trans "The results can be shown in JSON format or as HTML in your browser." %}<br>
+<br>
+{% trans "Using tools like 'wget' or 'curl' you can access the API from the command line." %}<br>
+{% trans "For instance, to return the list of all sales orders in JSON format:" %}<br><br>
+</p>
+
+<ul class="nav nav-tabs" id="AuthTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="auth-basic-tab" data-bs-toggle="tab" data-bs-target="#auth-basic" type="button" role="tab" aria-controls="home" aria-selected="true">
+      {% trans "Using basic authentication" %}
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#auth-jwt" type="button" role="tab" aria-controls="auth-jwt" aria-selected="false">
+      {% trans "Using JSON Web Token authentication" %}
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#auth-apikey" type="button" role="tab" aria-controls="auth-apikey" aria-selected="false">
+      {% trans "Using API key authentication" %}
+    </button>
+  </li>
+</ul>
+<div class="tab-content mt-3 mb-3" id="AuthTabsContent">
+
+  <!--- Basic authentication -->
+  <div class="tab-pane show active" id="auth-basic" role="tabpanel" aria-labelledby="auth-basic-tab">
+    <div class="mb-3">
+      <a class="text-decoration-underline" href="https://en.wikipedia.org/wiki/Basic_access_authentication" target="_blank">{% trans "Basic authentication" %}</a>
+      {% trans "sends the user name and password in the request." %}<br>
+      {% trans "As long as you use HTTPS it is a simple and secure way of authentication." %}
+    </div>
+    <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>wget --http-user={{username}} --http-password=PASSWORD {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+    </div></div>
+    <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>curl -u {{username}}:PASSWORD {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+    </div></div>
+  </div>
+
+  <!--- JWT authentication -->
+  <div class="tab-pane" id="auth-jwt" role="tabpanel" aria-labelledby="auth-jwt-tab">
+    <div class="mb-3">
+      <a class="text-decoration-underline" href="https://jwt.io/" target="_blank">{% trans "JSON Web Token authentication" %}</a>
+      {% trans "uses a digitally signed token to prove a user's identity." %}<br>
+      {% trans "Below is a token we generated for the next" %}
+      <input id="jwt" class="d-inline form-control p-1" type="number" value="{{exp}}" min="0" step="1" style="width:4em; background:white"/>
+      {% trans "days." %}
+    </div>
+    <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>wget --header 'Authorization: Bearer {{token}}' {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+    </div></div>
+    <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>curl -H 'Accept: application/json' --header 'Authorization: Bearer {{token}}' {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+    </div></div>
+  </div>
+
+  <!--- API key authentication -->
+  <div class="tab-pane" id="auth-apikey" role="tabpanel" aria-labelledby="auth-apikey-tab">
+      <div class="mb-3">
+      <a class="text-decoration-underline" href="https://en.wikipedia.org/wiki/API_key" target="_blank">{% trans "API keys" %}</a>
+      {% trans "are secret tokens you generate and manage on" %}
+      <a class="text-decoration-underline" href="/common/apikey/">{% trans "this page" %}</a>.<br>
+      {% trans "The secret key is shown only once to you and you need to store it safely." %}
+      </div>
+      <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>wget --header 'Authorization: Bearer API_KEY' {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+      </div></div>
+      <div class="card mb-1"><div class="card-body" onclick="copyToClipboard(this)">
+      <span>curl -H 'Accept: application/json' --header 'Authorization: Bearer API_KEY' {{url}}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+      <span class="fa fa-clipboard" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Copy to clipboard' %}"></span>
+      </div></div>
+  </div>
+
+</div>
+</div></div>
+
+<div class="row mb-3"><div class="col" style="max-width:1100px">
+  <div class="card">
+    <div class="card-header">
+      <b>REST API</b>
+    </div>
+    <div class="card-body">
+    <table class="table table-sm table-hover">
+      <tr><th></th><th>{% trans 'List API' %}</th><th>{% trans 'Detail API' %}</th></tr>
+      {% getMenu as menu %}
+      {% for group in menu %}
+        {% for item in group.1 %}
+          {% if item.1.model and not item.1.excludeFromBulkOperations %}
+          <tr>
+            <td> {{ group.0 }} - {{ item.0 }} </td>
+            <td>
+              <a href="{{request.prefix}}/api/{{  item.1.model|app_label }}/{{  item.1.model|short_model_name }}/ ">
+                {{request.prefix}}/api/{{  item.1.model|app_label }}/{{  item.1.model|short_model_name }}/
+                <span class="ps-2 fa fa-caret-right" role="input/item"></span>
+              </a>
+            </td>
+            <td><span style="cursor: pointer">
+              {{request.prefix}}/api/{{  item.1.model|app_label }}/{{  item.1.model|short_model_name }}/
+              <input type="text" class="d-inline form-control p-1 w-auto" onChange ="window.location.href = '{{request.prefix}}/api/{{ item.1.model|app_label }}/{{  item.1.model|short_model_name }}/'+encodeURI($(event.target).val())+'/'" maxlength="30">
+              <span class="ps-2 fa fa-caret-right"></span>
+            </span></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </table>
+  </div>
+  </div>
+</div></div>
+
+{% endblock %}

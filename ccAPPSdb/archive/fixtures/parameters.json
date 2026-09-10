@@ -1,0 +1,18 @@
+[
+    {
+        "model": "common.parameter",
+        "fields": {
+            "name": "archive.frequency",
+            "description": "历史快照频率。可选值：week（周）、month（月）、none（不归档）。默认：week。",
+            "value": "week"
+        }
+    },
+    {
+        "model": "common.parameter",
+        "fields": {
+            "name": "archive.duration",
+            "description": "超过此天数（天）的归档数据将被删除。默认：365。",
+            "value": "365"
+        }
+    }
+]

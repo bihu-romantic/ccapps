@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DBNAME:-ccapps}
+      POSTGRES_USER: ${POSTGRES_USER:-ccapps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ccapps_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ccapps} -d ${POSTGRES_DBNAME:-ccapps}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: ccapps:${CCAPPS_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${CCAPPS_PORT:-8001}:8001"
+    environment:
+      PORT: 8001
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DBNAME: ${POSTGRES_DBNAME:-ccapps}
+      POSTGRES_USER: ${POSTGRES_USER:-ccapps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-360}
+      CCAPPS_BOOTSTRAP: ${CCAPPS_BOOTSTRAP:-true}
+    volumes:
+      - ccapps_logs:/var/lib/ccapps/logs
+      - ccapps_static:/var/lib/ccapps/static
+      - ccapps_config:/app/config
+
+volumes:
+  ccapps_postgres:
+  ccapps_logs:
+  ccapps_static:
+  ccapps_config:

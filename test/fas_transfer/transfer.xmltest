@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <current>2020-01-01T00:00:00</current>
+  <operations>
+    <operation name="make component" xsi:type="operation_fixed_time"><duration>P2D</duration><flows><flow xsi:type="flow_transfer_batch"><buffer name="component"/><quantity>1</quantity><transferbatch>5</transferbatch></flow></flows></operation>
+    <operation name="assemble" xsi:type="operation_fixed_time"><duration>P2D</duration><size_maximum>5</size_maximum><flows><flow xsi:type="flow_start"><buffer name="component"/><quantity>-1</quantity></flow><flow xsi:type="flow_end"><buffer name="finished"/><quantity>1</quantity></flow></flows></operation>
+    <operation name="deliver" xsi:type="operation_fixed_time"><duration>PT0S</duration></operation>
+  </operations>
+  <buffers><buffer name="component"><item name="component"/><producing name="make component"/></buffer><buffer name="finished"><item name="finished"/><producing name="assemble"/></buffer></buffers>
+  <flows><flow xsi:type="flow_start"><operation name="deliver"/><buffer name="finished"/><quantity>-1</quantity></flow></flows>
+  <demands><demand name="order"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="finished"/><operation name="deliver"/></demand></demands>
+</plan>

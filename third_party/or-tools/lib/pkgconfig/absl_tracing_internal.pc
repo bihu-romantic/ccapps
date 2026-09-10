@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_tracing_internal
+Description: Abseil tracing_internal library
+URL: https://abseil.io/
+Version: 20250814
+Requires: absl_base = 20250814
+Libs: -L${libdir}  -labsl_tracing_internal 
+Cflags: -I${includedir} -DNOMINMAX

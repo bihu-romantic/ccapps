@@ -1,0 +1,718 @@
+#
+# Copyright (C) 2007-2012 by Johan De Taeye
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Joao Ranita <jranita@ccAPPS.com>, 2015.
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-10-24 12:27+0200\n"
+"PO-Revision-Date: 2024-12-17 15:07+0100\n"
+"Last-Translator: Joao Ranita <jranita@ccAPPS.com>\n"
+"Language-Team: ccAPPS\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Poedit 3.4.4\n"
+
+#: common/static/js/ccAPPS.js:213 common/static/js/ccAPPS.js:1513
+#: common/static/js/ccAPPS.js:1562 common/static/js/ccAPPS.js:2196
+#: quoting/static/quoting/src/quoteCtrl.js:62
+msgid "Error"
+msgstr "错误"
+
+#: common/static/js/ccAPPS.js:220 common/static/js/ccAPPS.js:884
+#: common/static/js/ccAPPS.js:1181 common/static/js/ccAPPS.js:2171
+#: common/static/js/ccAPPS.js:2788 common/static/js/ccAPPS.js:2915
+#: common/static/js/ccAPPS.js:3677
+msgid "Close"
+msgstr "关闭"
+
+#: common/static/js/ccAPPS.js:234 common/static/js/ccAPPS.js:320
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:350
+msgid "There are unsaved changes on this page."
+msgstr "此页面有未保存的变动。"
+
+#: common/static/js/ccAPPS.js:317
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:347
+msgid "Save or cancel your changes first"
+msgstr "先保存或取消你的变动"
+
+#: common/static/js/ccAPPS.js:323 common/static/js/ccAPPS.js:2397
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:354
+msgid "Save"
+msgstr "保存"
+
+#: common/static/js/ccAPPS.js:324
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:353
+msgid "Return to page"
+msgstr "返回页面"
+
+#: common/static/js/ccAPPS.js:577
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:427
+msgid "days early"
+msgstr "提早的天数"
+
+#: common/static/js/ccAPPS.js:579
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:429
+msgid "on time"
+msgstr "准时"
+
+#: common/static/js/ccAPPS.js:582 common/static/js/ccAPPS.js:584
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:432
+#: input/static/operationplandetail/src/operationplandetailCtrl.js:434
+msgid "days late"
+msgstr "延迟的天数"
+
+#: common/static/js/ccAPPS.js:780
+msgid "Selected options"
+msgstr "选定的选项"
+
+#: common/static/js/ccAPPS.js:787
+msgid "Available options"
+msgstr "可用的选项"
+
+#: common/static/js/ccAPPS.js:825 forecast/static/forecast/src/forecast.js:936
+msgid "Selected Cross"
+msgstr "选定的交叉"
+
+#: common/static/js/ccAPPS.js:835 forecast/static/forecast/src/forecast.js:944
+msgid "Available Cross"
+msgstr "可用的交叉"
+
+#: common/static/js/ccAPPS.js:857
+msgid "Frozen columns"
+msgstr "冻结的列"
+
+#: common/static/js/ccAPPS.js:883 common/static/js/ccAPPS.js:2490
+#: forecast/static/forecast/src/forecast.js:929
+msgid "Customize"
+msgstr "自定义"
+
+#: common/static/js/ccAPPS.js:893 common/static/js/ccAPPS.js:1272
+#: common/static/js/ccAPPS.js:1489 common/static/js/ccAPPS.js:1538
+#: common/static/js/ccAPPS.js:2150 common/static/js/ccAPPS.js:2396
+#: forecast/static/forecast/src/forecast.js:956
+msgid "Cancel"
+msgstr "取消"
+
+#: common/static/js/ccAPPS.js:894 forecast/static/forecast/src/forecast.js:957
+msgid "Reset"
+msgstr "重置"
+
+#: common/static/js/ccAPPS.js:895 forecast/static/forecast/src/forecast.js:958
+msgid "OK"
+msgstr "确定"
+
+#: common/static/js/ccAPPS.js:1180
+msgid "Export CSV or Excel file"
+msgstr "出口CSV或Excel文件"
+
+#: common/static/js/ccAPPS.js:1187 common/static/js/ccAPPS.js:1210
+msgid "Export format"
+msgstr "导出格式"
+
+#: common/static/js/ccAPPS.js:1190 common/static/js/ccAPPS.js:1217
+msgid "Spreadsheet list"
+msgstr "Excel列表"
+
+#: common/static/js/ccAPPS.js:1194 common/static/js/ccAPPS.js:1225
+msgid "CSV list"
+msgstr "CSV列表"
+
+# 数据源URL
+#: common/static/js/ccAPPS.js:1196 common/static/js/ccAPPS.js:1227
+msgid "Data source URL"
+msgstr "数据源URL"
+
+#: common/static/js/ccAPPS.js:1198 common/static/js/ccAPPS.js:1229
+msgid "Using this link external applications can pull data from ccAPPS"
+msgstr "通过此链接，外部应用程序可从ccAPPS中拉取数据"
+
+#: common/static/js/ccAPPS.js:1213
+msgid "Spreadsheet table"
+msgstr "Excel表"
+
+#: common/static/js/ccAPPS.js:1221
+msgid "CSV table"
+msgstr "CSV表"
+
+#: common/static/js/ccAPPS.js:1246
+msgid "Scenarios to export"
+msgstr "涉及导出的场景"
+
+#: common/static/js/ccAPPS.js:1273 common/static/js/ccAPPS.js:2143
+msgid "Export"
+msgstr "导出"
+
+#: common/static/js/ccAPPS.js:1482
+msgid "Delete data"
+msgstr "删除数据"
+
+#: common/static/js/ccAPPS.js:1486
+#, javascript-format
+msgid "You are about to delete %s objects AND ALL RELATED RECORDS!"
+msgstr "你将会删除 %s 对象和所有相关的数据记录！"
+
+#: common/static/js/ccAPPS.js:1490 common/static/js/ccAPPS.js:1539
+#: common/static/js/ccAPPS.js:2151
+msgid "Confirm"
+msgstr "确定"
+
+#: common/static/js/ccAPPS.js:1531
+msgid "Copy data"
+msgstr "复制数据"
+
+#: common/static/js/ccAPPS.js:1535
+#, javascript-format
+msgid "You are about to duplicate %s objects"
+msgstr "你将会复制 %s 对象"
+
+#: common/static/js/ccAPPS.js:1688
+msgid "Search"
+msgstr "搜索"
+
+#: common/static/js/ccAPPS.js:1753
+msgid "is child of"
+msgstr "继承自"
+
+#: common/static/js/ccAPPS.js:1755
+msgid "is null"
+msgstr "为空"
+
+#: common/static/js/ccAPPS.js:1787
+msgid "days"
+msgstr "天"
+
+#: common/static/js/ccAPPS.js:1817 common/static/js/ccAPPS.js:1828
+msgid "or"
+msgstr "或"
+
+#: common/static/js/ccAPPS.js:1819
+msgid "and"
+msgstr "和"
+
+#: common/static/js/ccAPPS.js:1973
+msgid "Click ok to confirm deleting the favorite"
+msgstr "点击OK，以确认删除收藏夹"
+
+#: common/static/js/ccAPPS.js:2147
+msgid "Export selected records?"
+msgstr "是否导出已选记录？"
+
+#: common/static/js/ccAPPS.js:2161
+msgid "connecting"
+msgstr "连接中"
+
+#: common/static/js/ccAPPS.js:2170
+msgid "Export successful"
+msgstr "导出成功"
+
+#: common/static/js/ccAPPS.js:2199
+msgid "retry"
+msgstr "重试"
+
+#: common/static/js/ccAPPS.js:2340
+msgid "Customize a dashboard row"
+msgstr "自定义一个仪表盘行"
+
+#: common/static/js/ccAPPS.js:2347
+msgid "Name"
+msgstr "名称"
+
+#: common/static/js/ccAPPS.js:2353
+msgid "Layout"
+msgstr "布局"
+
+#: common/static/js/ccAPPS.js:2359
+msgid "Single column"
+msgstr "单列"
+
+#: common/static/js/ccAPPS.js:2362
+msgid "Two columns"
+msgstr "两列"
+
+#: common/static/js/ccAPPS.js:2369
+msgid "Three columns"
+msgstr "三列"
+
+#: common/static/js/ccAPPS.js:2373
+msgid "Four columns"
+msgstr "四列"
+
+#: common/static/js/ccAPPS.js:2379
+msgid "Add widget"
+msgstr "添加插件"
+
+#: common/static/js/ccAPPS.js:2398
+msgid "Add new below"
+msgstr "在下面添加新记录"
+
+#: common/static/js/ccAPPS.js:2399
+msgid "Add new above"
+msgstr "在上面添加新记录"
+
+#: common/static/js/ccAPPS.js:2400
+msgid "Delete"
+msgstr "删除"
+
+#: common/static/js/ccAPPS.js:2553
+#, javascript-format
+msgid "%s unread messages"
+msgstr "%s 条未读消息"
+
+#: common/static/js/ccAPPS.js:2705
+msgid "Installed apps"
+msgstr "已安装的应用程序"
+
+#: common/static/js/ccAPPS.js:2751
+msgid "Import CSV or Excel file"
+msgstr "导入CSV或Excel文件"
+
+#: common/static/js/ccAPPS.js:2758
+msgid "Load an Excel file or a CSV-formatted text file."
+msgstr "读取Excel或CSV格式的文本文件"
+
+#: common/static/js/ccAPPS.js:2759
+msgid "The first row should contain the field names."
+msgstr "第一行包含了字段名。"
+
+#: common/static/js/ccAPPS.js:2761
+msgid "First delete all existing records AND ALL RELATED TABLES"
+msgstr "请首先删除所有存在的记录以及所有相关的表"
+
+#: common/static/js/ccAPPS.js:2769
+msgid "Select files to upload"
+msgstr "选择要上传的文件"
+
+#: common/static/js/ccAPPS.js:3248
+msgid "or drop them here"
+msgstr "或拖放到此处"
+
+#: common/static/js/ccAPPS.js:2779
+msgid "Data file"
+msgstr "数据文件"
+
+#: common/static/js/ccAPPS.js:2790
+msgid "Import"
+msgstr "导入"
+
+#: common/static/js/ccAPPS.js:2791
+msgid "Cancel Import"
+msgstr "取消导入"
+
+#: common/static/js/ccAPPS.js:2856
+msgid "Importing..."
+msgstr "导入中…"
+
+#: common/static/js/ccAPPS.js:2875
+msgid "Canceled"
+msgstr "已取消"
+
+#: common/static/js/ccAPPS.js:2930
+#, javascript-format
+msgid "%s records processed"
+msgstr "已处理 %s 条记录"
+
+#: common/static/js/ccAPPS.js:3683
+#, javascript-format
+msgid "Manage notifications of %s"
+msgstr "管理 %s 的通知"
+
+#: common/static/js/ccAPPS.js:3712
+msgid "Add followers"
+msgstr "添加关注者"
+
+#: input/static/operationplandetail/src/supplypositionpanelDrv.js:22
+msgid "inventory status"
+msgstr "库存状态"
+
+#: input/static/operationplandetail/src/supplypositionpanelDrv.js:29
+msgid "onhand at lead time"
+msgstr "交货期末库存"
+
+#: input/static/operationplandetail/src/supplypositionpanelDrv.js:63
+msgid "current inventory"
+msgstr "目前存货"
+
+#: planningboard/static/planningboard/src/module.js:69
+#: planningboard/static/planningboard/src/planningboard.js:939
+#: planningboard/static/planningboard/src/planningboard.js:950
+#: planningboard/static/planningboard/src/planningboard.js:951
+msgid "hours"
+msgstr "小时"
+
+msgid "Continue"
+msgstr "继续"
+
+msgid "Delivery"
+msgstr "交货"
+
+msgid "Distribution Order"
+msgstr "分销工单"
+
+msgid "Do you want to save your changes first?"
+msgstr "是否先保存您的更改？"
+
+msgid "End Date"
+msgstr "结束日期"
+
+msgid "Export Error"
+msgstr "导出错误"
+
+msgid "Export failed: Unexpected response format from server"
+msgstr "导出失败：服务器响应格式异常"
+
+msgid "Export failed: Unknown error"
+msgstr "导出失败：未知错误"
+
+msgid "Exporting..."
+msgstr "导出中..."
+
+msgid "Group by "
+msgstr "分组依据 "
+
+msgid "ID"
+msgstr "编号"
+
+msgid "Manufacturing Order"
+msgstr "制造工单"
+
+msgid "No grouping"
+msgstr "无分组"
+
+msgid "No records with status proposed, approved or confirmed"
+msgstr "无状态为建议、已批准或已确认的记录"
+
+msgid "No response from server"
+msgstr "服务器无响应"
+
+msgid "Operation"
+msgstr "工序"
+
+msgid "Operation Plans"
+msgstr "工序计划"
+
+msgid "Please be patient, the chart may take some time to complete."
+msgstr "请耐心等待，图表可能需要一些时间。"
+
+msgid "Purchase Order"
+msgstr "采购工单"
+
+msgid "Quantity"
+msgstr "数量"
+
+msgid "Server error: "
+msgstr "服务器错误："
+
+msgid "Start Date"
+msgstr "开始日期"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Stock"
+msgstr "库存"
+
+msgid "The Gantt chart is limited to {{rowlimit}} rows."
+msgstr "甘特图限制为 {{rowlimit}} 行。"
+
+msgid "There is no demand requiring this supply."
+msgstr "没有需求需要此供应。"
+
+msgid "View end events"
+msgstr "查看结束事件"
+
+msgid "View full duration"
+msgstr "查看完整持续时间"
+
+msgid "View start and end events"
+msgstr "查看开始和结束事件"
+
+msgid "View start events"
+msgstr "查看开始事件"
+
+msgid "approved"
+msgstr "已批准"
+
+msgid "batch"
+msgstr "批次"
+
+msgid "closed"
+msgstr "已关闭"
+
+msgid "completed"
+msgstr "已完成"
+
+msgid "confirmed"
+msgstr "已确认"
+
+msgid "consumed confirmed"
+msgstr "已确认消耗"
+
+msgid "consumed proposed"
+msgstr "建议消耗"
+
+msgid "cost"
+msgstr "成本"
+
+msgid "criticality"
+msgstr "关键度"
+
+msgid "customer delivery"
+msgstr "客户交货"
+
+msgid "database transaction failed"
+msgstr "数据库事务失败"
+
+msgid "date"
+msgstr "日期"
+
+msgid "delay"
+msgstr "延迟"
+
+msgid "delivery"
+msgstr "交货"
+
+msgid "demand"
+msgstr "需求"
+
+msgid "description"
+msgstr "描述"
+
+msgid "destination"
+msgstr "目的地"
+
+msgid "distribution order"
+msgstr "分销工单"
+
+msgid "distribution orders"
+msgstr "分销单"
+
+msgid "downstream operations"
+msgstr "下游工序"
+
+msgid "due"
+msgstr "截止日期"
+
+msgid "effective end"
+msgstr "生效结束"
+
+msgid "effective start"
+msgstr "生效开始"
+
+msgid "end"
+msgstr "结束"
+
+msgid "end date"
+msgstr "结束日期"
+
+msgid "end inventory"
+msgstr "期末库存"
+
+msgid "export"
+msgstr "导出"
+
+msgid "gantt chart rows limit"
+msgstr "甘特图行数限制"
+
+msgid "hide"
+msgstr "隐藏"
+
+msgid "inventory"
+msgstr "库存"
+
+msgid "item"
+msgstr "物料"
+
+msgid "items"
+msgstr "物料"
+
+msgid "lead time"
+msgstr "提前期"
+
+msgid "level"
+msgstr "层级"
+
+msgid "location"
+msgstr "位置"
+
+msgid "manufacturing order"
+msgstr "制造工单"
+
+msgid "manufacturing orders"
+msgstr "制造单"
+
+msgid "name"
+msgstr "名称"
+
+msgid "network status"
+msgstr "网络状态"
+
+msgid "no downstream information"
+msgstr "无下游信息"
+
+msgid "no inventory information"
+msgstr "无库存信息"
+
+msgid "no movements"
+msgstr "无移动"
+
+msgid "no network information"
+msgstr "无网络信息"
+
+msgid "no problems"
+msgstr "无问题"
+
+msgid "no resources"
+msgstr "无资源"
+
+msgid "no selection"
+msgstr "未选择"
+
+msgid "no supply information"
+msgstr "无供应信息"
+
+msgid "no upstream information"
+msgstr "无上游信息"
+
+msgid "onhand"
+msgstr "在手量"
+
+msgid "operation"
+msgstr "工序"
+
+msgid "ordering date"
+msgstr "下单日期"
+
+msgid "origin"
+msgstr "来源"
+
+msgid "overdue sales orders"
+msgstr "逾期销售订单"
+
+msgid "owner"
+msgstr "所有者"
+
+msgid "priority"
+msgstr "优先级"
+
+msgid "problems"
+msgstr "问题"
+
+msgid "produced confirmed"
+msgstr "已确认产出"
+
+msgid "produced proposed"
+msgstr "建议产出"
+
+msgid "proposed"
+msgstr "建议"
+
+msgid "purchase order"
+msgstr "采购工单"
+
+msgid "purchase orders"
+msgstr "采购单"
+
+msgid "quantity"
+msgstr "数量"
+
+msgid "quantity completed"
+msgstr "已完成数量"
+
+msgid "receipt date"
+msgstr "收货日期"
+
+msgid "reference"
+msgstr "参考号"
+
+msgid "remark"
+msgstr "备注"
+
+msgid "resource"
+msgstr "资源"
+
+msgid "safety stock"
+msgstr "安全库存"
+
+msgid "sales orders"
+msgstr "销售订单"
+
+msgid "selected"
+msgstr "已选"
+
+msgid "setup end date"
+msgstr "换型结束日期"
+
+msgid "shipping date"
+msgstr "发货日期"
+
+msgid "shown"
+msgstr "显示"
+
+msgid "size minimum"
+msgstr "最小批量"
+
+msgid "size multiple"
+msgstr "批量倍数"
+
+msgid "start"
+msgstr "开始"
+
+msgid "start date"
+msgstr "开始日期"
+
+msgid "start inventory"
+msgstr "期初库存"
+
+msgid "status"
+msgstr "状态"
+
+msgid "stock"
+msgstr "库存"
+
+msgid "superseded"
+msgstr "已替代"
+
+msgid "supplier"
+msgstr "供应商"
+
+msgid "supply information"
+msgstr "供应信息"
+
+msgid "total consumed"
+msgstr "总消耗"
+
+msgid "total produced"
+msgstr "总产出"
+
+msgid "type"
+msgstr "类型"
+
+msgid "types"
+msgstr "类型"
+
+msgid "unsaved changes"
+msgstr "未保存的更改"
+
+msgid "upstream operations"
+msgstr "上游工序"
+
+msgid "work order"
+msgstr "工序工单"

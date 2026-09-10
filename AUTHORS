@@ -1,0 +1,133 @@
+
+The primary authors of frePPLe are:
+
+* Johan De Taeye (jdetaeye at frepple dot com)
+* Hicham Lahlou (hlahlou at frepple dot com)
+* Joao Ranita
+
+And here is an inevitably incomplete list of MUCH-APPRECIATED CONTRIBUTORS --
+people who have submitted patches, reported bugs, and generally made
+frePPLe that much better:
+
+* Tom Vergote (tom at think-wize dot com)
+* Tobias Schlemmer (the_tsc at users dot sourceforge dot net)
+* J K (e_k at users dot sourceforge dot net)
+* Stephen Liu (2notebook at yahoo dot com dot tw, http://job.achi.idv.tw)
+* Antonio Mascolo (tonio at purpless dot com)
+* Guy Ollagnon (guy dot ollagnon at demand2plan dot com)
+* Keiichiro Yamamoto (k dot yanmar at gmail dot com)
+* Wu Fei (1713034961 at qq dot com)
+* Jorge Enrique Moreira Broche (jemoreira7 at gmail dot com)
+* Chris Zajaczkowski (info at businesstec dot net)
+* Claudio Candito (claudiocandito at gmail dot com)
+* Sebastian Bello (bellosebastian at gmail dot com)
+* Garry Chan (garry dot chan at afosystec dot com)
+* Michael Nasonov (nasonov at agvk dot ru)
+* Klaus Broecking (klaus dot broeckling at sacedv dot com)
+* Fisher (yuxinyong at 163 dot com)
+* Mateusz Knapik
+
+FrePPLe redistributes parts of the following third party software components:
+
+* contrib\django\freppledb\common\static\js\jquery.js
+     Redistributed from jQuery JavaScript Library
+     See http://jquery.com/
+     Copyright 2011, John Resig
+     Dual licensed under the MIT or GPL Version 2 licenses.
+     Includes Sizzle.js
+     See http://sizzlejs.com/
+     Copyright 2011, The Dojo Foundation
+     Released under the MIT, BSD, and GPL Licenses.
+
+* contrib\django\freppledb\common\static\js\jquery.jqgid*.js
+  contrib\django\freppledb\common\static\js\i18n\grid.locale-*.js
+  contrib\django\freppledb\common\static\css\ui.jqgrid.css
+    Redistributed from free-jqGrid - jQuery Grid
+    Copyright (c) 2015, Oleg Kiriljuk, oleg.kiriljuk@ok-soft-gmbh.com
+    Dual licensed under the MIT and GPL Version 2 licenses
+    See https://github.com/free-jqgrid/jqGrid
+
+* contrib\django\freppledb\common\static\js\Sortable.*.js
+   Redistributed from Sortable minimalist JavaScript library for reorderable drag-and-drop lists.
+   Copyright Lebedev Konstantin
+   Licensed under the MIT license.
+   See http://rubaxa.github.io/Sortable/
+
+* contrib\django\freppledb\common\static\js\d3.js
+  contrib\django\freppledb\common\static\js\d3.min.js
+    Redistributed from d3 Data-Driven Documents
+    Copyright Michael Bostock
+    Licensed under BSD license
+    See http://d3js.org/
+
+* contrib\django\freppledb\common\static\fonts\FontAwesome*
+  contrib\django\freppledb\common\static\css\font-awesome*
+    Redistributed Font Awesome
+    Copyright Dave Gandy
+    Licensed under SIL Open Font License 1.1 (http://scripts.sil.org/OFL) and MIT License
+    See http://fontawesome.io
+
+* contrib\django\freppledb\common\static\fonts\opensans*
+    Redistributed Open Sans Webfont
+    Copyright Steve Matteson
+    Licensed under Apache License, Version 2.0, January 2004
+
+* contrib\django\freppledb\common\static\bootstrap.js
+  contrib\django\freppledb\common\static\bootstrap.min.js
+    Redistributed bootstrap HTML, CSS and JS framework
+    Copyright Twitter, Inc
+    Licensed under the MIT license
+    See http://getbootstrap.com/
+
+* contrib\django\freppledb\common\static\typeahead.bundle.js
+    Redistributed typeahead.js
+    Copyright Twitter, Inc.
+    Licensed under the MIT license
+    See https://twitter.github.io/typeahead.js/
+
+* contrib\django\freppledb\common\static\moment-with-locales.js
+    Redistributed moment-with-locales.js
+    Copyright (c) 2011-2016 Tim Wood, Iskren Chernev, Moment.js contributors
+    Free to Use and Distribute (https://github.com/moment/moment/blob/develop/LICENSE)
+    See http://http://momentjs.com/
+
+* This product includes software developed by the OpenSSL Project
+  for use in the OpenSSL Toolkit.
+    Copyright The OpenSSL Project and Eric Young
+    License http://www.openssl.org/source/license.html
+    See http://www.openssl.org/
+
+* contrib\django\freppledb\common\static\js\angular.min.js
+    Redistributed AngularJS v1.5.5 angular.min.js
+    (c) 2010-2016 Google, Inc.
+    See http://angularjs.org
+
+* contrib\django\freppledb\common\static\js\angular.min.js
+    Redistributed AngularJS angular.min.js
+    (c) 2010-2016 Google, Inc.
+    See http://angularjs.org
+
+* contrib\django\freppledb\common\static\js\angular-cookies.min.js
+    Redistributed AngularJS angular-cookies.min.js
+    (c) 2010-2016 Google, Inc.
+    See http://angularjs.org
+
+* contrib\django\freppledb\common\static\js\angular-gettext.min.js
+    Redistributed angular-gettext.min.js
+    Licensed under the MIT license
+    See http://angular-gettext.rocketeer.be/
+
+* contrib\django\freppledb\common\static\js\angular-websocket.min.js
+    Redistributed angular-websocket.min.js
+    Licensed under the MIT license
+    See https://github.com/AngularClass/angular-websocket
+
+* src/forecast/exprtk.h
+    Free use of the C++ Mathematical Expression Toolkit Library is
+    permitted under the guidelines and in accordance with the most
+    current version of the MIT License.
+    See https://www.partow.net/programming/exprtk/index.html
+
+* include\rapidjson\*
+    Redistributed http://rapidjson.org/
+    Licensed under the MIT license

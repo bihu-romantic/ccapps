@@ -1,0 +1,2938 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<name>Test model for handling work in progress</name>
+	<current>2014-01-01T00:00:00</current>
+	<fcst_current>2014-01-01T00:00:00</fcst_current>
+	<locations>
+		<location>
+			<name>Loc</name>
+		</location>
+		<location>
+			<name>factory</name>
+		</location>
+		<location>
+			<name>manufacturing plant</name>
+		</location>
+	</locations>
+	<suppliers>
+		<supplier>
+			<name>Component supplier</name>
+		</supplier>
+	</suppliers>
+	<resources>
+		<resource>
+			<name>Creepy resource 1</name>
+		</resource>
+		<resource>
+			<name>Creepy resource 2</name>
+			<owner>
+				<name>Creepy resource pool</name>
+			</owner>
+		</resource>
+		<resource>
+			<name>Creepy resource 3</name>
+			<owner>
+				<name>Creepy resource pool</name>
+			</owner>
+		</resource>
+		<resource>
+			<name>Creepy resource pool</name>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool</name>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool 1</name>
+			<owner>
+				<name>Creepy secondary pool</name>
+			</owner>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool 2</name>
+			<owner>
+				<name>Creepy secondary pool</name>
+			</owner>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool 3</name>
+			<owner>
+				<name>Creepy secondary pool</name>
+			</owner>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool 4</name>
+			<owner>
+				<name>Creepy secondary pool</name>
+			</owner>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Creepy secondary pool 5</name>
+			<owner>
+				<name>Creepy secondary pool</name>
+			</owner>
+			<toolperpiece>true</toolperpiece>
+		</resource>
+		<resource>
+			<name>Res1</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res2</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res3</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res3A</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res3B</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res3C</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res4</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res4A</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res4B</name>
+			<location>
+				<name>Loc</name>
+			</location>
+		</resource>
+		<resource>
+			<name>Res5</name>
+		</resource>
+		<resource>
+			<name>Res6</name>
+		</resource>
+		<resource>
+			<name>Res6a</name>
+			<owner>
+				<name>Res6</name>
+			</owner>
+		</resource>
+		<resource>
+			<name>Res6b</name>
+			<owner>
+				<name>Res6</name>
+			</owner>
+		</resource>
+		<resource>
+			<name>Res6c</name>
+			<owner>
+				<name>Res6</name>
+			</owner>
+			<efficiency>50</efficiency>
+		</resource>
+		<resource>
+			<name>Resource A</name>
+		</resource>
+		<resource>
+			<name>Resource B</name>
+		</resource>
+		<resource>
+			<name>Resource C</name>
+		</resource>
+		<resource>
+			<name>Resource D</name>
+		</resource>
+		<resource>
+			<name>Resource E</name>
+		</resource>
+		<resource>
+			<name>Resource F</name>
+		</resource>
+		<resource>
+			<name>Resource G</name>
+		</resource>
+		<resource>
+			<name>Resource H</name>
+		</resource>
+		<resource>
+			<name>Resource I</name>
+		</resource>
+		<resource>
+			<name>Resource J</name>
+		</resource>
+		<resource>
+			<name>Resource K</name>
+		</resource>
+		<resource>
+			<name>Resource L</name>
+		</resource>
+		<resource>
+			<name>Resource M</name>
+		</resource>
+		<resource>
+			<name>Resource N</name>
+		</resource>
+		<resource>
+			<name>Resource O</name>
+		</resource>
+		<resource>
+			<name>Resource P</name>
+		</resource>
+		<resource>
+			<name>Resource Q</name>
+		</resource>
+		<resource>
+			<name>Resource R</name>
+		</resource>
+		<resource>
+			<name>Resource S</name>
+		</resource>
+		<resource>
+			<name>Resource T</name>
+		</resource>
+		<resource>
+			<name>Resource U</name>
+		</resource>
+		<resource>
+			<name>Resource V</name>
+		</resource>
+		<resource>
+			<name>Resource W</name>
+		</resource>
+		<resource>
+			<name>Resource X</name>
+		</resource>
+		<resource>
+			<name>Resource Y</name>
+		</resource>
+		<resource>
+			<name>Resource Z</name>
+		</resource>
+	</resources>
+	<items>
+		<item>
+			<name>In1</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In2</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In3</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In3A</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In3B</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In3C</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In4</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In4A</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In4B</name>
+			<itemsuppliers>
+				<itemsupplier>
+					<supplier>
+						<name>Component supplier</name>
+					</supplier>
+				</itemsupplier>
+			</itemsuppliers>
+		</item>
+		<item>
+			<name>In5</name>
+		</item>
+		<item>
+			<name>In6</name>
+		</item>
+		<item>
+			<name>Negative inventory</name>
+		</item>
+		<item>
+			<name>Out1</name>
+		</item>
+		<item>
+			<name>Out2</name>
+		</item>
+		<item>
+			<name>Out3</name>
+		</item>
+		<item>
+			<name>Out3A</name>
+		</item>
+		<item>
+			<name>Out3B</name>
+		</item>
+		<item>
+			<name>Out3C</name>
+		</item>
+		<item>
+			<name>Out4</name>
+		</item>
+		<item>
+			<name>Out4A</name>
+		</item>
+		<item>
+			<name>Out4B</name>
+		</item>
+		<item>
+			<name>Out5</name>
+		</item>
+		<item>
+			<name>Out6</name>
+		</item>
+		<item>
+			<name>consumed by 1 - MO/DE/2025-00321</name>
+		</item>
+		<item>
+			<name>consumed by 17 - MO/DE/2025-00321</name>
+		</item>
+		<item>
+			<name>creepy component 1</name>
+		</item>
+		<item>
+			<name>creepy component 2</name>
+		</item>
+		<item>
+			<name>creepy component 3</name>
+		</item>
+		<item>
+			<name>creepy component 4</name>
+		</item>
+		<item>
+			<name>creepy item</name>
+		</item>
+		<item>
+			<name>first consumed by 16 - MO/DE/2025-00321</name>
+		</item>
+		<item>
+			<name>produced by MO/DE/2025-00321</name>
+		</item>
+		<item>
+			<name>second consumed by 16 - MO/DE/2025-00321</name>
+		</item>
+		<item>
+			<name>small item</name>
+		</item>
+	</items>
+	<buffers>
+		<buffer>
+			<name>In1 @ Loc</name>
+			<item>
+				<name>In1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In2 @ Loc</name>
+			<item>
+				<name>In2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In3 @ Loc</name>
+			<item>
+				<name>In3</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In3A @ Loc</name>
+			<item>
+				<name>In3A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In3B @ Loc</name>
+			<item>
+				<name>In3B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In3C @ Loc</name>
+			<item>
+				<name>In3C</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In4 @ Loc</name>
+			<item>
+				<name>In4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In4A @ Loc</name>
+			<item>
+				<name>In4A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In4B @ Loc</name>
+			<item>
+				<name>In4B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In5 @ Loc</name>
+			<item>
+				<name>In5</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>In6 @ Loc</name>
+			<item>
+				<name>In6</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Little inventory @ Loc</name>
+			<item>
+				<name>small item</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<onhand>0.1</onhand>
+		</buffer>
+		<buffer>
+			<name>Negative inventory @ Loc</name>
+			<item>
+				<name>Negative inventory</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<onhand>-0.1</onhand>
+		</buffer>
+		<buffer>
+			<name>Out1 @ Loc</name>
+			<producing>
+				<name>Oper1</name>
+			</producing>
+			<item>
+				<name>Out1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out2 @ Loc</name>
+			<producing>
+				<name>Oper1</name>
+			</producing>
+			<item>
+				<name>Out2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out3 @ Loc</name>
+			<producing>
+				<name>Oper3C</name>
+			</producing>
+			<item>
+				<name>Out3</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out3A @ Loc</name>
+			<producing>
+				<name>Oper3A</name>
+			</producing>
+			<item>
+				<name>Out3A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out3B @ Loc</name>
+			<producing>
+				<name>Oper3B</name>
+			</producing>
+			<item>
+				<name>Out3B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out3C @ Loc</name>
+			<producing>
+				<name>Oper3C</name>
+			</producing>
+			<item>
+				<name>Out3C</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out4 @ Loc</name>
+			<producing xsi:type="operation_alternate">
+				<name>Oper4</name>
+			</producing>
+			<item>
+				<name>Out4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out4A @ Loc</name>
+			<producing>
+				<name>Oper4A</name>
+			</producing>
+			<item>
+				<name>Out4A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out4B @ Loc</name>
+			<producing>
+				<name>Oper4B</name>
+			</producing>
+			<item>
+				<name>Out4B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out5 @ Loc</name>
+			<producing>
+				<name>Oper5</name>
+			</producing>
+			<item>
+				<name>Out5</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>Out6 @ Loc</name>
+			<producing xsi:type="operation_time_per">
+				<name>Oper6</name>
+			</producing>
+			<item>
+				<name>Out6</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>consumed by 1 - MO/DE/2025-00321 @ manufacturing plant</name>
+			<item>
+				<name>consumed by 1 - MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>consumed by 17 - MO/DE/2025-00321 @ manufacturing plant</name>
+			<item>
+				<name>consumed by 17 - MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+		</buffer>
+		<buffer xsi:type="buffer_infinite">
+			<name>creepy component 1 @ factory</name>
+			<item>
+				<name>creepy component 1</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+			<detectproblems>false</detectproblems>
+		</buffer>
+		<buffer xsi:type="buffer_infinite">
+			<name>creepy component 2 @ factory</name>
+			<item>
+				<name>creepy component 2</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+			<detectproblems>false</detectproblems>
+		</buffer>
+		<buffer xsi:type="buffer_infinite">
+			<name>creepy component 3 @ factory</name>
+			<item>
+				<name>creepy component 3</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+			<detectproblems>false</detectproblems>
+		</buffer>
+		<buffer xsi:type="buffer_infinite">
+			<name>creepy component 4 @ factory</name>
+			<item>
+				<name>creepy component 4</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+			<detectproblems>false</detectproblems>
+		</buffer>
+		<buffer>
+			<name>creepy item @ factory</name>
+			<producing>
+				<name>MO/0001 - 2</name>
+			</producing>
+			<item>
+				<name>creepy item</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>first consumed by 16 - MO/DE/2025-00321 @ manufacturing plant</name>
+			<item>
+				<name>first consumed by 16 - MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>produced by MO/DE/2025-00321 @ manufacturing plant</name>
+			<producing>
+				<name>17 - MO/DE/2025-00321</name>
+			</producing>
+			<item>
+				<name>produced by MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+		</buffer>
+		<buffer>
+			<name>second consumed by 16 - MO/DE/2025-00321 @ manufacturing plant</name>
+			<item>
+				<name>second consumed by 16 - MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+		</buffer>
+	</buffers>
+	<operations>
+		<operation>
+			<name>1 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>10</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource Q</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource P</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow>
+					<item>
+						<name>consumed by 1 - MO/DE/2025-00321</name>
+					</item>
+					<quantity>-1.6</quantity>
+				</flow>
+			</flows>
+			<duration>PT1H20M</duration>
+		</operation>
+		<operation>
+			<name>10 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>100</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource Q</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource P</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT1H40M</duration>
+		</operation>
+		<operation>
+			<name>11 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>110</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource J</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT5H</duration>
+		</operation>
+		<operation>
+			<name>12 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>120</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource O</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource N</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT6H9M</duration>
+		</operation>
+		<operation>
+			<name>13 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>130</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource L</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource M</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT40M</duration>
+		</operation>
+		<operation>
+			<name>14 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>140</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource K</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource J</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT50M</duration>
+		</operation>
+		<operation>
+			<name>15 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>150</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource G</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource H</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT1H30M</duration>
+		</operation>
+		<operation>
+			<name>16 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>160</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource A</name>
+					</resource>
+					<quantity>0.842105</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource B</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource C</name>
+					</resource>
+					<quantity>0.552632</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource D</name>
+					</resource>
+					<quantity>0.552632</quantity>
+				</load>
+			</loads>
+			<flows>
+				<flow>
+					<item>
+						<name>first consumed by 16 - MO/DE/2025-00321</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>second consumed by 16 - MO/DE/2025-00321</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>PT3H10M</duration>
+		</operation>
+		<operation>
+			<name>17 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>170</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource E</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource F</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow>
+					<item>
+						<name>consumed by 17 - MO/DE/2025-00321</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>produced by MO/DE/2025-00321</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+			</flows>
+			<duration>PT1H</duration>
+		</operation>
+		<operation>
+			<name>2 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>20</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource J</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT8H</duration>
+		</operation>
+		<operation>
+			<name>3 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>30</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource A</name>
+					</resource>
+					<quantity>0.037007</quantity>
+				</load>
+			</loads>
+			<duration>P1DT16H32M</duration>
+		</operation>
+		<operation>
+			<name>4 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>40</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource W</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource A</name>
+					</resource>
+					<quantity>0.318471</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource S</name>
+					</resource>
+					<quantity>0.244161</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource U</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT7H51M</duration>
+		</operation>
+		<operation>
+			<name>5 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>50</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource V</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource U</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource A</name>
+					</resource>
+					<quantity>0.190058</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource S</name>
+					</resource>
+					<quantity>0.146199</quantity>
+				</load>
+			</loads>
+			<duration>PT11H24M</duration>
+		</operation>
+		<operation>
+			<name>6 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>60</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource A</name>
+					</resource>
+					<quantity>0.069214</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource S</name>
+					</resource>
+					<quantity>0.01938</quantity>
+				</load>
+				<load>
+					<resource>
+						<name>Resource T</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>P2DT12H12M</duration>
+		</operation>
+		<operation>
+			<name>7 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>70</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource K</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource I</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource J</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT50M</duration>
+		</operation>
+		<operation>
+			<name>8 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>80</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource G</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource H</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT1H30M</duration>
+		</operation>
+		<operation>
+			<name>9 - MO/DE/2025-00321</name>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>90</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Resource R</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Resource F</name>
+					</resource>
+				</load>
+			</loads>
+			<duration>PT50M</duration>
+		</operation>
+		<operation xsi:type="operation_routing">
+			<name>MO/0001</name>
+			<item>
+				<name>creepy item</name>
+			</item>
+			<location>
+				<name>factory</name>
+			</location>
+			<priority>0</priority>
+			<suboperations>
+				<suboperation>
+					<operation>
+						<name>MO/0001 - 1</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>MO/0001 - 2</name>
+					</operation>
+				</suboperation>
+			</suboperations>
+		</operation>
+		<operation>
+			<name>MO/0001 - 1</name>
+			<location>
+				<name>factory</name>
+			</location>
+			<priority>10</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Creepy resource 1</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Creepy secondary pool</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow>
+					<item>
+						<name>creepy component 1</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>creepy component 2</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>PT1H</duration>
+		</operation>
+		<operation>
+			<name>MO/0001 - 2</name>
+			<location>
+				<name>factory</name>
+			</location>
+			<priority>20</priority>
+			<loads>
+				<load>
+					<resource>
+						<name>Creepy resource pool</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Creepy secondary pool</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow>
+					<item>
+						<name>creepy component 3</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>creepy component 4</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>creepy item</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+			</flows>
+			<duration>PT1H</duration>
+		</operation>
+		<operation xsi:type="operation_routing">
+			<name>MO/DE/2025-00321</name>
+			<item>
+				<name>produced by MO/DE/2025-00321</name>
+			</item>
+			<location>
+				<name>manufacturing plant</name>
+			</location>
+			<priority>0</priority>
+			<suboperations>
+				<suboperation>
+					<operation>
+						<name>1 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>2 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>3 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>4 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>5 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>6 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>7 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>8 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>9 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>10 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>11 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>12 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>13 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>14 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>15 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>16 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>17 - MO/DE/2025-00321</name>
+					</operation>
+				</suboperation>
+			</suboperations>
+		</operation>
+		<operation>
+			<name>Oper1</name>
+			<item>
+				<name>Out2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res1</name>
+					</resource>
+				</load>
+				<load>
+					<resource>
+						<name>Res2</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out1</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out2</name>
+					</item>
+					<quantity>2</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In1</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In2</name>
+					</item>
+					<quantity>-2</quantity>
+				</flow>
+			</flows>
+			<duration>P10D</duration>
+		</operation>
+		<operation xsi:type="operation_routing">
+			<name>Oper3</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<suboperations>
+				<suboperation>
+					<operation>
+						<name>Oper3A</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>Oper3B</name>
+					</operation>
+					<priority>2</priority>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>Oper3C</name>
+					</operation>
+					<priority>3</priority>
+				</suboperation>
+			</suboperations>
+		</operation>
+		<operation>
+			<name>Oper3A</name>
+			<posttime>P1D</posttime>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res3A</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out3A</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In3A</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In3</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation>
+			<name>Oper3B</name>
+			<posttime>P1D</posttime>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res3B</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out3B</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In3B</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation>
+			<name>Oper3C</name>
+			<posttime>P1D</posttime>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res3C</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out3C</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In3C</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out3</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation xsi:type="operation_alternate">
+			<name>Oper4</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res4</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out4</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In4</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<suboperations>
+				<suboperation>
+					<operation>
+						<name>Oper4A</name>
+					</operation>
+				</suboperation>
+				<suboperation>
+					<operation>
+						<name>Oper4B</name>
+					</operation>
+					<priority>2</priority>
+				</suboperation>
+			</suboperations>
+		</operation>
+		<operation>
+			<name>Oper4A</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res4A</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out4A</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In4A</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In4</name>
+					</item>
+					<quantity>-1</quantity>
+					<effective_end>1971-01-01T00:00:00</effective_end>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation>
+			<name>Oper4B</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res4B</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out4B</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In4B</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation>
+			<name>Oper5</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res5</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out5</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In5</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+		</operation>
+		<operation xsi:type="operation_time_per">
+			<name>Oper6</name>
+			<location>
+				<name>Loc</name>
+			</location>
+			<loads>
+				<load>
+					<resource>
+						<name>Res6</name>
+					</resource>
+				</load>
+			</loads>
+			<flows>
+				<flow xsi:type="flow_end">
+					<item>
+						<name>Out6</name>
+					</item>
+					<quantity>1</quantity>
+				</flow>
+				<flow>
+					<item>
+						<name>In6</name>
+					</item>
+					<quantity>-1</quantity>
+				</flow>
+			</flows>
+			<duration>P1D</duration>
+			<duration_per>P1D</duration_per>
+		</operation>
+		<operation>
+			<name>Strange WIP sizes</name>
+			<size_minimum>1000</size_minimum>
+			<size_multiple>50</size_multiple>
+			<location>
+				<name>Loc</name>
+			</location>
+			<duration>P1D</duration>
+		</operation>
+	</operations>
+	<operationplans>
+		<operationplan>
+			<reference>1 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>1 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-07-30T19:16:07</start>
+			<end>2025-07-30T20:36:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>10 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>10 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T07:26:07</start>
+			<end>2025-08-19T09:06:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>11 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>11 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T09:06:07</start>
+			<end>2025-08-19T14:06:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>12 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>12 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T14:06:07</start>
+			<end>2025-08-19T20:15:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>13 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>13 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T20:15:07</start>
+			<end>2025-08-19T20:55:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>14 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>14 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T20:55:07</start>
+			<end>2025-08-19T21:45:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>15 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>15 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T21:45:07</start>
+			<end>2025-08-19T23:15:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>16 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>16 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-20T07:15:07</start>
+			<end>2025-08-20T10:25:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>17 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>17 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-20T11:05:07</start>
+			<end>2025-08-20T12:05:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>2 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>2 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-07-30T20:36:07</start>
+			<end>2025-07-31T04:36:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>3 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>3 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-07-31T12:36:07</start>
+			<end>2025-08-02T05:08:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>4 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>4 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-05T14:48:07</start>
+			<end>2025-08-05T22:39:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>5 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>5 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-06T07:19:07</start>
+			<end>2025-08-06T18:43:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>6 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-12T12:24:07</start>
+			<end>2025-08-15T00:36:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>7 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>7 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-18T20:16:07</start>
+			<end>2025-08-18T21:06:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>8 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>8 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-18T21:06:07</start>
+			<end>2025-08-18T22:36:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>9 - MO/DE/2025-00321</reference>
+			<operation>
+				<name>9 - MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-08-19T06:36:07</start>
+			<end>2025-08-19T07:26:07</end>
+			<quantity>5</quantity>
+			<status>approved</status>
+			<owner>
+				<reference>MO/DE/2025-00321</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>MO/0001</reference>
+			<operation xsi:type="operation_routing">
+				<name>MO/0001</name>
+			</operation>
+			<start>2025-03-24T23:00:00</start>
+			<end>2025-03-25T01:00:00</end>
+			<quantity>2</quantity>
+			<batch>SO/01</batch>
+			<status>approved</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>MO/0001 - 1</reference>
+			<operation>
+				<name>MO/0001 - 1</name>
+			</operation>
+			<start>2025-03-24T23:00:00</start>
+			<end>2025-03-25T00:00:00</end>
+			<quantity>2</quantity>
+			<batch>SO/01</batch>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>MO/0001</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>MO/0001 - 2</reference>
+			<operation>
+				<name>MO/0001 - 2</name>
+			</operation>
+			<start>2025-03-25T00:00:00</start>
+			<end>2025-03-25T01:00:00</end>
+			<quantity>2</quantity>
+			<batch>SO/01</batch>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>MO/0001</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>MO/DE/2025-00321</reference>
+			<operation xsi:type="operation_routing">
+				<name>MO/DE/2025-00321</name>
+			</operation>
+			<start>2025-07-30T19:16:07</start>
+			<end>2025-08-20T12:05:07</end>
+			<quantity>5</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>1001</reference>
+			<operation>
+				<name>Oper1</name>
+			</operation>
+			<start>2013-12-31T00:00:00</start>
+			<end>2014-01-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>1002</reference>
+			<operation>
+				<name>Oper1</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>1003</reference>
+			<operation>
+				<name>Oper1</name>
+			</operation>
+			<start>2014-03-01T00:00:00</start>
+			<end>2014-03-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>1004</reference>
+			<operation>
+				<name>Oper1</name>
+			</operation>
+			<start>2014-04-01T00:00:00</start>
+			<end>2014-04-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>3005</reference>
+			<operation xsi:type="operation_routing">
+				<name>Oper3</name>
+			</operation>
+			<start>2014-01-31T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>3007</reference>
+			<operation xsi:type="operation_routing">
+				<name>Oper3</name>
+			</operation>
+			<start>2014-03-29T00:00:00</start>
+			<end>2014-04-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>3009</reference>
+			<operation xsi:type="operation_routing">
+				<name>Oper3</name>
+			</operation>
+			<start>2014-06-05T00:00:00</start>
+			<end>2014-06-12T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>6003</reference>
+			<operation>
+				<name>Oper3A</name>
+			</operation>
+			<start>2014-01-31T00:00:00</start>
+			<end>2014-02-01T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3005</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6004</reference>
+			<operation>
+				<name>Oper3A</name>
+			</operation>
+			<start>2014-03-29T00:00:00</start>
+			<end>2014-03-30T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3007</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6005</reference>
+			<operation>
+				<name>Oper3A</name>
+			</operation>
+			<start>2014-06-05T00:00:00</start>
+			<end>2014-06-06T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3009</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>3006</reference>
+			<operation>
+				<name>Oper3B</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>2</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3005</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>3008</reference>
+			<operation>
+				<name>Oper3B</name>
+			</operation>
+			<start>2014-03-30T00:00:00</start>
+			<end>2014-03-31T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3007</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>3010</reference>
+			<operation>
+				<name>Oper3B</name>
+			</operation>
+			<start>2014-06-10T00:00:00</start>
+			<end>2014-06-11T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3009</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6006</reference>
+			<operation>
+				<name>Oper3C</name>
+			</operation>
+			<start>2014-02-04T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3005</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6007</reference>
+			<operation>
+				<name>Oper3C</name>
+			</operation>
+			<start>2014-04-04T00:00:00</start>
+			<end>2014-04-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3007</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>6008</reference>
+			<operation>
+				<name>Oper3C</name>
+			</operation>
+			<start>2014-06-11T00:00:00</start>
+			<end>2014-06-12T00:00:00</end>
+			<quantity>10</quantity>
+			<status>approved</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>3009</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>4005</reference>
+			<operation xsi:type="operation_alternate">
+				<name>Oper4</name>
+			</operation>
+			<start>2014-01-04T00:00:00</start>
+			<end>2014-01-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<ordertype>ALT</ordertype>
+		</operationplan>
+		<operationplan>
+			<reference>4006</reference>
+			<operation xsi:type="operation_alternate">
+				<name>Oper4</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<ordertype>ALT</ordertype>
+		</operationplan>
+		<operationplan>
+			<reference>4008</reference>
+			<operation xsi:type="operation_alternate">
+				<name>Oper4</name>
+			</operation>
+			<start>2014-03-01T00:00:00</start>
+			<end>2014-03-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<ordertype>ALT</ordertype>
+		</operationplan>
+		<operationplan>
+			<reference>6009</reference>
+			<operation>
+				<name>Oper4A</name>
+			</operation>
+			<start>2014-01-04T00:00:00</start>
+			<end>2014-01-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>4005</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>4010</reference>
+			<operation>
+				<name>Oper4A</name>
+			</operation>
+			<start>2014-03-01T00:00:00</start>
+			<end>2014-03-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>4008</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>4007</reference>
+			<operation>
+				<name>Oper4B</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+			<owner>
+				<reference>4006</reference>
+			</owner>
+		</operationplan>
+		<operationplan>
+			<reference>5001</reference>
+			<operation>
+				<name>Oper5</name>
+			</operation>
+			<start>2019-01-01T00:00:00</start>
+			<end>2019-01-02T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>5002</reference>
+			<operation>
+				<name>Oper5</name>
+			</operation>
+			<start>2019-02-01T00:00:00</start>
+			<end>2019-02-02T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<consume_material>false</consume_material>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>5003</reference>
+			<operation>
+				<name>Oper5</name>
+			</operation>
+			<start>2019-03-01T00:00:00</start>
+			<end>2019-03-02T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<produce_material>false</produce_material>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>5004</reference>
+			<operation>
+				<name>Oper5</name>
+			</operation>
+			<start>2019-04-01T00:00:00</start>
+			<end>2019-04-02T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<consume_capacity>false</consume_capacity>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>5005</reference>
+			<operation>
+				<name>Oper5</name>
+			</operation>
+			<start>2019-05-01T00:00:00</start>
+			<end>2019-05-02T00:00:00</end>
+			<quantity>10</quantity>
+			<status>confirmed</status>
+			<consume_material>false</consume_material>
+			<produce_material>false</produce_material>
+			<consume_capacity>false</consume_capacity>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>6001</reference>
+			<operation xsi:type="operation_time_per">
+				<name>Oper6</name>
+			</operation>
+			<start>2020-02-05T00:00:00</start>
+			<end>2020-03-05T00:00:00</end>
+			<quantity>3</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>6002</reference>
+			<operation xsi:type="operation_time_per">
+				<name>Oper6</name>
+			</operation>
+			<start>2020-02-05T00:00:00</start>
+			<end>2020-03-05T00:00:00</end>
+			<quantity>2</quantity>
+			<status>confirmed</status>
+			<feasible>false</feasible>
+		</operationplan>
+		<operationplan>
+			<reference>6010</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In1 @ Loc from Component supplier</name>
+			</operation>
+			<start>2013-12-31T00:00:00</start>
+			<end>2013-12-31T00:00:00</end>
+			<quantity>5</quantity>
+			<feasible>false</feasible>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6011</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In1 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-02T00:00:00</start>
+			<end>2014-02-02T00:00:00</end>
+			<quantity>5</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6012</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In1 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-28T00:00:00</start>
+			<end>2014-02-28T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6013</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In1 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-04-01T00:00:00</start>
+			<end>2014-04-01T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In1</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6014</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In2 @ Loc from Component supplier</name>
+			</operation>
+			<start>2013-12-31T00:00:00</start>
+			<end>2013-12-31T00:00:00</end>
+			<quantity>8</quantity>
+			<feasible>false</feasible>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6015</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In2 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-05T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>2</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6016</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In2 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-28T00:00:00</start>
+			<end>2014-02-28T00:00:00</end>
+			<quantity>20</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6017</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In2 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-04-01T00:00:00</start>
+			<end>2014-04-01T00:00:00</end>
+			<quantity>20</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In2</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6018</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-01-31T00:00:00</start>
+			<end>2014-01-31T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6019</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-29T00:00:00</start>
+			<end>2014-03-29T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6020</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-06-05T00:00:00</start>
+			<end>2014-06-05T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6021</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3A @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-01-31T00:00:00</start>
+			<end>2014-01-31T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6022</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3A @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-29T00:00:00</start>
+			<end>2014-03-29T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6023</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3A @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-06-05T00:00:00</start>
+			<end>2014-06-05T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6024</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3B @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-05T00:00:00</start>
+			<end>2014-02-05T00:00:00</end>
+			<quantity>2</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6025</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3B @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-30T00:00:00</start>
+			<end>2014-03-30T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6026</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3B @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-06-10T00:00:00</start>
+			<end>2014-06-10T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6027</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3C @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-04T00:00:00</start>
+			<end>2014-02-04T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3C</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6028</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3C @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-04-04T00:00:00</start>
+			<end>2014-04-04T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3C</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6029</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In3C @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-06-11T00:00:00</start>
+			<end>2014-06-11T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In3C</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6030</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-01-01T00:00:00</start>
+			<end>2014-01-01T00:00:00</end>
+			<quantity>8</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6031</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2014-02-01T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6032</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-01T00:00:00</start>
+			<end>2014-03-01T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6033</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4 @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-02T00:00:00</start>
+			<end>2014-03-02T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6034</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4A @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-01-04T00:00:00</start>
+			<end>2014-01-04T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6035</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4A @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-03-01T00:00:00</start>
+			<end>2014-03-01T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4A</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>6036</reference>
+			<operation xsi:type="operation_itemsupplier">
+				<name>Purchase In4B @ Loc from Component supplier</name>
+			</operation>
+			<start>2014-01-31T00:00:00</start>
+			<end>2014-01-31T00:00:00</end>
+			<quantity>10</quantity>
+			<ordertype>PO</ordertype>
+			<item>
+				<name>In4B</name>
+			</item>
+			<location>
+				<name>Loc</name>
+			</location>
+			<supplier>
+				<name>Component supplier</name>
+			</supplier>
+		</operationplan>
+		<operationplan>
+			<reference>MO1</reference>
+			<operation>
+				<name>Strange WIP sizes</name>
+			</operation>
+			<start>2014-02-01T00:00:00</start>
+			<end>2015-02-05T00:00:00</end>
+			<quantity>1</quantity>
+			<status>confirmed</status>
+		</operationplan>
+		<operationplan>
+			<reference>MO2</reference>
+			<operation>
+				<name>Strange WIP sizes</name>
+			</operation>
+			<start>2015-02-01T00:00:00</start>
+			<end>2015-02-02T00:00:00</end>
+			<quantity>123</quantity>
+			<status>confirmed</status>
+		</operationplan>
+		<operationplan>
+			<reference>MO3</reference>
+			<operation>
+				<name>Strange WIP sizes</name>
+			</operation>
+			<start>2015-02-04T00:00:00</start>
+			<end>2015-02-05T00:00:00</end>
+			<quantity>1234</quantity>
+			<status>confirmed</status>
+		</operationplan>
+	</operationplans>
+</plan>

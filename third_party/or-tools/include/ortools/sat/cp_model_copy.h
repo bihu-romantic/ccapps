@@ -1,0 +1,203 @@
+// Copyright 2010-2025 Google LLC
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef ORTOOLS_SAT_CP_MODEL_COPY_H_
+#define ORTOOLS_SAT_CP_MODEL_COPY_H_
+
+#include <cstdint>
+#include <functional>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/types/span.h"
+#include "ortools/sat/cp_model.pb.h"
+#include "ortools/sat/lrat_proof_handler.h"
+#include "ortools/sat/presolve_context.h"
+#include "ortools/sat/sat_base.h"
+#include "ortools/sat/sat_parameters.pb.h"
+#include "ortools/util/sorted_interval_list.h"
+
+namespace operations_research {
+namespace sat {
+
+// This helper class perform copy with simplification from a model and a
+// partial assignment to another model. The purpose is to minimize the size of
+// the copied model, as well as to reduce the pressure on the memory sub-system.
+//
+// It is currently used by the LNS part, but could be used with any other scheme
+// that generates partial assignments.
+class ModelCopy {
+ public:
+  explicit ModelCopy(PresolveContext* context,
+                     LratProofHandler* lrat_proof_handler = nullptr);
+
+  // Copies all constraints from in_model to working model of the context.
+  //
+  // During the process, it will read variable domains from the context, and
+  // simplify constraints to minimize the size of the copied model.
+  // Thus it is important that the context->working_model already have the
+  // variables part copied.
+  //
+  // It returns false iff the model is proven infeasible.
+  //
+  // It does not clear the constraints part of the working model of the context.
+  //
+  // Note(user): If first_copy is true, we will reorder the scheduling
+  // constraint so that they only use reference to previously defined intervals.
+  // This allow to be more efficient later in a few preprocessing steps.
+  bool ImportAndSimplifyConstraints(
+      const CpModelProto& in_model, bool first_copy = false,
+      std::function<bool(int)> active_constraints = nullptr);
+
+  // Copy variables from the in_model to the working model.
+  // It reads the 'ignore_names' parameters from the context, and keeps or
+  // deletes names accordingly.
+  void ImportVariablesAndMaybeIgnoreNames(const CpModelProto& in_model);
+
+  // Setup new variables from a vector of domains.
+  // Inactive variables will be fixed to their lower bound.
+  void CreateVariablesFromDomains(absl::Span<const Domain> domains);
+
+  // Advanced usage. When a model was copied, interval_mapping[i] will contain
+  // for a copied interval with original index i, its new index.
+  absl::Span<const int64_t> InternalIntervalMapping() const {
+    return interval_mapping_;
+  }
+
+ private:
+  // Overwrites the out_model to be unsat. Returns false.
+  // The arguments are used to log which constraint caused unsat.
+  bool CreateUnsatModel(int c, const ConstraintProto& ct);
+
+  // Returns false if the constraint is never enforced and can be skipped.
+  bool PrepareEnforcementCopy(const ConstraintProto& ct);
+  bool PrepareEnforcementCopyWithDup(const ConstraintProto& ct);
+  void FinishEnforcementCopy(ConstraintProto* ct);
+
+  // All these functions return false if the constraint is found infeasible.
+  bool CopyBoolOr(const ConstraintProto& ct);
+  bool CopyBoolOrWithDupSupport(const ConstraintProto& ct, ClauseId clause_id);
+  bool FinishBoolOrCopy(ClauseId clause_id = kNoClauseId);
+
+  bool CopyBoolAnd(const ConstraintProto& ct);
+  bool CopyBoolAndWithDupSupport(const ConstraintProto& ct);
+
+  bool CopyAtMostOne(const ConstraintProto& ct);
+  bool CopyExactlyOne(const ConstraintProto& ct);
+
+  bool CopyElement(const ConstraintProto& ct);
+  bool CopyIntProd(const ConstraintProto& ct, bool ignore_names);
+  bool CopyIntDiv(const ConstraintProto& ct, bool ignore_names);
+  bool CopyIntMod(const ConstraintProto& ct, bool ignore_names);
+  bool CopyLinear(const ConstraintProto& ct, bool canonicalize);
+  bool CopyLinearExpression(const LinearExpressionProto& expr,
+                            LinearExpressionProto* dst,
+                            absl::Span<const int> enforcement_literals = {});
+  bool CopyAutomaton(const ConstraintProto& ct);
+  bool CopyTable(const ConstraintProto& ct);
+  bool CopyAllDiff(const ConstraintProto& ct);
+  bool CopyLinMax(const ConstraintProto& ct);
+
+  // If we "copy" an interval for a first time, we make sure to create the
+  // linear constraint between the start, size and end. This allow to simplify
+  // the input proto and client side code. If there are more than one
+  // enforcement literals, we replace them with a new one, made equal to their
+  // conjunction with two new constraints.
+  bool CopyInterval(const ConstraintProto& ct, int c, bool ignore_names);
+  bool AddLinearConstraintForInterval(const ConstraintProto& ct);
+  int GetOrCreateVariableForConjunction(std::vector<int>* literals);
+
+  // These function remove unperformed intervals. Note that they requires
+  // interval to appear before (validated) as they test unperformed by testing
+  // if interval_mapping_ is empty.
+  void CopyAndMapNoOverlap(const ConstraintProto& ct);
+  void CopyAndMapNoOverlap2D(const ConstraintProto& ct);
+  bool CopyAndMapCumulative(const ConstraintProto& ct);
+
+  // Expands linear expressions with more than one variable in constraints which
+  // internally only support affine expressions (such as all_diff, element,
+  // interval, reservoir, table, etc). This creates new variables for each such
+  // expression, and replaces the original expressions with the new variables in
+  // the constraints.
+  void ExpandNonAffineExpressions();
+  // Replaces the expression sum a_i * x_i + c with gcd * y + c, where y is a
+  // new variable defined with an additional constraint y = sum a_i / gcd * x_i.
+  void MaybeExpandNonAffineExpression(LinearExpressionProto* expr);
+  void MaybeExpandNonAffineExpressions(LinearArgumentProto* linear_argument);
+
+  ClauseId NextInferredClauseId();
+
+  PresolveContext* context_;
+  LratProofHandler* lrat_proof_handler_;
+
+  // Temp vectors.
+  std::vector<int> non_fixed_variables_;
+  std::vector<int64_t> non_fixed_coefficients_;
+  std::vector<int64_t> interval_mapping_;
+  int starting_constraint_index_ = 0;
+
+  std::vector<int> temp_enforcement_literals_;
+  absl::flat_hash_set<int> temp_enforcement_literals_set_;
+
+  std::vector<int> temp_literals_;
+  absl::flat_hash_set<int> temp_literals_set_;
+
+  ConstraintProto tmp_constraint_;
+
+  // The unit clause IDs of the literals which are fixed to true. Only used if
+  // lrat_proof_handler_ is not null.
+  absl::flat_hash_map<Literal, ClauseId> unit_clause_ids_;
+  // Temp vectors used for LRAT.
+  std::vector<Literal> temp_clause_;
+  std::vector<Literal> temp_simplified_clause_;
+  std::vector<ClauseId> temp_clause_ids_;
+  ClauseId next_inferred_clause_id_;
+
+  // Map used in GetOrCreateVariableForConjunction() to avoid creating duplicate
+  // variables for identical sets of literals.
+  absl::flat_hash_map<std::vector<int>, int> boolean_product_encoding_;
+  // Map used in ExpandNonAffineExpressions() to avoid creating duplicate
+  // variables for the identical non affine expressions.
+  absl::flat_hash_map<std::vector<std::pair<int, int64_t>>, int>
+      non_affine_expression_to_new_var_;
+};
+
+// Copy in_model to the model in the presolve context.
+// It performs on the fly simplification, and returns false if the
+// model is proved infeasible. If reads the parameters 'ignore_names' and keeps
+// or deletes variables and constraints names accordingly.
+//
+// This should only be called on the first copy of the user given model.
+// Note that this reorder all constraints that use intervals last. We loose the
+// user-defined order, but hopefully that should not matter too much.
+bool ImportModelWithBasicPresolveIntoContext(
+    const CpModelProto& in_model, PresolveContext* context,
+    LratProofHandler* lrat_proof_handler = nullptr);
+
+// Same as ImportModelWithBasicPresolveIntoContext() except that variable
+// domains are read from domains and constraint might be filtered.
+bool ImportModelAndDomainsWithBasicPresolveIntoContext(
+    const CpModelProto& in_model, absl::Span<const Domain> domains,
+    std::function<bool(int)> active_constraints, PresolveContext* context,
+    std::vector<int>* interval_mapping);
+
+// Copies the non constraint, non variables part of the model.
+void CopyEverythingExceptVariablesAndConstraintsFieldsIntoContext(
+    const CpModelProto& in_model, PresolveContext* context);
+
+}  // namespace sat
+}  // namespace operations_research
+
+#endif  // ORTOOLS_SAT_CP_MODEL_COPY_H_

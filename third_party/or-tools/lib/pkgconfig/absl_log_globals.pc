@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_log_globals
+Description: Abseil log_globals library
+URL: https://abseil.io/
+Version: 20250814
+Requires: absl_atomic_hook = 20250814, absl_config = 20250814, absl_core_headers = 20250814, absl_hash = 20250814, absl_log_severity = 20250814, absl_raw_logging_internal = 20250814, absl_strings = 20250814, absl_vlog_config_internal = 20250814
+Libs: -L${libdir}  -labsl_log_globals 
+Cflags: -I${includedir} -DNOMINMAX

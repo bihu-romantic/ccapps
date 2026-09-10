@@ -1,0 +1,10 @@
+[
+    {
+        "pk": "import_skips_audit_log",
+        "model": "common.parameter",
+        "fields": {
+            "value": "true",
+            "description": "设为 true 时，导入数据文件命令不创建任何审计日志。默认：true。"
+        }
+    }
+]

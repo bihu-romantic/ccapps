@@ -1,0 +1,11 @@
+packages:
+  - freppledb/common/frontend
+  - freppledb/forecast/frontend
+  - freppledb/input/frontend
+
+allowBuilds:
+  esbuild: set this to true or false
+  inotify: set this to true or false
+
+onlyBuiltDependencies:
+  - esbuild

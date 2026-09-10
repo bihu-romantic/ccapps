@@ -1,0 +1,213 @@
+from datetime import datetime
+import shlex
+import os
+import psutil
+
+from django.core import management
+from django.core.management.base import BaseCommand, CommandError
+from django.db import DEFAULT_DB_ALIAS
+from django.utils.translation import gettext_lazy as _
+from django.template.loader import render_to_string
+
+from ccAPPSdb import VERSION
+from ccAPPSdb.common.models import Parameter, Scenario
+from ccAPPSdb.common.utils import get_databases
+from ccAPPSdb.input.models import Item
+from ccAPPSdb.execute.models import Task
+from ccAPPSdb.execute.management.commands.runplan import parseConstraints
+from ...utils import waitTillRunning, checkRunning
+
+
+class Command(BaseCommand):
+    help = "This command starts the ccAPPS web service."
+
+    requires_system_checks = []
+
+    def get_version(self):
+        return VERSION
+
+    def add_arguments(self, parser):
+        parser.add_argument("--user", help="User running the command")
+        parser.add_argument(
+            "--forcerestart",
+            action="store_true",
+            default=False,
+            help="Restart the web service if it is already running.",
+        )
+        parser.add_argument(
+            "--database", default=DEFAULT_DB_ALIAS, help="Nominates a specific database"
+        )
+        parser.add_argument(
+            "--wait",
+            action="store_true",
+            default=False,
+            help="Wait until the service is up and running",
+        )
+        parser.add_argument(
+            "--task",
+            type=int,
+            help="Optional task identifier",
+        )
+        parser.add_argument(
+            "--daemon",
+            dest="daemon",
+            action="store_true",
+            default=False,
+            help="Run the planning engine as a daemon process for which we don't need to wait (default = False)",
+        )
+        parser.add_argument("--env", default="loadplan", help="environment variable")
+
+    def handle(self, **options):
+        # Validate the database option
+        database = options["database"]
+        if database not in get_databases():
+            raise CommandError("No database settings known for '%s'" % database)
+
+        if (
+            database != DEFAULT_DB_ALIAS
+            and not Scenario.objects.using(DEFAULT_DB_ALIAS)
+            .filter(name=database, status="In use")
+            .exists()
+        ):
+            # Silent exit when the scenario isn't in use
+            return
+
+        # Update task when specified
+        if options["task"]:
+            try:
+                task = Task.objects.all().using(database).get(pk=options["task"])
+            except Exception:
+                raise CommandError("Task identifier not found")
+            if (
+                task.started
+                or task.finished
+                or task.status != "Waiting"
+                or task.name != "runwebservice"
+            ):
+                raise CommandError("Invalid task identifier")
+            task.started = datetime.now()
+            task.processid = os.getpid()
+        elif not options["daemon"]:
+            now = datetime.now()
+            task = Task(name="runwebservice", submitted=now, started=now, status="0%")
+            task.save(using=database)
+        else:
+            task = None
+
+        if not Item.objects.all().using(database).exists():
+            if task:
+                task.status = "Done"
+                task.finished = datetime.now()
+                task.message = "Skipped starting the service since there are no data."
+                task.processid = None
+                task.save(using=database)
+            return
+
+        already_running = checkRunning(database=database)
+        if not options["forcerestart"] and already_running:
+            # Already running, and we are not forcing a restart
+            if task:
+                task.status = "Done"
+                task.finished = datetime.now()
+                task.message = "Web service already running."
+                task.processid = None
+                task.save(using=database)
+            return
+
+        if not already_running:
+            # Protection against race conditions.
+            # There is a delay between the start of the web service and the
+            # web service's port number being occupied.
+            # During this time window we could launch the service multiple times.
+            try:
+                startingsvc = (
+                    Task.objects.all()
+                    .using(database)
+                    .filter(
+                        name="runplan",
+                        arguments__icontains="loadplan",
+                        processid__isnull=False,
+                    )
+                    .order_by("-id")
+                    .only("processid")
+                    .first()
+                )
+                if (
+                    startingsvc
+                    and psutil.Process(startingsvc.processid).status()
+                    != psutil.STATUS_ZOMBIE
+                ):
+                    # We found a process of a starting web service!
+                    if task:
+                        task.status = "Done"
+                        task.finished = datetime.now()
+                        task.message = "Web service already starting."
+                        task.processid = None
+                        task.save(using=database)
+                    return
+            except Exception as e:
+                pass
+
+        try:
+            # Retrieve constraint and plan type from the last run
+            constraint = 4 + 16 + 32
+            plantype = 1
+            try:
+                lastrun = (
+                    Task.objects.all()
+                    .using(database)
+                    .filter(name="runplan")
+                    .exclude(arguments__icontains="loadplan")
+                    .order_by("-id")[0]
+                )
+                for i in shlex.split(lastrun.arguments or ""):
+                    if "=" in i:
+                        key, val = i.split("=", 1)
+                        if key == "--constraint":
+                            constraint = parseConstraints(val)
+                        elif key == "--plantype":
+                            plantype = int(val)
+            except Exception:
+                pass
+
+            kwargs = {
+                "constraint": constraint,
+                "plantype": plantype,
+                "env": options["env"],
+                "database": database,
+            }
+            if options["user"]:
+                kwargs["user"] = options["user"]
+            if options["daemon"]:
+                kwargs["daemon"] = True
+            else:
+                kwargs["background"] = True
+            management.call_command("runplan", **kwargs)
+
+            if options["wait"]:
+                # Wait until the service is up
+                try:
+                    waitTillRunning(database=database, timeout=180)
+                except Exception:
+                    raise CommandError("Web service didn't start timely")
+        finally:
+            if task:
+                task.status = "Done"
+                task.finished = datetime.now()
+                task.processid = None
+                task.save(using=database)
+
+    # accordion template
+    title = _("web service")
+    index = 1500
+    help_url = "command-reference.html#runwebservice"
+
+    @staticmethod
+    def getHTML(request):
+        if (
+            Parameter.getValue("plan.webservice", request.database, "true").lower()
+            == "true"
+        ):
+            return render_to_string("commands/runwebservice.html", request=request)
+        else:
+            return None

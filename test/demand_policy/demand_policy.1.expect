@@ -1,0 +1,98 @@
+BUFFER	buffer A @ factory	1971-01-01T00:00:00	10	10
+BUFFER	buffer A @ factory	2009-01-05T00:00:00	-10	0
+BUFFER	buffer A @ factory	2009-01-10T00:00:00	10	10
+BUFFER	buffer A @ factory	2009-01-10T00:00:00	-10	0
+BUFFER	buffer B @ factory	1971-01-01T00:00:00	10	10
+BUFFER	buffer B @ factory	2009-01-05T00:00:00	-10	0
+BUFFER	buffer B @ factory	2009-01-10T00:00:00	10	10
+BUFFER	buffer C @ factory	1971-01-01T00:00:00	10	10
+BUFFER	buffer C @ factory	2009-01-10T00:00:00	10	20
+BUFFER	buffer C @ factory	2009-01-10T00:00:00	-20	0
+BUFFER	buffer D @ factory	1971-01-01T00:00:00	10	10
+BUFFER	buffer D @ factory	2009-01-10T00:00:00	10	20
+BUFFER	buffer E @ factory	1971-01-01T00:00:00	10	10
+BUFFER	buffer E @ factory	2009-01-05T00:00:00	-10	0
+BUFFER	buffer E @ factory	2009-01-10T00:00:00	10	10
+BUFFER	buffer F @ factory	1971-01-01T00:00:00	15	15
+BUFFER	buffer F @ factory	2009-01-10T00:00:00	10	25
+BUFFER	buffer F @ factory	2009-01-10T00:00:00	-20	5
+BUFFER	buffer G @ factory	1971-01-01T00:00:00	15	15
+BUFFER	buffer G @ factory	2009-01-10T00:00:00	50	65
+BUFFER	buffer G @ factory	2009-01-10T00:00:00	-30	35
+BUFFER	item H1 @ factory	2009-01-15T00:00:00	20	20
+BUFFER	item H1 @ factory	2009-01-15T00:00:00	-20	0
+BUFFER	item H2 @ factory	2009-01-07T00:00:00	20	20
+BUFFER	item H2 @ factory	2009-01-07T00:00:00	-20	0
+BUFFER	item H3 @ factory	2009-01-31T00:00:00	20	20
+BUFFER	item H3 @ factory	2009-01-31T00:00:00	-20	0
+BUFFER	item I1 @ factory	2009-01-31T00:00:00	20	20
+BUFFER	item I1 @ factory	2009-01-31T00:00:00	-20	0
+BUFFER	item I2 @ factory	2009-01-31T00:00:00	20	20
+BUFFER	item I2 @ factory	2009-01-31T00:00:00	-20	0
+BUFFER	item I3 @ factory	2009-01-31T00:00:00	20	20
+BUFFER	item I3 @ factory	2009-01-31T00:00:00	-20	0
+BUFFER	item J1 @ factory	2009-01-15T00:00:00	20	20
+BUFFER	item J1 @ factory	2009-01-15T00:00:00	-20	0
+BUFFER	item J2 @ factory	2009-01-07T00:00:00	20	20
+BUFFER	item J2 @ factory	2009-01-07T00:00:00	-20	0
+BUFFER	item J3 @ factory	2009-01-31T00:00:00	20	20
+BUFFER	item J3 @ factory	2009-01-31T00:00:00	-20	0
+DEMAND	order A	2009-01-10T00:00:00	10	later than 2009-01-05T00:00:00
+DEMAND	order A	2009-01-05T00:00:00	10
+DEMAND	order B	2009-01-05T00:00:00	10
+DEMAND	order B	planned 10 units short
+DEMAND	order C	2009-01-10T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order D	planned 20 units short
+DEMAND	order E	2009-01-05T00:00:00	10
+DEMAND	order E	planned 10 units short
+DEMAND	order F	2009-01-10T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order G	2009-01-10T00:00:00	30	later than 2009-01-05T00:00:00
+DEMAND	order G	planned 10 units too much
+DEMAND	order H1	2009-01-15T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order H2	2009-01-07T00:00:00	20	later than 2009-01-06T00:00:00
+DEMAND	order H3	2009-01-31T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order I1	2009-01-31T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order I2	2009-01-31T00:00:00	20	later than 2009-01-06T00:00:00
+DEMAND	order I3	2009-01-31T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order J1	2009-01-15T00:00:00	20	later than 2009-01-05T00:00:00
+DEMAND	order J2	2009-01-07T00:00:00	20	later than 2009-01-06T00:00:00
+DEMAND	order J3	2009-01-31T00:00:00	20	later than 2009-01-05T00:00:00
+OPERATION	Purchase item H1 @ factory from Supplier for H	2009-01-01T00:00:00	2009-01-15T00:00:00	20
+OPERATION	Purchase item H2 @ factory from Supplier for H	2009-01-01T00:00:00	2009-01-07T00:00:00	20
+OPERATION	Purchase item H3 @ factory from Supplier for H	2009-01-01T00:00:00	2009-01-31T00:00:00	20
+OPERATION	Purchase item I1 @ factory from Supplier for I	2009-01-17T00:00:00	2009-01-31T00:00:00	20
+OPERATION	Purchase item I2 @ factory from Supplier for I	2009-01-25T00:00:00	2009-01-31T00:00:00	20
+OPERATION	Purchase item I3 @ factory from Supplier for I	2009-01-01T00:00:00	2009-01-31T00:00:00	20
+OPERATION	Purchase item J1 @ factory from Supplier for J	2009-01-01T00:00:00	2009-01-15T00:00:00	20
+OPERATION	Purchase item J2 @ factory from Supplier for J	2009-01-01T00:00:00	2009-01-07T00:00:00	20
+OPERATION	Purchase item J3 @ factory from Supplier for J	2009-01-01T00:00:00	2009-01-31T00:00:00	20
+OPERATION	supply item A	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item B	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item C	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item D	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item E	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item F	2009-01-10T00:00:00	2009-01-10T00:00:00	10	confirmed
+OPERATION	supply item G	2009-01-10T00:00:00	2009-01-10T00:00:00	50	confirmed
+PROBLEM	invalid data	No replenishment defined for 'buffer A @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer B @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer C @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer D @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer E @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer F @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+PROBLEM	invalid data	No replenishment defined for 'buffer G @ factory'	1971-01-01T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order A	Buffer 'buffer A @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order B	Buffer 'buffer B @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order C	Buffer 'buffer C @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order D	Buffer 'buffer D @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order E	Buffer 'buffer E @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order F	Buffer 'buffer F @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order G	Buffer 'buffer G @ factory' has material shortage	2009-01-05T00:00:00 / 2030-12-31T00:00:00
+DEMAND CONSTRAINT	order H1	Purchasing lead time on 'Purchase item H1 @ factory from Supplier for H'	2008-12-22T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order H2	Purchasing lead time on 'Purchase item H2 @ factory from Supplier for H'	2008-12-31T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order H3	Purchasing lead time on 'Purchase item H3 @ factory from Supplier for H'	2008-12-06T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order I1	Demand 'order I1' is synchronized with order I3	2009-01-05T00:00:00 / 2009-01-31T00:00:00
+DEMAND CONSTRAINT	order I2	Demand 'order I2' is synchronized with order I3	2009-01-06T00:00:00 / 2009-01-31T00:00:00
+DEMAND CONSTRAINT	order I3	Purchasing lead time on 'Purchase item I3 @ factory from Supplier for I'	2008-12-16T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order J1	Purchasing lead time on 'Purchase item J1 @ factory from Supplier for J'	2008-12-22T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order J2	Purchasing lead time on 'Purchase item J2 @ factory from Supplier for J'	2008-12-30T00:00:00 / 2009-01-01T00:00:00
+DEMAND CONSTRAINT	order J3	Purchasing lead time on 'Purchase item J3 @ factory from Supplier for J'	2008-12-06T00:00:00 / 2009-01-01T00:00:00

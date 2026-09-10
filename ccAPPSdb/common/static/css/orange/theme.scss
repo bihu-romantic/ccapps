@@ -1,0 +1,138 @@
+// ============================================================
+// Orange-Black Theme — 橙黑主题
+// ============================================================
+
+// Core palette
+$orange-dark: #e65100;
+$orange-mid: #ff6d00;
+$orange-light: #ff9100;
+$orange-pale: #fff3e0;
+
+// Bootstrap variable overrides
+$light: #fff3e0;
+$dark: #212121;
+
+$primary: #ff6d00;
+$secondary: #fff3e0;
+$success: #4caf50;
+$info: #29b6f6;
+$warning: #ffa726;
+$danger: #ef5350;
+
+$white: #fff !default;
+$gray-100: #f8f9fa !default;
+$gray-200: #e9ecef !default;
+$gray-300: #dee2e6 !default;
+$gray-400: #ced4da !default;
+$gray-500: #adb5bd !default;
+$gray-600: #6c757d !default;
+$gray-700: #495057 !default;
+$gray-800: #343a40 !default;
+$gray-900: #212529 !default;
+$black: #000 !default;
+
+// Body — keep white background
+$body-bg: #f5f5f5;
+$body-color: #333333;
+
+// Table
+$table-color: #333;
+$table-color-state: #333;
+$table-bg: inherit;
+$table-striped-bg: rgba(255, 109, 0, 0.04);
+$table-hover-bg: rgba(255, 109, 0, 0.1);
+
+// Card
+$card-bg: #fff;
+
+// Dropdown
+$dropdown-bg: #fff;
+$dropdown-link-color: #333;
+$dropdown-link-hover-bg: rgba(255, 109, 0, 0.1);
+$dropdown-link-hover-color: $orange-dark;
+$dropdown-link-active-bg: rgba(255, 109, 0, 0.15);
+$dropdown-link-active-color: $orange-dark;
+
+// Modal
+$modal-content-bg: #fff;
+
+// List group
+$list-group-bg: #fff;
+
+// Input
+$input-bg: #fff;
+$input-color: #333;
+$input-focus-border-color: $orange-mid;
+$input-placeholder-color: #999;
+
+// Nav
+$nav-tabs-link-active-bg: #fff;
+$nav-tabs-link-active-color: $orange-mid;
+
+// Navbar
+$navbar-light-color: #333;
+$nav-link-color: #333;
+
+// Links
+$link-color: $orange-dark;
+$link-hover-color: $orange-mid;
+
+// Breadcrumb
+$breadcrumb-bg: transparent;
+$breadcrumb-divider-color: #999;
+
+// Accordion
+$accordion-bg: #fff;
+$accordion-button-bg: $secondary;
+$accordion-button-color: #333;
+$accordion-button-active-bg: rgba(255, 109, 0, 0.12);
+$accordion-button-active-color: $orange-dark;
+$accordion-btn-focus-border-color: $orange-mid;
+
+// Logo height
+$navbar-brand-height: 3rem;
+
+// Fonts
+$font-size-base: 0.8rem;
+$font-family-sans-serif:
+  "FontAwesome", "Open sans", Helvetica, Verdana, Arial, sans-serif;
+$font-family-monospace:
+  "FontAwesome", Menlo, Monaco, Consolas, "Courier New", monospace;
+
+// Grid breakpoints
+$grid-breakpoints: (
+  xs: 0,
+  sm: 576px,
+  md: 768px,
+  lg: 1050px,
+  xl: 1200px,
+  xxl: 1400px,
+);
+
+$theme-colors: (
+  "primary": $primary,
+  "secondary": $secondary,
+  "success": $success,
+  "info": $info,
+  "warning": $warning,
+  "danger": $danger,
+  "light": $light,
+  "dark": $dark,
+  "gray": $gray-600,
+);
+
+// Generic theme overrides
+$accordion-button-padding-y: 0.5rem;
+$btn-active-bg-shade-amount: 70%;
+$card-title-spacer-y: 0;
+$h1-font-size: $font-size-base * 1.5;
+$h2-font-size: $font-size-base * 1.25;
+$h3-font-size: $font-size-base * 1.25;
+$h4-font-size: $font-size-base * 1.25;
+$h5-font-size: $font-size-base * 1.25;
+$input-btn-focus-width: 2px;
+$link-decoration: none;
+$link-hover-decoration: none;
+$breadcrumb-item-padding-x: 0.2rem;
+$breadcrumb-divider: "\00a0\00a0\F0DA\00a0\00a0";
+$spacer: 1rem;

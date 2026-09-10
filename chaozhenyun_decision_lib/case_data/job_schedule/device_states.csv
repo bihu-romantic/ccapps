@@ -1,0 +1,3 @@
+device_id,status,available,capacity_factor,risk_level
+FAN-01,degraded,1,0.65,medium
+AC-01,normal,1,0.85,low

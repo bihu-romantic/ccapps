@@ -1,0 +1,93 @@
+{% load i18n %}
+{% if widget %}
+<script type="text/javascript">
+  function launchRunPlan(event) {
+    $.ajax({
+          url: "{{request.prefix}}/execute/api/runplan/",
+          data: $(event.target).parents('form:first').serialize(),
+          type: "POST",
+          error: ajaxerror
+        });
+    event.preventDefault();
+  }
+
+  function cancelTask() {
+    $.ajax({
+      url: "{{request.prefix}}/execute/cancel/{{lastrun.id}}/",
+      type: "POST",
+      });
+  }
+</script>
+{% endif %}
+<form role="form" method="post" {% if not widget %}action="{{request.prefix}}/execute/launch/runplan/"{% endif %}>{% csrf_token %}
+    <table class="w-100">
+    <tr>
+    <td style="vertical-align:top; padding: 15px">
+        <button type="submit" class="btn btn-primary"{% if widget %} onclick="launchRunPlan(event)"{% endif%}>{% trans "launch"|capfirst %}</button>
+    </td>
+    <td class="ps-3 pt-3 pe-3">
+    {% if widget and lastrun %}
+    <div class="row w-100 mb-2">
+    <div class="col mb-1"><span class="fw-bold">{% trans "started"|capfirst %}</span><br>{% if lastrun.started %}{{lastrun.started|date:"DATE_FORMAT"}} {{lastrun.started|date:"H:i:s"}}{% endif %}</div>
+    <div class="col mb-1"><span class="fw-bold">{% trans "finished"|capfirst %}</span><br>{% if lastrun.finished %}{{lastrun.finished|date:"DATE_FORMAT"}} {{lastrun.finished|date:"H:i:s"}}{% endif %}</div>
+    <div class="col mb-1"><span class="fw-bold">{% trans "status"|capfirst %}</span><br>
+      <span class="{% if lastrun.status != 'Done' and lastrun.status != 'Canceled' %}badge bg-danger{% endif %}">{{lastrun.status}}</span>
+      {% if lastrun.status == 'Waiting' or "%" in lastrun.status %}&nbsp;
+         <button class='btn btn-sm btn-primary' style='font-size:66%' onclick='cancelTask()'>{% filter force_escape %}{% trans 'Cancel' %}{% endfilter %}</button>
+      {% endif %}
+    </div>
+    </div>
+    {% endif %}
+    加载所有输入数据，运行计划算法，并导出结果。<br><br>
+    {% if planning_options %}
+    <div {% if planning_options|length <= 1 %}class="d-none"{% endif %}><b>{% filter capfirst %}{% translate "planning steps" %}{% endfilter %}</b><br>
+    {% for b in planning_options %}
+    <div class="form-check">
+    <label class="form-check-label" for="option_{{b.0}}"
+    {% if b.2 %}data-bs-toggle="tooltip" data-bs-title="{{ b.2 }}"{% endif %}>
+    <input type="checkbox" class="form-check-input" name="env" {% if b.0 in current_options %}checked {% endif %}value="{{b.0}}" id="option_{{b.0}}">
+    {{b.1}}
+    {% if b.2 %}<span class="fa fa-question-circle"></span>{% endif %}
+    </label>
+    </div>
+    {% endfor %}
+    <br>
+    </div>
+    {% endif %}
+    <b>计划类型</b><br>
+    <div class="form-check">
+    <input class="form-check-input" type="radio" id="plantype1" name="plantype" {% if plantype != '2' %}checked {% endif %}value="1"/>
+    <label class="form-check-label" for="plantype1" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" data-bs-title="生成遵守所有约束的供应计划。&lt;br&gt;缺料时，需求将延迟或短缺交付。">
+        约束计划 <span class="fa fa-question-circle"></span>
+    </label>
+    </div>
+    <div class="form-check">
+    <input class="form-check-input" type="radio" id="plantype2" name="plantype" {% if plantype == '2' %}checked {% endif %}value="2"/>
+    <label class="form-check-label" for="plantype2" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" data-bs-title="生成展示物料、产能和工序问题的供应计划。&lt;br&gt;需求始终完全满足并准时交付。">
+        无约束计划 <span class="fa fa-question-circle"></span>
+    </label>
+    </div>
+        <br>
+        <b>约束条件</b><br>
+        <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="constraint" {% if capa_constrained %}checked {% endif %}value="capa" id="cb4"/>
+        <label class="form-check-label" for="cb4" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" data-bs-title="遵守资源限制。">
+        资源：遵守资源限制 <span class="fa fa-question-circle"></span>
+        </label>
+        </div>
+        <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="constraint" {% if mfg_lt_constrained %}checked {% endif %}value="mfg_lt" id="cb16"/>
+        <label class="form-check-label" for="cb16" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" data-bs-title="不生成开始或结束时间在过去的生产订单或配送订单。<br>建议和批准的活动必须全部在未来。<br>只有已确认的活动允许在过去。">
+        生产提前期：不计划过去的生产 <span class="fa fa-question-circle"></span>
+        </label>
+        </div>
+        <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="constraint" {% if po_lt_constrained %}checked {% endif %}value="po_lt" id="cb32"/>
+        <label class="form-check-label" for="cb32" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" data-bs-title="不生成开始或结束时间在过去的采购订单。<br>建议和批准的活动必须全部在未来。<br>只有已确认的活动允许在过去。">
+        采购提前期：不计划过去的采购 <span class="fa fa-question-circle"></span>
+        </label>
+        </div>
+    </td>
+    </tr>
+    </table>
+</form>

@@ -1,0 +1,46 @@
+name: "Code scanning"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["cpp", "javascript", "python"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+
+      - if: matrix.language != 'cpp'
+        name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - if: matrix.language == 'cpp'
+        name: Compile C++
+        run: |
+          sudo apt update
+          sudo apt install --no-upgrade libxerces-c-dev openssl libssl-dev libpq5 libpq-dev python3-dev python3-venv
+          cmake -B ${{github.workspace}}/build
+          cmake --build ${{github.workspace}}/build -- -j 2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{matrix.language}}"

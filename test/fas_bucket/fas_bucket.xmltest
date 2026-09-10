@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <current>2020-01-01T00:00:00</current>
+  <calendars>
+    <calendar name="bucket capacity"><default>0</default><buckets>
+      <bucket start="2019-01-01T00:00:00" end="2030-12-31T00:00:00" value="10"/>
+    </buckets></calendar>
+    <calendar name="combined machine capacity"><default>1</default><buckets>
+      <bucket start="2020-01-01T12:00:00" end="2020-01-02T00:00:00" value="0"/>
+    </buckets></calendar>
+  </calendars>
+  <operations>
+    <operation name="make" xsi:type="operation_fixed_time"><duration>P1D</duration><size_maximum>10</size_maximum></operation>
+    <operation name="make at end" xsi:type="operation_fixed_time"><duration>P2D</duration><size_maximum>10</size_maximum></operation>
+    <operation name="make from start" xsi:type="operation_fixed_time"><duration>P2D</duration><size_maximum>10</size_maximum></operation>
+    <operation name="make percentage" xsi:type="operation_fixed_time"><duration>P2D</duration><size_maximum>10</size_maximum></operation>
+    <operation name="make time per" xsi:type="operation_time_per"><duration_per>P1D</duration_per><size_minimum>5</size_minimum><size_multiple>4</size_multiple><size_maximum>10</size_maximum></operation>
+    <operation name="make combined" xsi:type="operation_fixed_time"><duration>P1D</duration><size_maximum>10</size_maximum></operation>
+    <operation name="deliver" xsi:type="operation_fixed_time"><duration>PT0S</duration></operation>
+  </operations>
+  <buffers><buffer name="finished"><producing name="make"/><item name="finished item"/></buffer></buffers>
+  <buffers><buffer name="offset finished"><producing name="make at end"/><item name="offset item"/></buffer></buffers>
+  <buffers><buffer name="start finished"><producing name="make from start"/><item name="start item"/></buffer></buffers>
+  <buffers><buffer name="percentage finished"><producing name="make percentage"/><item name="percentage item"/></buffer></buffers>
+  <buffers><buffer name="time per finished"><producing name="make time per"/><item name="time per item"/></buffer></buffers>
+  <buffers><buffer name="combined finished"><producing name="make combined"/><item name="combined item"/></buffer></buffers>
+  <resources>
+    <resource name="daily bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load><operation name="make"/><quantity>1</quantity></load></loads>
+    </resource>
+    <resource name="daily bucket 2" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load><operation name="make"/><quantity>1</quantity></load></loads>
+    </resource>
+    <resource name="offset bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load xsi:type="load_bucketized_from_end"><operation name="make at end"/><quantity>1</quantity><offset>PT0S</offset></load></loads>
+    </resource>
+    <resource name="start bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load xsi:type="load_bucketized_from_start"><operation name="make from start"/><quantity>1</quantity><offset>P1D</offset></load></loads>
+    </resource>
+    <resource name="percentage bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load xsi:type="load_bucketized_percentage"><operation name="make percentage"/><quantity>1</quantity><offset>50</offset></load></loads>
+    </resource>
+    <resource name="time per bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load><operation name="make time per"/><quantity>1</quantity></load></loads>
+    </resource>
+    <resource name="combined bucket" xsi:type="resource_buckets">
+      <maximum_calendar name="bucket capacity"/>
+      <loads><load><operation name="make combined"/><quantity>1</quantity></load></loads>
+    </resource>
+    <resource name="combined machine"><maximum_calendar name="combined machine capacity"/>
+      <loads><load><operation name="make combined"/><quantity>1</quantity></load></loads>
+    </resource>
+  </resources>
+  <flows>
+    <flow xsi:type="flow_end"><operation name="make"/><buffer name="finished"/><quantity>1</quantity></flow>
+    <flow xsi:type="flow_start"><operation name="deliver"/><buffer name="finished"/><quantity>-1</quantity></flow>
+    <flow xsi:type="flow_end"><operation name="make at end"/><buffer name="offset finished"/><quantity>1</quantity></flow>
+    <flow xsi:type="flow_end"><operation name="make from start"/><buffer name="start finished"/><quantity>1</quantity></flow>
+    <flow xsi:type="flow_end"><operation name="make percentage"/><buffer name="percentage finished"/><quantity>1</quantity></flow>
+    <flow xsi:type="flow_end"><operation name="make time per"/><buffer name="time per finished"/><quantity>1</quantity></flow>
+    <flow xsi:type="flow_end"><operation name="make combined"/><buffer name="combined finished"/><quantity>1</quantity></flow>
+  </flows>
+  <demands>
+    <demand name="first"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="finished item"/><operation name="deliver"/></demand>
+    <demand name="second"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="finished item"/><operation name="deliver"/></demand>
+    <demand name="offset first"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="offset item"/><operation name="make at end"/></demand>
+    <demand name="offset second"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="offset item"/><operation name="make at end"/></demand>
+    <demand name="start first"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="start item"/><operation name="make from start"/></demand>
+    <demand name="start second"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="start item"/><operation name="make from start"/></demand>
+    <demand name="percentage first"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="percentage item"/><operation name="make percentage"/></demand>
+    <demand name="percentage second"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="percentage item"/><operation name="make percentage"/></demand>
+    <demand name="time per"><quantity>19</quantity><due>2020-01-10T00:00:00</due><item name="time per item"/><operation name="make time per"/></demand>
+    <demand name="combined first"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="combined item"/><operation name="make combined"/></demand>
+    <demand name="combined second"><quantity>10</quantity><due>2020-01-10T00:00:00</due><item name="combined item"/><operation name="make combined"/></demand>
+  </demands>
+</plan>

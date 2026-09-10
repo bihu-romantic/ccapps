@@ -1,0 +1,1056 @@
+# Copyright (C) 2007-2012 by ccAPPS bv
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+# General Public License for more details.
+# You should have received a copy of the GNU Affero General Public
+# License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+msgid ""
+msgstr ""
+"Project-Id-Version: 6.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2023-10-24 12:29+0200\n"
+"Last-Translator: Joao Ranita <jranita@ccAPPS.com>\n"
+"Language-Team: ccAPPS\n"
+"Language: he\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 2.4.3\n"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:518
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:551
+msgid "%s allocated out of %s"
+msgstr "%s allocated out of %s"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1262
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1283
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1301
+msgid "Add to the graph"
+msgstr "Voeg toe aan de grafiek"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1488
+msgid ""
+"An operation gets the color of its category.<br>\n"
+"                        The operation categories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"הפעולה מקבלת את הצבע של הקטגוריה שלה.<br>\n"
+"יש למלא את קטגוריות הפעולות בטבלת הפעולות.\n"
+"<br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1523
+msgid ""
+"An operation gets the color of its subcategory.<br>\n"
+"                        The operation subcategories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"פעולה מקבלת את הצבע של קטגוריית המשנה שלה.<br>\n"
+"יש למלא את קטגוריות המשנה של הפעולה בטבלת הפעולות.\n"
+"<br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1420
+msgid ""
+"An operation gets the color the category of the item it produces.<br>\n"
+"                        The item categories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"הפעולה מקבלת את הצבע בקטגוריה של הפריט שהיא מייצרת. <br>\n"
+"יש למלא את קטגוריות הפריטים בטבלת הפריטים\n"
+"<br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1454
+msgid ""
+"An operation gets the color the subcategory of the item it produces.<br>\n"
+"                        The item subcategories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"הפעולה מקבלת את צבע קטגוריית המשנה של הפריט שהיא מייצרת<br>\n"
+"יש למלא את קטגוריות המשנה של הפריט בטבלת הפריטים.\n"
+"<br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:383
+msgid "Automatic"
+msgstr "אוטומטי"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:892
+msgid "Available Cross"
+msgstr "הצטלבות זמינה"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:902
+msgid "Cancel"
+msgstr "בטל"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1265
+msgid "Clear the plan of selected demands"
+msgstr "נקה את תכנון הדרישות שנבחרו"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:875
+msgid "Close"
+msgstr "סגור"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:62
+msgid "Configure time buckets"
+msgstr "הגדר משך זמן"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:388
+msgid "Constant"
+msgstr "קבוע"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:455
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:62
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:142
+#: ccAPPSdb/quoting/static/quoting/quoting.html:227
+msgid "Continue"
+msgstr "מתמשך"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1332
+msgid "Criticality color setup"
+msgstr "הגדרת צבע ביקורת"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:79
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:878
+msgid "Customize"
+msgstr "התאמה אישית"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1360
+msgid "Delay color setup"
+msgstr "עיכוב הגדרת צבע"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:34
+msgid "Delivery"
+msgstr "Levering"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecastgridDrv.js:36
+msgid "Demand outlier"
+msgstr "ביקוש קיצוני"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:32
+msgid "Distribution Order"
+msgstr "Distributieorder"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:450
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:53
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:133
+msgid "Do you want to save your changes first?"
+msgstr "האם ברצונך לשמור קודם את השינויים שלך?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:264
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:343
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:467
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:591
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:717
+msgid "Duplicate"
+msgstr "שכפל"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:30
+#: ccAPPSdb/quoting/static/quoting/quoting.html:43
+#: ccAPPSdb/quoting/static/quoting/quoting.html:56
+msgid "Enter your search terms"
+msgstr "הכנס את מונחי החיפוש"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:426
+msgid "Estimated forecast error"
+msgstr ""
+"G\n"
+"שגיאת תחזית משוערת"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:372
+msgid "Forecast method"
+msgstr "שיטת התחזית"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:82
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:71
+msgid "Help"
+msgstr "עזרה"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:400
+msgid "Intermittent"
+msgstr "לסירוגין"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1414
+msgid "Item category color setup"
+msgstr "הגדרת צבע קטגוריית פריט"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1448
+msgid "Item subcategory color setup"
+msgstr "הגדרת צבע תת-קטגוריית פריט"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:408
+msgid "Manual"
+msgstr "ידני"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:30
+msgid "Manufacturing Order"
+msgstr "Productieorder"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:404
+msgid "Moving average"
+msgstr "ממוצע נע"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:247
+msgid "No comments yet"
+msgstr "אין תגובות עדיין"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:139
+msgid "No plan yet"
+msgstr "אין תוכנית עדיין"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:901
+msgid "OK"
+msgstr "OK"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1482
+msgid "Operation category color setup"
+msgstr "הגדרת צבע קטגוריית פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1517
+msgid "Operation subcategory color setup"
+msgstr "הגדרת צבע תת-קטגוריית פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:302
+msgid "Operationplan"
+msgstr "תוכנית פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:818
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:235
+msgid "Plan selected demands backward from their due date"
+msgstr "Plan de geselecteerder orders terugwaarts vanaf de leverdatum"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1259
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:821
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:236
+msgid "Plan selected demands forward from the current date"
+msgstr "Plan de geselecteerde orders voorwaarts vanaf de huidige datum"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:57
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:137
+msgid "Please be patient, the chart may take some time to complete."
+msgstr "אנא היו סבלניים, התרשים עשוי לקחת זמן מה עד לסיום."
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1387
+msgid "Priority color setup"
+msgstr "הגדרת צבע עדיפות"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1392
+msgid ""
+"Priority is a demand property, available in the demands table. The priority "
+"value will have effect in the plan results.<br>\n"
+"                        The highest priority value is 0, and the greater the "
+"value the lower the priority.\n"
+"                        <br><br>"
+msgstr ""
+"עדיפות היא ערך לביקוש, זמין בטבלת הדרישות. ערך העדיפות ישפיע על תוצאות "
+"התוכנית.<br>\n"
+"ערך העדיפות הגבוה ביותר הוא 0 וככל שהערך גדול יותר כך העדיפות נמוכה יותר.\n"
+"<br><br>"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:31
+msgid "Purchase Order"
+msgstr "Aankooporder"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:223
+msgid "Quoting error"
+msgstr "שגיאת ציטוט"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Recalculate"
+msgstr "חישוב מחדש"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:267
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:346
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:594
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:720
+msgid "Remove"
+msgstr "הסר"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:815
+msgid "Remove this demand from planning"
+msgstr "הסר את הדרישה הזו מהתכנון"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:903
+msgid "Reset"
+msgstr "אפס"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+#: ccAPPSdb/forecast/static/forecast/forecast.html:454
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:61
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:141
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save"
+msgstr "שמור"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+msgid "Save changes to the database"
+msgstr "שמור שינויים במסד הנתונים"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save plan from memory to the database"
+msgstr "שמור תוכנית מהזיכרון למסד הנתונים"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:396
+msgid "Seasonal"
+msgstr "עונתי"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:376
+msgid ""
+"Select forecast method, only possible at single item/location/customer level"
+msgstr "בחר שיטת תחזית, אפשרי רק ברמת פריט/מיקום/לקוח"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:5
+msgid "Select panel sequence"
+msgstr "בחר רצף לוח"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:884
+msgid "Selected Cross"
+msgstr "הצטלבות נבחרת"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:417
+msgid "Selected forecast method"
+msgstr "שיטת התחזית שנבחרה"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Simulate changes without saving"
+msgstr "בצע סימולציית לשינויים ללא שמירה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:270
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:349
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:473
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:597
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:723
+msgid "Split in half"
+msgstr "פיצול לשניים"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:33
+msgid "Stock"
+msgstr "Stock"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:56
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:136
+msgid "The Gantt chart is limited to {{rowlimit}} rows."
+msgstr "שורות {{row|limit}} תרשים הגאנט מוגבל ל."
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1337
+msgid ""
+"The criticality of an operationplan measures the slack time available till "
+"the delivery of the customer demand.<br>\n"
+"                        A criticality of 0 indicates that the order is on "
+"the critical path of one or more demands.<br>\n"
+"                        Higher criticality values indicate that a delay will "
+"not immediately impact the delivery of any demand.\n"
+"                        <br><br>"
+msgstr ""
+"הקריטיות של תוכנית פעולה מודדת את הזמן העומד לרשות דרישות הלקוח.<br>\n"
+"קריטיות של 0 מצביעה על כך שההזמנה נמצאת בדרך הקריטית של דרישה אחת או יותר."
+"<br>\n"
+"ערכי קריטיות גבוהים יותר מצביעים על כך ששהייה של ההזמנה לא תשפיע מידית על "
+"המסירה של דרישה כלשהי.\n"
+"<br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1365
+msgid ""
+"The delay of an operationplan compares its end date with the delivery due "
+"date of the customer demand(s) it feeds.<br>\n"
+"                        This also consider the duration of the follow-up "
+"operations still required to produce the finished end item.\n"
+"                        <br><br>"
+msgstr ""
+"העיכוב של תוכנית פעולה משווה את תאריך הסיום למועד המסירה של דרישות שהלקוח "
+"הזין\n"
+"<br>\n"
+"יש גם התחשבות במשך פעולות המעקב שעדיין נדרשות לייצור פריט מוגמר.\n"
+"<br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:392
+msgid "Trend"
+msgstr "מגמה"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo"
+msgstr "בטל"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo changes"
+msgstr "אל תשמור את השינויים"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:45
+msgid "action"
+msgstr "פעולה"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:375
+msgid "aggregate"
+msgstr "מצטבר"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:122
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:433
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:559
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:683
+msgid "approved"
+msgstr "אושר"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:158
+msgid "attributes"
+msgstr "תכונות"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:167
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:190
+msgid "buffer"
+msgstr "buffer"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:98
+msgid "cancel"
+msgstr "annuleer"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:274
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:335
+msgid "category"
+msgstr "קטגורייה"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:125
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:448
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:572
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:697
+msgid "closed"
+msgstr "סגור"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:11
+msgid "color by"
+msgstr "צבע לפי"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:173
+msgid "colors"
+msgstr "צבעים"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:170
+msgid "comments"
+msgstr "תגובות"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:68
+msgid "configure time buckets"
+msgstr "הגדר משך זמן"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:100
+msgid "confirm"
+msgstr "bevestig"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:123
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:438
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:563
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:688
+msgid "confirmed"
+msgstr "אושר"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:40
+msgid "cost"
+msgstr "עלות"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:97
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:18
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:412
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:538
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:658
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:742
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:795
+msgid "criticality"
+msgstr "קריטיות"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:63
+msgid "current onhand"
+msgstr "מלאי נוכחי"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:838
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:89
+#: ccAPPSdb/quoting/static/quoting/quoting.html:40
+msgid "customer"
+msgstr "לקוח"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:195
+msgid "customer delivery"
+msgstr "משלוח ללקוח"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:120
+msgid "customers"
+msgstr "לקוחות"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:447
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:50
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:130
+msgid "database transaction failed"
+msgstr "העברה למסד הנתונים נכשל"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:37
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1098
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1142
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1143
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:279
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1095
+msgid "date"
+msgstr "datum"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1436
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1539
+msgid "default"
+msgstr "ברירת מחדל"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:104
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:21
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:418
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:544
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:666
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:801
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:163
+msgid "delay"
+msgstr "עיכוב"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:149
+msgid "delivery date"
+msgstr "תאריך משלוח"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:139
+msgid "delivery quantity"
+msgstr "כמות במשלוח"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:161
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:188
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:762
+msgid "demand"
+msgstr "verkooporder"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1206
+msgid "demands"
+msgstr "ביקוש"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:368
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:492
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:618
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:986
+#: ccAPPSdb/quoting/static/quoting/quoting.html:171
+#: ccAPPSdb/quoting/static/quoting/quoting.html:198
+#: ccAPPSdb/quoting/static/quoting/quoting.html:21
+msgid "description"
+msgstr "תיאור"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:57
+msgid "destination"
+msgstr "יעד"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:193
+msgid "distribution order"
+msgstr "הזמנת הפצב"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:40
+msgid "distribution orders"
+msgstr "הזמנות הפצה"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:35
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1218
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:848
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:126
+msgid "due"
+msgstr "זמן התחלה"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:79
+msgid "due date"
+msgstr "תאריך יעד"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:48
+msgid "effective end"
+msgstr "סיום יעיל"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:46
+msgid "effective start"
+msgstr "התחלה יעילה"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1144
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:211
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:391
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:519
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:639
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:777
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:992
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1092
+msgid "end"
+msgstr "eind"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:76
+#: ccAPPSdb/quoting/static/quoting/quoting.html:133
+#: ccAPPSdb/quoting/static/quoting/quoting.html:177
+msgid "end date"
+msgstr "תאריך סיום"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:35
+msgid "expected onhand"
+msgstr "בהישג יד צפוי"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:126
+msgid "export"
+msgstr "ייצא"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:15
+msgid "feasibility"
+msgstr "כדאיות"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:139
+#: ccAPPSdb/forecast/static/forecast/forecast.html:167
+msgid "forecast"
+msgstr "תחזית"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:198
+msgid "forecast baseline"
+msgstr "תחזית בסיס"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:206
+msgid "forecast consumed"
+msgstr "תחזית נצרכת"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:204
+msgid "forecast net"
+msgstr "תחזית נטו"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:200
+msgid "forecast override"
+msgstr "דריסת תחזית"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:202
+msgid "forecast total"
+msgstr "סה\"כ תחזית"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:49
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:129
+msgid "gantt chart rows limit"
+msgstr "גבולות שורות תרשים גנט"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:173
+msgid "history"
+msgstr "היסטוריה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:482
+msgid "identifier"
+msgstr "מזהה"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:94
+msgid "inquiry"
+msgstr "שאילתה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:194
+msgid "inventory"
+msgstr "מלאי"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:22
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:27
+msgid "inventory status"
+msgstr "מצב המלאי"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:186
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:40
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1215
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:857
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:946
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:324
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:78
+#: ccAPPSdb/quoting/static/quoting/quoting.html:27
+msgid "item"
+msgstr "מוצר"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:30
+msgid "item category"
+msgstr "קטגוריית פריט"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:33
+msgid "item subcategory"
+msgstr "תת קטגוריה של הפריט"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:107
+msgid "items"
+msgstr "פריטים"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:38
+msgid "lead time"
+msgstr "lead time"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:218
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:48
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:58
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:867
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:920
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:956
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:263
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:353
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:67
+#: ccAPPSdb/quoting/static/quoting/quoting.html:53
+msgid "location"
+msgstr "מיקום"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:94
+msgid "locations"
+msgstr "מיקומים"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:191
+msgid "manufacturing order"
+msgstr "הזמנת ייצור"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:42
+msgid "manufacturing orders"
+msgstr "הזמנות ייצור"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1083
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:187
+msgid "material"
+msgstr "חומר"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:85
+msgid "maximum lateness (in days)"
+msgstr "איחור מקסימאלי (בימים)"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:170
+msgid "messages"
+msgstr "הודעות"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:73
+msgid "minimum shipment"
+msgstr "משלוח מינימלי"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:26
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:32
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:31
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1022
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1089
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1212
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:313
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:462
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:585
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:711
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:752
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:811
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:907
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:934
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:251
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:312
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:55
+#: ccAPPSdb/quoting/static/quoting/quoting.html:15
+msgid "name"
+msgstr "שם"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:29
+msgid "network status"
+msgstr "סטטוס רשת"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:245
+msgid "new customer comment"
+msgstr "תגובה חדשה של לקוח"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:242
+msgid "new item comment"
+msgstr "תגובה חדשה על פריט"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:243
+msgid "new item-location comment"
+msgstr "תגובה חדשה על פריט-מיקום"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:244
+msgid "new location comment"
+msgstr "תגובה חדשה על מיקום"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:44
+msgid "no demands"
+msgstr "geen verkooporders"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:44
+msgid "no movements"
+msgstr "geen verplaatsingen"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:53
+msgid "no network information"
+msgstr "אין מידע ברשת"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:43
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:998
+msgid "no problems"
+msgstr "geen problemen"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:40
+msgid "no resources"
+msgstr "geen resource"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:55
+msgid "no supply information"
+msgstr "אין מידע על אספקה"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1095
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1137
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1138
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:295
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:966
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1094
+msgid "onhand"
+msgstr "במלאי"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:29
+msgid "onhand at lead time"
+msgstr "במלאי בזמן האספקה"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:194
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:215
+msgid "open orders"
+msgstr "הזמנות פתוחות"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1131
+msgid "operation"
+msgstr "פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:36
+msgid "operation category"
+msgstr "קטגוריית פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:39
+msgid "operation subcategory"
+msgstr "תת-קטגוריית פעולה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1122
+msgid "operationplans"
+msgstr "תוכניות פעולה"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:117
+msgid "operations"
+msgstr "פעולות"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:64
+msgid "ordering date"
+msgstr "תאריך הזמנה"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:196
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:217
+msgid "orders adjustment"
+msgstr "התאמת הזמנות"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:52
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:606
+msgid "origin"
+msgstr "מיקום המקור"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:44
+msgid "overdue sales orders"
+msgstr "איחור בהזמנות מכירה"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:367
+msgid "parameters"
+msgstr "פרמטרים"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:24
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:883
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:100
+msgid "priority"
+msgstr "עדיפות"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:29
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:980
+#: ccAPPSdb/quoting/static/quoting/quoting.html:165
+msgid "problems"
+msgstr "problemen"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:121
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:428
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:554
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:678
+msgid "proposed"
+msgstr "מוצע"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:192
+msgid "purchase order"
+msgstr "הזמנת רכש"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:38
+msgid "purchase orders"
+msgstr "הזמנות רכש"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:89
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:37
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:33
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1025
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1092
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1134
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1221
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:220
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:287
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:402
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:528
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:648
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:732
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:786
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:893
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1093
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:113
+#: ccAPPSdb/quoting/static/quoting/quoting.html:127
+#: ccAPPSdb/quoting/static/quoting/quoting.html:67
+msgid "quantity"
+msgstr "hoeveelheid"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:96
+msgid "quote"
+msgstr "לציין"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:8
+msgid "quote form"
+msgstr "טופס הצעת מחיר"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:77
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:78
+msgid "receipt date"
+msgstr "תאריך קבלה"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1128
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:358
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:612
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1090
+msgid "reference"
+msgstr "הפנייה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:59
+msgid "remove row"
+msgstr "הסר שורה"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:234
+msgid "remove this demand from planning"
+msgstr "verwijder deze order uit het plan"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:189
+msgid "resource"
+msgstr "resource"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1016
+msgid "resources"
+msgstr "משאבים"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:46
+msgid "sales orders"
+msgstr "הזמנות מכירה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1028
+msgid "setup"
+msgstr "התקנה"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:385
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:513
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:633
+msgid "setup end"
+msgstr "אתחול הסתיים"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:65
+msgid "shipping date"
+msgstr "תאריך משלוח"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:42
+msgid "size minimum"
+msgstr "גודל מינימלי"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:44
+msgid "size multiple"
+msgstr "גודל מרובה"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1139
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:374
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:624
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:768
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:989
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1091
+msgid "start"
+msgstr "start"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:63
+#: ccAPPSdb/quoting/static/quoting/quoting.html:130
+#: ccAPPSdb/quoting/static/quoting/quoting.html:174
+msgid "start date"
+msgstr "תאריך התחלה"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:118
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:228
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:424
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:550
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:674
+#: ccAPPSdb/quoting/static/quoting/quoting.html:91
+msgid "status"
+msgstr "סטאטוס"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:283
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:344
+msgid "subcategory"
+msgstr "תת קטגוריה"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:61
+msgid "superseded"
+msgstr "הוחלף"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:44
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:498
+msgid "supplier"
+msgstr "ספק"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:29
+msgid "supply information"
+msgstr "מידע על האספקה"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:192
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:213
+msgid "total orders"
+msgstr "סה\"כ הזמנות"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:34
+msgid "types"
+msgstr "סוגים"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:446
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:48
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:128
+msgid "unsaved changes"
+msgstr "יש שינויים שאינם נשמרו"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:193
+msgid "why short or late?"
+msgstr "למה מוקדם או מאוחר?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:53
+msgid "zoom in"
+msgstr "הגדל"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:56
+msgid "zoom out"
+msgstr "הקטן"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:316
+msgid "{{m.label}}"
+msgstr "{{m.label}}"

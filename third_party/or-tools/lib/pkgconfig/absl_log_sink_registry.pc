@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_log_sink_registry
+Description: Abseil log_sink_registry library
+URL: https://abseil.io/
+Version: 20250814
+Requires: absl_config = 20250814, absl_log_sink = 20250814, absl_log_internal_log_sink_set = 20250814, absl_nullability = 20250814
+Libs: -L${libdir}  
+Cflags: -I${includedir} -DNOMINMAX

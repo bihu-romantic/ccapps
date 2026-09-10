@@ -1,0 +1,23 @@
+{% load i18n admin_urls %}
+<div class="row mb-3">
+<div class="col">
+{% if show_save %}<input type="submit" value="{% trans 'Save' %}" class="btn btn-primary me-2 default" name="_save" {{ onclick_attrib }}/>{% endif %}
+{% if show_save_as_new %}<input type="submit" value="{% trans 'Save as new' %}" class="btn btn-primary me-2" name="_saveasnew" {{ onclick_attrib }}/>{% endif %}
+{% if show_save_and_add_another %}<input type="submit" value="{% trans 'Save and add another' %}" class="btn btn-primary me-2" name="_addanother" {{ onclick_attrib }} />{% endif %}
+{% if show_save_and_continue %}<input type="submit" value="{% trans 'Save and continue editing' %}" class="btn btn-primary me-2" name="_continue" {{ onclick_attrib }}/>{% endif %}
+{% if show_delete_link %}
+{% url opts|admin_urlname:'delete' original.pk|admin_urlquote as delete_url %}
+<a class="btn btn-danger deletelink" href="{{request.prefix}}{% add_preserved_filters delete_url %}">{% trans "Delete" %}</a>
+{% endif %}
+</div>
+{% if adminform.model_admin.help_url %}
+<div class="col-auto align-items-center d-flex">
+    <h1 class="mb-0">
+      <a href="{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/{{adminform.model_admin.help_url}}" 
+        target="_blank" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-offset="0,7" data-bs-title="{% trans 'help'|capfirst|force_escape %}">
+        <span class="fa fa-question">
+      </span></a>
+    </h1>    
+</div>
+{% endif %}
+</div>

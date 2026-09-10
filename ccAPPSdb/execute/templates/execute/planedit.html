@@ -1,0 +1,4290 @@
+{% extends "admin/base_site_grid.html" %}
+{% load i18n %}
+
+{% block extrahead %}{{block.super}}
+<style>
+.pe-gantt-card { margin-top: 14px; margin-bottom: 14px; background: transparent; border: 0; border-radius: 0; }
+.pe-gantt-title { font-size: 15px; font-weight: 600; padding: 0 10px 0 0; border-bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.pe-page-label { font-size: 13px; font-weight: 700; color: #334155; letter-spacing: 0.01em; padding: 0 4px 8px 4px; }
+.pe-title-controls { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: #475569; }
+.pe-title-controls select { min-width: 220px; font-size: 12px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; color: #111827; }
+.pe-gantt-wrap { padding: 8px 10px 8px 10px; }
+.pe-gantt-version { margin-top: 10px; padding: 8px 12px; border: 1px solid #d0ebff; background: #e7f5ff; border-radius: 6px; color: #0b7285; font-size: 12px; }
+.pe-main-layout { position: relative; display: block; margin-top: 0; }
+.pe-main-gantt { min-width: 0; width: 100%; padding-bottom: 0; background: #fff; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
+.pe-bottom-details { margin-top: 12px; background: transparent; border: 0; border-radius: 0; padding: 0; }
+.pe-bottom-right { min-width: 0; }
+.pe-panel-card { border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; background: #fff; }
+.pe-tabdock { width: 100%; }
+.pe-side-tabs { display: flex; align-items: center; gap: 0; border: 1px solid #d9dee6; border-radius: 6px; background: #fbfcfd; overflow: hidden; width: max-content; margin-left: auto; margin-bottom: 10px; }
+.pe-side-tab-btn { border: 0; background: transparent; color: #495057; font-size: 12px; font-weight: 500; padding: 9px 14px 10px 14px; cursor: pointer; position: relative; border-right: 1px solid #e6eaf0; }
+.pe-side-tab-btn:last-child { border-right: 0; }
+.pe-side-tab-btn:hover { color: #212529; background: #fff; }
+.pe-side-tab-btn.active { color: #212529; background: #fff; font-weight: 600; }
+.pe-side-tab-btn.active:before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; height: 2px; background: #f59f00; border-radius: 999px; }
+.pe-side-panel { position: relative; overflow: visible; }
+.pe-side-panel-content { width: 100%; margin-top: 8px; background: transparent; border: 0; border-radius: 0; padding: 0; }
+.pe-detail-tabpanel { display: none; min-height: 0; background: transparent; }
+.pe-detail-tabpanel.active { display: block; }
+.pe-side-empty { color: #64748b; font-size: 12px; padding: 10px 0; }
+.pe-side-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pe-side-table th, .pe-side-table td { border-bottom: 1px solid #e9ecef; padding: 6px 4px; text-align: left; vertical-align: top; }
+.pe-side-table th { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.pe-resource-select { display: inline-block; width: 120px; min-width: 120px; max-width: 120px; }
+.pe-resource-select .dropdown-toggle { width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pe-attrs-body { overflow: visible !important; }
+.pe-attrs-panel { overflow: visible !important; }
+.pe-resource-plain {
+  border: 1px solid #dee2e6;
+  background: #fff;
+  color: #111827;
+  font-size: 12px;
+  box-shadow: none;
+}
+.pe-resource-plain:focus,
+.pe-resource-plain:hover {
+  color: #111827;
+  background: #f1f3f5;
+  border-color: #dee2e6;
+  outline: none;
+}
+.pe-widget-stack { display: flex; flex-direction: column; gap: 10px; }
+.pe-widget-card { border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; background: #fff; }
+.pe-widget-card.pe-widget-card-dropdown-host { overflow: visible; }
+.pe-widget-card.pe-widget-card-dropdown-host .pe-widget-body { overflow: visible; }
+.pe-widget-header { background: #fff3e0; color: #333333; font-size: 13px; font-weight: 400; padding: 7px 12px; border-bottom: 1px solid #ffd8a8; }
+.pe-widget-body { padding: 8px 10px 10px 10px; }
+.pe-widget-card.pe-no-selection { min-height: 64px; }
+.pe-widget-card.pe-no-selection .pe-widget-header { background: #fff3e0; color: #333333; border-bottom: 0; }
+.pe-widget-card.pe-no-selection .pe-widget-body { min-height: 28px; padding: 0; }
+.pe-widget-card.pe-no-selection { width: 50%; }
+@media (max-width: 900px) {
+  .pe-widget-card.pe-no-selection { width: 100%; }
+}
+.pe-widget-table { border-collapse: collapse; font-size: 12px; }
+.pe-widget-table td { padding: 4px 8px; border-bottom: 1px solid #f1f3f5; vertical-align: top; word-break: break-word; }
+.pe-widget-table td.pe-attrs-lbl { color: #111827; font-weight: 600; white-space: nowrap; padding-right: 16px; }
+.pe-widget-table tr:last-child td { border-bottom: 0; }
+.pe-widget-section { border: 1px solid #dee2e6; border-radius: 6px; background: #fff; overflow: hidden; margin-bottom: 10px; }
+.pe-widget-section:last-child { margin-bottom: 0; }
+.pe-widget-section .pe-widget-header { background: #fff3e0; }
+.pe-widget-empty { color: #64748b; font-size: 12px; padding: 2px 0; }
+.pe-attrs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pe-attrs-grid-left { grid-row: 1 / 3; }
+.pe-attrs-grid-right { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 1400px) {
+  .pe-gantt-title { align-items: center; }
+  .pe-page-label { padding-bottom: 0; }
+}
+@media (max-width: 1280px) {
+  .pe-bottom-details { }
+}
+
+/* Pegging Board Gantt */
+.pe-pb-label-row { padding: 0 12px; font-size: 14px; border-bottom: 1px solid #f1f5f9; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
+.pe-pb-label-demand { min-height: 36px; }
+.pe-pb-label-demand .pe-pb-dname { font-weight: 600; color: #1a1a1a; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-pb-label-demand .pe-pb-dmeta { color: #64748b; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-pb-empty { padding: 14px 0; color: #6c757d; font-size: 13px; }
+
+/* Resource gantt layout */
+.pe-gantt-board { display: flex; border: 1px solid #dee2e6; border-radius: 0 0 6px 6px; overflow: hidden; }
+.pe-gantt-labels-col { flex: 0 0 220px; min-width: 220px; border-right: 1px solid #cbd5e1; background: #fff; max-height: 47vh; overflow-y: scroll; scrollbar-width: none; -ms-overflow-style: none; }
+.pe-gantt-labels-col::-webkit-scrollbar { display: none; }
+.pe-gantt-col-resizer { flex: 0 0 10px; cursor: col-resize; background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%); border-right: 1px solid #cbd5e1; user-select: none; }
+.pe-gantt-col-resizer:hover { background: linear-gradient(90deg, #bfdbfe 0%, #60a5fa 50%, #bfdbfe 100%); }
+.pe-gantt-time-col { flex: 1 1 auto; overflow: auto; min-width: 0; max-height: 47vh; }
+.pe-gantt-label-row { padding: 0 8px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #f1f3f5; box-sizing: border-box; display: flex; align-items: center; min-height: 42px; word-break: break-word; }
+.pe-gantt-time-row { padding: 8px; border-bottom: 1px solid #f1f3f5; box-sizing: border-box; }
+.pe-gantt-row-header { border-bottom: 1px solid #dfe3e6; }
+.pe-gantt-row-header.pe-gantt-label-row { background: #e9ecef; min-height: 48px; font-weight: 700; font-size: 13px; position: sticky; top: 0; z-index: 9; }
+.pe-gantt-row-header.pe-gantt-time-row { padding: 0; position: sticky; top: 0; z-index: 20; background: #e9ecef; }
+.pe-gantt-parent { background: #fafbfc; cursor: pointer; }
+.pe-gantt-parent:hover { background: #f3f4f6; }
+.pe-gantt-tree { display: inline-flex; align-items: center; gap: 6px; }
+.pe-gantt-caret { width: 12px; text-align: center; color: #6b7280; font-size: 11px; flex-shrink: 0; }
+.pe-gantt-meta { font-weight: 400; color: #64748b; font-size: 11px; margin-left: 4px; }
+
+/* Resource gantt header */
+.pe-gantt-header-track { position: relative; height: 46px; border-top: 1px solid #bfc5cc; border-bottom: 1px solid #bfc5cc; background: #e9ecef; overflow: hidden; }
+.pe-gantt-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.10); z-index: 1; }
+.pe-gantt-month-split { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(0,0,0,0.16); z-index: 1; }
+.pe-gantt-header-track .pe-gantt-tick { top: auto; bottom: 0; height: 12px; }
+.pe-gantt-header-track .pe-gantt-month-split { top: 0; bottom: 0; }
+.pe-gantt-month-block { position: absolute; top: 0; height: 24px; display: flex; align-items: center; justify-content:center; font-size: 12px; font-weight: 600; color: #374151; overflow: hidden; white-space: nowrap; }
+.pe-gantt-month-block.mb-0 { background: #cfd6dc; }
+.pe-gantt-month-block.mb-1 { background: #d9dfe4; }
+.pe-gantt-week-block { position: absolute; top: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #4b5563; border-right: 1px solid #bfc5cc; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
+.pe-gantt-week-block.wb-0 { background: #d9dee4; }
+.pe-gantt-week-block.wb-1 { background: #cfd6dd; }
+.pe-gantt-track { position: relative; }
+.pe-gantt-section-sep { background: #e9ecef; font-weight: 600; font-size: 12px; color: #495057; min-height: 28px !important; display: flex; align-items: center; border-bottom: 2px solid #adb5bd; }
+.pe-gantt-section-sep.pe-gantt-label-row { padding: 0 8px; }
+.pe-gantt-section-sep.pe-gantt-time-row { height: 28px; padding: 0; }
+.pe-gantt-bar { position: absolute; height: 18px; border: 1px solid #495057; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 18px; padding: 0 5px; color: #111; text-transform: lowercase; transition: left 0.15s ease, width 0.15s ease; user-select: none; z-index: 3; }
+.pe-gantt-bar:hover { filter: brightness(0.92); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+.pe-gantt-bar.status-proposed { background: rgba(220, 53, 69, 0.30); }
+.pe-gantt-bar.status-approved { background: rgba(23, 162, 184, 0.30); }
+.pe-gantt-bar.status-confirmed { background: rgba(40, 167, 69, 0.30); }
+.pe-gantt-bar.status-completed { background: rgba(108, 117, 125, 0.35); color: #111; }
+.pe-gantt-bar.status-closed { background: rgba(52, 58, 64, 0.35); color: #111; }
+.pe-gantt-time-row.pe-drag-target { outline: 2px dashed #28a745; outline-offset: -2px; }
+.pe-gantt-time-row.pe-drag-invalid { cursor: not-allowed; }
+.pe-gantt-empty { padding: 14px 0; color: #6c757d; font-size: 13px; }
+.pe-gantt-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid #dbe3ec; border-bottom: 0; background: #f8fafc; color: #334155; font-size: 12px; }
+.pe-gantt-summary-main { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pe-gantt-summary strong { font-weight: 700; color: #0f172a; }
+.pe-gantt-summary-muted { color: #64748b; }
+.pe-gantt-load-note { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; color: #7c4a03; font-size: 12px; }
+.pe-gantt-load-note button { border: 1px solid #f59f00; background: #fff4cc; color: #7c4a03; border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer; }
+.pe-caret-icon { font-size: 11px; }
+/* Toolbar alignment: force match with Gantt chart 10px */
+.row { margin-left: 0 !important; margin-right: 0 !important; padding: 0 10px !important; }
+#save_undo, #toolicons { padding-left: 0 !important; padding-right: 0 !important; }
+/* Lighter toolbar buttons */
+#rg-zoom-in, #rg-zoom-out, #pe-gear-btn,
+#pe-top-save-btn, #pe-top-undo-btn,
+#pe-top-autofix-btn { background: #ff9800; border-color: #ff9800; }
+#rg-zoom-in:hover, #rg-zoom-out:hover, #pe-gear-btn:hover,
+#pe-top-save-btn:hover, #pe-top-undo-btn:hover,
+#pe-top-autofix-btn:hover { background: #fb8c00; border-color: #fb8c00; }
+
+.pe-tooltip {
+  position: fixed; z-index: 99999; display: none; max-width: 380px;
+  background: rgba(17, 24, 39, 0.95); color: #f8fafc; border: 1px solid #0f172a;
+  border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.45;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25); pointer-events: none; white-space: pre-line;
+}
+
+/* Hide old grid */
+#grid, #gridpager, #main-row { display: none !important; }
+
+/* Gear button */
+.pe-gear-btn { }
+
+/* Auto-fix button */
+.pe-autofix-btn {
+  position: relative;
+  width: 34px; height: 34px; padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+.pe-autofix-gears {
+  position: relative;
+  width: 18px; height: 18px;
+  display: inline-block;
+  color: #212529;
+}
+.pe-autofix-gear {
+  position: absolute;
+  line-height: 1;
+}
+.pe-autofix-gear-main {
+  left: 1px; top: 5px;
+  font-size: 12px;
+}
+.pe-autofix-gear-small-top {
+  right: 1px; top: 2px;
+  font-size: 8px;
+}
+.pe-autofix-gear-small-bottom {
+  right: 1px; bottom: 1px;
+  font-size: 8px;
+}
+.pe-autofix-slash {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+.pe-autofix-slash::before {
+  content: ""; position: absolute;
+  top: 7px; left: 7px; right: 7px; bottom: 7px;
+  border: 2.5px solid #dc3545; border-radius: 50%;
+}
+.pe-autofix-slash::after {
+  content: ""; position: absolute;
+  top: 9px; left: 50%; width: 1.5px; height: calc(100% - 18px);
+  background: #dc3545; transform: rotate(45deg); transform-origin: center;
+}
+.pe-autofix-active .pe-autofix-slash { display: none; }
+
+/* Modal */
+
+/* Attributes panel */
+.pe-attrs-panel { margin-top: 12px; border: 1px solid #dee2e6; border-radius: 6px; background: #fff; overflow: hidden; }
+.pe-attrs-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+.pe-attrs-close { background: none; border: none; font-size: 18px; color: #6c757d; cursor: pointer; padding: 0; line-height: 1; }
+.pe-attrs-close:hover { color: #dc3545; }
+.pe-attrs-body { padding: 10px; max-height: none; overflow-y: visible; }
+.pe-attrs-body table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+.pe-attrs-body table:last-child { margin-bottom: 0; }
+.pe-attrs-body td { padding: 4px 8px; border-bottom: 1px solid #f1f3f5; vertical-align: top; }
+.pe-attrs-body td.pe-attrs-lbl { color: #64748b; font-weight: 500; white-space: nowrap; width: 120px; }
+.pe-attrs-body td.pe-attrs-val { color: #111827; word-break: break-word; }
+.pe-attrs-section-title { font-size: 13px; font-weight: 600; color: #0b7285; padding: 6px 8px; background: #e7f5ff; border-radius: 4px; margin: 10px 0 6px 0; }
+.pe-attrs-section-title:first-child { margin-top: 0; }
+.pe-attrs-loading { text-align: center; padding: 20px; color: #64748b; font-size: 13px; }
+.pe-attrs-empty { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
+.pe-order-summary-selected { color: #374151; font-size: 13px; margin-bottom: 12px; }
+.pe-order-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pe-order-summary-table td { padding: 6px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: middle; }
+.pe-order-summary-table tr:last-child td { border-bottom: 0; }
+.pe-order-summary-label { width: 150px; color: #111827; font-weight: 600; white-space: nowrap; }
+.pe-order-summary-val { color: #111827; }
+.pe-order-summary-input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b7280;
+  background: #f3f4f6;
+}
+.pe-left-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pe-status-badges { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.pe-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #2b7591;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.pe-save-dirty {
+  box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.18);
+}
+.pe-edit-actions-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pe-dirty-field {
+  background: #ff5252 !important;
+  border-color: #ff5252 !important;
+  color: #fff !important;
+}
+.pe-resource-dirty {
+  background: #ff5252 !important;
+  border-color: #ff5252 !important;
+  color: #fff !important;
+}
+.pe-resource-dirty:hover,
+.pe-resource-dirty:focus {
+  background: #e04848 !important;
+  border-color: #ff5252 !important;
+  color: #fff !important;
+}
+</style>
+<script>
+function _esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function _fmtDate(d) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function _fmtDateTime(d) {
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function _fmtMonth(d) {
+    return d.toLocaleDateString(undefined, { month: "short" }) + " " + String(d.getFullYear()).slice(-2);
+}
+
+function _startOfWeek(d) {
+    var n = new Date(d.getTime());
+    var day = (n.getDay() + 6) % 7;
+    n.setHours(0,0,0,0); n.setDate(n.getDate() - day);
+    return n;
+}
+
+function _isoWeek(d) {
+    var utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var dayNum = utc.getUTCDay() || 7;
+    utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+    var ys = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+    return { yr: utc.getUTCFullYear(), wk: Math.ceil((((utc - ys) / 86400000) + 1) / 7) };
+}
+
+/* ======== ADAPTIVE GANTT HEADER BUILDER ======== */
+function _fmtMon(d)   { return d.toLocaleDateString(undefined, {month:"short"}); }
+function _fmtMonYr(d) { return d.toLocaleDateString(undefined, {month:"short"}) + " " + String(d.getFullYear()).slice(-2); }
+function _fmtYearQ(d) { return d.getFullYear() + " Q" + (Math.floor(d.getMonth()/3)+1); }
+function _fmtDayShort(d) { return String(d.getDate()); }
+function _fmtDayMed(d)   { return d.getDate() + " " + d.toLocaleDateString(undefined, {month:"short"}); }
+function _fmtDayLong(d)  { return d.toLocaleDateString(undefined, {weekday:"short", day:"numeric", month:"short"}); }
+function _fmtDateFull(d) { return d.toLocaleDateString(undefined, {weekday:"short"}) + " " + String(d.getFullYear()).slice(-2) + "-" + _pad2(d.getMonth()+1) + "-" + _pad2(d.getDate()); }
+function _fmtShortDate2(d){ return _pad2(d.getMonth()+1) + "-" + _pad2(d.getDate()); }
+function _fmtLongDate2(d){ return String(d.getFullYear()).slice(-2) + "-" + _pad2(d.getMonth()+1) + "-" + _pad2(d.getDate()); }
+function _fmtTimeTick(d){ return _pad2(d.getHours()) + ":" + _pad2(d.getMinutes()); }
+function _pad2(n) { return String(n).padStart(2,"0"); }
+
+function _buildAdaptiveGanttHeader(minT, maxT, w) {
+    var span = maxT - minT;
+    var scaling = w / Math.max(span / 86400000, 0.001);
+    var upperBlocks = [], lowerBlocks = [], gridPositions = [];
+    var ui, li, bs, be, x, x1, x2, nx, isMajor;
+    var wk, nextWk;
+
+    if (scaling < 5) {
+        // L0: Quarterly + Monthly
+        bs = new Date(minT.getFullYear(), minT.getMonth(), 1);
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs.getFullYear(), bs.getMonth() + 1, 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getMonth() % 3 === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtMon(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var qe = new Date(bs.getFullYear(), bs.getMonth() + 3, 1);
+                    var qx2 = Math.min(w, (qe - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: qx2 - x1, label: _fmtYearQ(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling < 10) {
+        // L1: Monthly + Weekly (short: MM-DD)
+        bs = new Date(minT.getFullYear(), minT.getMonth(), 1);
+        ui = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs.getFullYear(), bs.getMonth() + 1, 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) { upperBlocks.push({ x: x1, w: x2 - x1, label: _fmtMonYr(bs), altIdx: ui % 2 }); ui++; }
+            bs = be;
+        }
+        wk = _startOfWeek(new Date(minT));
+        li = 0;
+        while (wk <= maxT) {
+            x = Math.max(0, (wk - minT) / span * w);
+            nextWk = new Date(wk); nextWk.setDate(nextWk.getDate() + 7);
+            nx = Math.min(w, (nextWk - minT) / span * w);
+            if (nx > x) {
+                isMajor = wk.getDate() <= 7;
+                gridPositions.push({ x: x, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x, w: nx - x, label: _fmtShortDate2(wk), altIdx: li % 2 });
+                li++;
+            }
+            wk = nextWk;
+        }
+    } else if (scaling < 20) {
+        // L2: Monthly + Weekly (long: YY-MM-DD)
+        bs = new Date(minT.getFullYear(), minT.getMonth(), 1);
+        ui = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs.getFullYear(), bs.getMonth() + 1, 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) { upperBlocks.push({ x: x1, w: x2 - x1, label: _fmtMonYr(bs), altIdx: ui % 2 }); ui++; }
+            bs = be;
+        }
+        wk = _startOfWeek(new Date(minT));
+        li = 0;
+        while (wk <= maxT) {
+            x = Math.max(0, (wk - minT) / span * w);
+            nextWk = new Date(wk); nextWk.setDate(nextWk.getDate() + 7);
+            nx = Math.min(w, (nextWk - minT) / span * w);
+            if (nx > x) {
+                isMajor = wk.getDate() <= 7;
+                gridPositions.push({ x: x, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x, w: nx - x, label: _fmtLongDate2(wk), altIdx: li % 2 });
+                li++;
+            }
+            wk = nextWk;
+        }
+    } else if (scaling <= 40) {
+        // L3: Weekly + Daily (short: DD)
+        bs = new Date(minT.getTime());
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setDate(be.getDate() + 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getDay() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtDayShort(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var se = new Date(bs); se.setDate(se.getDate() + 7);
+                    var sx2 = Math.min(w, (se - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: sx2 - x1, label: _fmtLongDate2(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling <= 75) {
+        // L4: Weekly + Daily (medium: DD Mon)
+        bs = new Date(minT.getTime());
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setDate(be.getDate() + 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getDay() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtDayMed(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var se = new Date(bs); se.setDate(se.getDate() + 7);
+                    var sx2 = Math.min(w, (se - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: sx2 - x1, label: _fmtLongDate2(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling < 110) {
+        // L5: Weekly + Daily (long: Ddd DD Mon)
+        bs = new Date(minT.getTime());
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setDate(be.getDate() + 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getDay() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtDayLong(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var se = new Date(bs); se.setDate(se.getDate() + 7);
+                    var sx2 = Math.min(w, (se - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: sx2 - x1, label: _fmtLongDate2(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling < 240) {
+        // L6: Daily + 3-Hourly
+        bs = new Date(minT.getTime()); bs.setMinutes(0,0,0); bs.setHours(Math.floor(bs.getHours()/3)*3);
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setHours(be.getHours() + 3);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getHours() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: String(bs.getHours()), altIdx: li % 2 });
+                if (isMajor) {
+                    var de = new Date(bs); de.setDate(de.getDate() + 1); de.setHours(0);
+                    var dx2 = Math.min(w, (de - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: dx2 - x1, label: _fmtDateFull(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling < 960) {
+        // L7: Daily + Hourly
+        bs = new Date(minT.getTime()); bs.setMinutes(0,0,0);
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setHours(be.getHours() + 1);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getHours() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: String(bs.getHours()), altIdx: li % 2 });
+                if (isMajor) {
+                    var de2 = new Date(bs); de2.setDate(de2.getDate() + 1); de2.setHours(0);
+                    var dx3 = Math.min(w, (de2 - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: dx3 - x1, label: _fmtDateFull(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else if (scaling < 1920) {
+        // L8: Daily + 30-minute
+        bs = new Date(minT.getTime()); bs.setSeconds(0,0); bs.setMinutes(Math.floor(bs.getMinutes()/30)*30);
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setMinutes(be.getMinutes() + 30);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getHours() === 0 && bs.getMinutes() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtTimeTick(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var de3 = new Date(bs); de3.setDate(de3.getDate() + 1); de3.setHours(0,0,0,0);
+                    var dx4 = Math.min(w, (de3 - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: dx4 - x1, label: _fmtDateFull(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    } else {
+        // L9: Daily + 15-minute
+        bs = new Date(minT.getTime()); bs.setSeconds(0,0); bs.setMinutes(Math.floor(bs.getMinutes()/15)*15);
+        ui = 0; li = 0;
+        while (bs <= maxT) {
+            x1 = Math.max(0, (bs - minT) / span * w);
+            be = new Date(bs); be.setMinutes(be.getMinutes() + 15);
+            x2 = Math.min(w, (be - minT) / span * w);
+            if (x2 > x1) {
+                isMajor = bs.getHours() === 0 && bs.getMinutes() === 0;
+                gridPositions.push({ x: x1, isMonthBoundary: isMajor });
+                lowerBlocks.push({ x: x1, w: x2 - x1, label: _fmtTimeTick(bs), altIdx: li % 2 });
+                if (isMajor) {
+                    var de4 = new Date(bs); de4.setDate(de4.getDate() + 1); de4.setHours(0,0,0,0);
+                    var dx5 = Math.min(w, (de4 - minT) / span * w);
+                    upperBlocks.push({ x: x1, w: dx5 - x1, label: _fmtDateFull(bs), altIdx: ui % 2 });
+                    ui++;
+                }
+                li++;
+            }
+            bs = be;
+        }
+    }
+
+    return {
+        gridPositions: gridPositions,
+        monthBlocks: upperBlocks,
+        weekBlocks: lowerBlocks,
+        weekPositions: gridPositions,
+        renderHtml: function() {
+            var h = [];
+            h.push('<div class="pe-gantt-header-track" style="width:' + w + 'px">');
+            for (var i = 0; i < gridPositions.length; i++) {
+                var gp = gridPositions[i];
+                h.push('<span class="' + (gp.isMonthBoundary ? 'pe-gantt-month-split' : 'pe-gantt-tick') + '" style="left:' + gp.x + 'px"></span>');
+            }
+            for (var i = 0; i < upperBlocks.length; i++) {
+                var ub = upperBlocks[i];
+                h.push('<div class="pe-gantt-month-block mb-' + ub.altIdx + '" style="left:' + ub.x + 'px;width:' + ub.w + 'px">' + _esc(ub.label) + '</div>');
+            }
+            for (var i = 0; i < lowerBlocks.length; i++) {
+                var lb = lowerBlocks[i];
+                h.push('<div class="pe-gantt-week-block wb-' + lb.altIdx + '" style="left:' + lb.x + 'px;width:' + lb.w + 'px">' + _esc(lb.label) + '</div>');
+            }
+            h.push('</div>');
+            return h.join("");
+        }
+    };
+}
+
+/* ======== PEGGING BOARD GANTT RENDERER ======== */
+var PB_ROW_H = 36;
+var PB_HEADER_H = 48;
+var PB_LABEL_W = 260;
+var PB_BAR_H = 16;
+var PB_INV_ROW_H = 60;
+var _peColorScheme = "delay";
+var _peVisibleTypes = ["MO", "WO"];
+var _peLeftColWidth = 260;
+var _peCategoryPalette = [
+    "#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed",
+    "#0891b2", "#db2777", "#4f46e5", "#65a30d", "#ea580c"
+];
+var _peCategoryColorMap = {"__other__": "#6b7280"};
+var _peActiveTab = "attributes";
+var _peSelectedOpplan = null;
+var _peEditState = null;
+var _peEditBaseline = null;
+var _peResourceDirty = false;
+var _peLoadplansBaseline = null;
+var _peLocalProblems = [];
+var _peAutoFixScopeRefs = [];
+var _peGanttLimit = 400;
+var _peDemandRenderLimit = 30;
+var _peDemandRenderStep = 30;
+
+function _cloneEditState(opplan) {
+    return {
+        id: opplan.reference || opplan.operationplan__reference || "",
+        reference: opplan.reference || opplan.operationplan__reference || "",
+        type: opplan.type || opplan.operationplan__type || "",
+        start: opplan.start || opplan.startdate || opplan.operationplan__startdate || "",
+        end: opplan.end || opplan.enddate || opplan.operationplan__enddate || "",
+        quantity: opplan.quantity != null ? opplan.quantity : (opplan.operationplan__quantity != null ? opplan.operationplan__quantity : ""),
+        quantity_completed: opplan.quantity_completed != null ? opplan.quantity_completed : (opplan.operationplan__quantity_completed != null ? opplan.operationplan__quantity_completed : ""),
+        status: opplan.status || opplan.operationplan__status || "",
+        remark: opplan.remark || opplan.operationplan__remark || ""
+    };
+}
+
+function _setEditState(opplan) {
+    var prevState = _peEditState;
+    var prevBaseline = _peEditBaseline;
+    _peEditState = _cloneEditState(opplan || {});
+    _peEditBaseline = _cloneEditState(opplan || {});
+    _peResourceDirty = false;
+    _peLocalProblems = [];
+    _setTopSaveDirty(false);
+    // Preserve dirty start/end so that bar drag positions survive
+    // _renderOperationplanDetailPanels re-calling _setEditState with the
+    // (unmodified) opplan after a resource change.
+    if (prevState && prevBaseline && prevState.reference === _peEditState.reference) {
+        if (prevState.start !== prevBaseline.start) {
+            _peEditState.start = prevState.start;
+        }
+        if (prevState.end !== prevBaseline.end) {
+            _peEditState.end = prevState.end;
+        }
+    }
+}
+
+function _nowDisplay() {
+    return _fmtDateTime(new Date());
+}
+
+function _getOpplanRef(opplan) {
+    if (!opplan) return "";
+    return opplan.reference || opplan.operationplan__reference || "";
+}
+
+function _sameOpplanRef(a, b) {
+    return String(a || "") === String(b || "");
+}
+
+function _rememberAutoFixScope(ref) {
+    ref = String(ref || "").trim();
+    if (!ref || _peAutoFixScopeRefs.indexOf(ref) >= 0) return;
+    _peAutoFixScopeRefs.push(ref);
+    if (_peAutoFixScopeRefs.length > 50) _peAutoFixScopeRefs = _peAutoFixScopeRefs.slice(-50);
+}
+
+function _fmtLocalDateTimeSeconds(d) {
+    if (!d || isNaN(d.getTime())) return "";
+    var pad2 = function(n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+}
+
+function _syncSelectedOpplanDatesFromDrag(ref, startDate, endDate, commitBaseline) {
+    if (!_peSelectedOpplan || !_sameOpplanRef(_getOpplanRef(_peSelectedOpplan), ref)) return;
+    var startVal = _formatInputDate(startDate);
+    var endVal = _formatInputDate(endDate);
+    var startApi = _fmtLocalDateTimeSeconds(startDate);
+    var endApi = _fmtLocalDateTimeSeconds(endDate);
+
+    if (_peEditState) {
+        _peEditState.start = startVal;
+        _peEditState.end = endVal;
+    }
+    if (commitBaseline) {
+        if (_peEditBaseline) {
+            _peEditBaseline.start = startVal;
+            _peEditBaseline.end = endVal;
+        }
+        // Only mutate _peSelectedOpplan on commit, so Undo can restore original values
+        _peSelectedOpplan.start = startApi;
+        _peSelectedOpplan.end = endApi;
+        _peSelectedOpplan.startdate = startApi;
+        _peSelectedOpplan.enddate = endApi;
+        _peSelectedOpplan.operationplan__startdate = startApi;
+        _peSelectedOpplan.operationplan__enddate = endApi;
+    }
+
+    document.querySelectorAll('[data-pe-edit-field="start"]').forEach(function(el) { el.value = startVal; });
+    document.querySelectorAll('[data-pe-edit-field="end"]').forEach(function(el) { el.value = endVal; });
+    if (commitBaseline) _setTopSaveDirty(_isEditStateDirty() || _peResourceDirty);
+}
+
+function _updateProblemsCard() {
+    var card = document.getElementById("pe-attrs-problems-card");
+    if (card) {
+        var body = card.querySelector(".pe-widget-body");
+        if (body) {
+            var rows = [];
+            _peLocalProblems.slice(0, 10).forEach(function(p) {
+                rows.push([p.description || "-", p.start || "-", p.end || "-"]);
+            });
+            body.innerHTML = _renderArrayTable(["描述", "开始", "结束"], rows, "");
+        }
+    }
+}
+
+function _pushProblem(description, start, end) {
+    _peLocalProblems.unshift({
+        description: description || "未知问题",
+        start: start || _nowDisplay(),
+        end: end || ""
+    });
+    if (_peLocalProblems.length > 100) _peLocalProblems = _peLocalProblems.slice(0, 100);
+    _updateProblemsCard();
+    renderSidePanels();
+}
+
+function _cloneLoadplans(loadplans) {
+    try {
+        return JSON.parse(JSON.stringify(loadplans || []));
+    } catch (e) {
+        return [];
+    }
+}
+
+function _captureLoadplansBaseline(opplan) {
+    _peLoadplansBaseline = _cloneLoadplans(_getLoadplansForOpplan(opplan));
+}
+
+function _restoreLoadplansFromBaseline(opplan) {
+    if (!opplan || !_peLoadplansBaseline) return;
+    var cloned = _cloneLoadplans(_peLoadplansBaseline);
+    opplan.loadplans = _cloneLoadplans(cloned);
+    if (Array.isArray(opplan.operationresources)) opplan.operationresources = _cloneLoadplans(cloned);
+    if (Array.isArray(opplan.resources)) opplan.resources = _cloneLoadplans(cloned);
+}
+
+function _isResourceStateDirty(opplan) {
+    var current = _getLoadplansForOpplan(opplan || _peSelectedOpplan);
+    var baseline = _peLoadplansBaseline || [];
+    if (current.length !== baseline.length) return true;
+    for (var i = 0; i < current.length; i++) {
+        var curName = _getLoadplanResourceName(current[i]);
+        var baseName = _getLoadplanResourceName(baseline[i]);
+        if (curName !== baseName) return true;
+        if (String(current[i] && current[i].quantity != null ? current[i].quantity : "") !== String(baseline[i] && baseline[i].quantity != null ? baseline[i].quantity : "")) return true;
+        if (String(current[i] && current[i].setup != null ? current[i].setup : "") !== String(baseline[i] && baseline[i].setup != null ? baseline[i].setup : "")) return true;
+    }
+    return false;
+}
+
+function _formatInputDate(v) {
+    if (!v) return "";
+    var d = new Date(v);
+    if (isNaN(d.getTime())) return String(v).replace(" ", "T").slice(0, 16);
+    var pad2 = function(n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
+
+function _normalizeDatetimePayload(v) {
+    if (!v) return undefined;
+    var s = String(v).trim().replace(" ", "T");
+    if (s.length === 16) s += ":00";
+    return s;
+}
+
+function _extractErrorMessage(resp, fallback) {
+    return resp.text().then(function(txt) {
+        var msg = fallback || ("HTTP " + resp.status);
+        if (!txt) return msg;
+        try {
+            var data = JSON.parse(txt);
+            if (data && Array.isArray(data.errors) && data.errors.length) {
+                return data.errors.join("; ");
+            }
+            if (data && typeof data.error === "string") return data.error;
+            if (data && typeof data.message === "string") return data.message;
+        } catch (e) {
+            // Fall through to raw body.
+        }
+        return txt.trim() || msg;
+    }).catch(function() {
+        return fallback || ("HTTP " + resp.status);
+    });
+}
+
+function _getCsrfToken() {
+    if (typeof getCookie === "function") return getCookie("csrftoken") || "";
+    var input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (input && input.value) return input.value;
+    var name = "csrftoken=";
+    var cookies = decodeURIComponent(document.cookie || "").split(";");
+    for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.indexOf(name) === 0) return cookie.substring(name.length);
+    }
+    return "";
+}
+
+function _formatDisplayDate(v) {
+    if (!v) return "-";
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function _normalizeDirtyValue(v) {
+    return v === null || v === undefined ? "" : String(v);
+}
+
+function _syncEditFieldHighlights() {
+    var fields = ["start", "end", "quantity", "status", "remark"];
+    for (var i = 0; i < fields.length; i++) {
+        var field = fields[i];
+        var dirty = _peEditState && _peEditBaseline &&
+            _normalizeDirtyValue(_peEditState[field]) !== _normalizeDirtyValue(_peEditBaseline[field]);
+        var nodes = document.querySelectorAll('[data-pe-edit-field="' + field + '"]');
+        nodes.forEach(function(node) {
+            node.classList.toggle("pe-dirty-field", !!dirty);
+        });
+    }
+}
+
+function _isEditStateDirty() {
+    if (!_peEditState || !_peEditBaseline) return false;
+    var keys = ["reference", "start", "end", "quantity", "quantity_completed", "status", "remark"];
+    for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (_normalizeDirtyValue(_peEditState[k]) !== _normalizeDirtyValue(_peEditBaseline[k])) return true;
+    }
+    return false;
+}
+
+function _setTopSaveDirty(isDirty) {
+    var saveBtn = document.getElementById("pe-top-save-btn");
+    var undoBtn = document.getElementById("pe-top-undo-btn");
+    if (!saveBtn) return;
+    saveBtn.classList.toggle("pe-save-dirty", !!isDirty);
+    saveBtn.classList.toggle("btn-danger", !!isDirty);
+    saveBtn.classList.toggle("btn-primary", !isDirty);
+    if (undoBtn) {
+        undoBtn.classList.toggle("btn-danger", !!isDirty);
+        undoBtn.classList.toggle("btn-primary", !isDirty);
+    }
+    _syncEditFieldHighlights();
+}
+
+function _autoFixConflicts() {
+    var btn = document.getElementById("pe-top-autofix-btn");
+    if (!btn || btn.classList.contains("pe-autofix-active")) return;
+    if (_peEditState && _peEditState.reference) _rememberAutoFixScope(_peEditState.reference);
+    btn.classList.add("pe-autofix-active");
+    var saveFirst = (_isEditStateDirty() || _peResourceDirty) ? _saveEditState(false) : Promise.resolve();
+    saveFirst.then(function() {
+        return fetch(url_prefix + "/execute/autoresolve/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": _getCsrfToken()},
+            body: JSON.stringify({operationplans: _peAutoFixScopeRefs})
+        });
+    })
+    .then(function(r) {
+        if (r.ok) return r.json();
+        return _extractErrorMessage(r, "自动修复失败").then(function(msg) {
+            throw new Error(msg);
+        });
+    })
+    .then(function(data) {
+        if (data.success) { location.reload(); }
+        else { alert("冲突解决失败: " + (data.error || "未知错误")); }
+    })
+    .catch(function(err) { alert("请求失败: " + (err.message || err)); })
+    .finally(function() { btn.classList.remove("pe-autofix-active"); });
+}
+
+function _markOpplanDirty() {
+    var saveBtn = document.getElementById("pe-save-btn");
+    if (saveBtn) saveBtn.disabled = false;
+    _setTopSaveDirty(_isEditStateDirty() || _peResourceDirty);
+}
+
+function _setResourceDirty(isDirty) {
+    _peResourceDirty = !!isDirty;
+    _setTopSaveDirty(_isEditStateDirty() || _peResourceDirty);
+}
+
+function _updateEditField(field, value) {
+    if (!_peEditState) return;
+    _peEditState[field] = value;
+    _markOpplanDirty();
+    if (field === "start" || field === "end" || field === "quantity") {
+        _syncGanttBarsFromEditState();
+    }
+}
+
+function _syncGanttBarsFromEditState() {
+    if (!_peEditState || !_peEditState.reference) return;
+    var tp = window._combinedTimeParams;
+    if (!tp) return;
+    var ref = _peEditState.reference;
+    var startDate = new Date(_peEditState.start);
+    var endDate = new Date(_peEditState.end);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return;
+    var left = Math.max(2, ((startDate - tp.minT) / tp.span) * tp.w);
+    var width = Math.max(6, ((endDate - tp.minT) / tp.span) * tp.w - left);
+    document.querySelectorAll('.pe-gantt-bar[data-pe-info]').forEach(function(bar) {
+        var parsed = _parseBarInfo(bar);
+        if (!parsed || parsed.ref !== ref) return;
+        bar.style.left = left + "px";
+        bar.style.width = width + "px";
+        // Update data-pe-info so next drag uses correct values
+        var infoStr = bar.getAttribute("data-pe-info");
+        if (infoStr) {
+            try {
+                var txt = document.createElement("textarea");
+                txt.innerHTML = infoStr;
+                var info = JSON.parse(txt.value);
+                info.op_start = _peEditState.start;
+                info.op_end = _peEditState.end;
+                bar.setAttribute("data-pe-info", _esc(JSON.stringify(info)));
+            } catch(e) {}
+        }
+    });
+}
+
+function _onStartChange(value) {
+    if (!_peEditState) return;
+    var oldStart = new Date(_peEditState.start);
+    var oldEnd = new Date(_peEditState.end);
+    if (!isNaN(oldStart.getTime()) && !isNaN(oldEnd.getTime())) {
+        var duration = oldEnd - oldStart;
+        if (duration > 0) {
+            var newStart = new Date(value);
+            if (!isNaN(newStart.getTime())) {
+                var newEnd = new Date(newStart.getTime() + duration);
+                _peEditState.end = _formatInputDate(newEnd);
+                document.querySelectorAll('[data-pe-edit-field="end"]').forEach(function(el) { el.value = _peEditState.end; });
+            }
+        }
+    }
+    _updateEditField("start", value);
+}
+
+function _onEndChange(value) {
+    if (!_peEditState) return;
+    var oldStart = new Date(_peEditState.start);
+    var oldEnd = new Date(_peEditState.end);
+    if (!isNaN(oldStart.getTime()) && !isNaN(oldEnd.getTime())) {
+        var duration = oldEnd - oldStart;
+        if (duration > 0) {
+            var newEnd = new Date(value);
+            if (!isNaN(newEnd.getTime())) {
+                var newStart = new Date(newEnd.getTime() - duration);
+                _peEditState.start = _formatInputDate(newStart);
+                document.querySelectorAll('[data-pe-edit-field="start"]').forEach(function(el) { el.value = _peEditState.start; });
+            }
+        }
+    }
+    _updateEditField("end", value);
+}
+
+function _setStatusFromBtn(btn, status) {
+    _updateEditField("status", status);
+    var wrap = document.getElementById("pe-status-edit-row");
+    if (!wrap) return;
+    wrap.querySelectorAll("button[data-pe-status]").forEach(function(el) {
+        el.classList.toggle("active", el === btn);
+    });
+}
+
+function _saveEditState(reloadAfterSave) {
+    if (reloadAfterSave === undefined) reloadAfterSave = true;
+    if (!_peEditState || !_peEditState.reference) return Promise.resolve();
+    if (!_isEditStateDirty() && !_peResourceDirty) return Promise.resolve();
+    var payload = [{
+        id: _peEditState.reference,
+        start: _normalizeDatetimePayload(_peEditState.start),
+        end: _normalizeDatetimePayload(_peEditState.end),
+        quantity: _peEditState.quantity !== "" ? parseFloat(_peEditState.quantity) : undefined,
+        quantity_completed: _peEditState.quantity_completed !== "" ? parseFloat(_peEditState.quantity_completed) : undefined,
+        status: _peEditState.status || undefined,
+        remark: _peEditState.remark || undefined,
+        resources: (_peSelectedOpplan ? _getLoadplansForOpplan(_peSelectedOpplan) : []).map(function(lp) {
+            return [
+                lp.resource && lp.resource.name ? lp.resource.name : lp.resource,
+                lp.quantity,
+                lp.reference || _peEditState.reference
+            ];
+        })
+    }];
+    return fetch(url_prefix + "/operationplan/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(resp) {
+        if (resp.ok) return resp.json();
+        return _extractErrorMessage(resp, "保存失败").then(function(msg) {
+            throw new Error(msg);
+        });
+    })
+    .then(function() {
+        _rememberAutoFixScope(_peEditState.reference);
+        _peEditBaseline = _cloneEditState(_peEditState);
+        _captureLoadplansBaseline(_peSelectedOpplan);
+        _setResourceDirty(false);
+        _setTopSaveDirty(false);
+        if (reloadAfterSave) location.reload();
+    })
+    .catch(function(err) {
+        _pushProblem("保存失败: " + (err.message || err), _nowDisplay(), "");
+        showSimpleTooltip("❌ 保存失败: " + (err.message || err), window.innerWidth/2 - 100, window.innerHeight/2 - 30);
+        setTimeout(hideTooltip, 3000);
+    });
+}
+
+function _cancelEditState() {
+    if (_peSelectedOpplan) {
+        _restoreLoadplansFromBaseline(_peSelectedOpplan);
+        _peEditState = null;
+        _peEditBaseline = null;
+        _setEditState(_peSelectedOpplan);
+        _renderOperationplanDetailPanels(_peSelectedOpplan);
+        renderSideResourcePanel();
+        _setResourceDirty(false);
+    }
+    _setTopSaveDirty(false);
+    // Re-render combined Gantt to restore bar positions after undo
+    var target = document.getElementById("combined-gantt-content");
+    if (target && window._combinedUnified) {
+        _reRenderCombinedGantt(target);
+    }
+}
+
+function _triggerStatusExport() {
+    try {
+        if (typeof actions !== "undefined" && actions && actions.hasOwnProperty("erp_incr_export")) {
+            actions["erp_incr_export"]();
+        }
+    } catch (e) {
+        // Keep silent: export action is optional in this screen.
+    }
+}
+
+function _saveOpplanToolbar() {
+    _saveEditState();
+}
+
+function _undoOpplanToolbar() {
+    _cancelEditState();
+}
+
+function _exportToOdoo() {
+    _triggerStatusExport();
+}
+
+function _orderStyle(opType) {
+    switch (opType) {
+        case 'MO':  return {bg: 'rgba(220,38,38,{a})', border: '#dc2626', label: 'MO'};
+        case 'WO':  return {bg: 'rgba(217,119,6,{a})', border: '#d97706', label: 'WO'};
+        case 'PO':  return {bg: 'rgba(37,99,235,{a})', border: '#2563eb', label: 'PO'};
+        case 'DO':  return {bg: 'rgba(124,58,237,{a})', border: '#7c3aed', label: 'DO'};
+        case 'DLVR': return {bg: 'rgba(8,145,178,{a})', border: '#0891b2', label: 'DLVR'};
+        case 'STCK': return {bg: 'rgba(22,163,74,{a})', border: '#16a34a', label: 'STCK'};
+        default:    return {bg: 'rgba(100,116,139,{a})', border: '#64748b', label: opType || '?'};
+    }
+}
+
+function _hexToRgba(hex, alpha) {
+    if (!hex) return 'rgba(148,163,184,' + alpha + ')';
+    var h = String(hex).replace('#', '');
+    if (h.length === 3) {
+        h = h.split('').map(function(c) { return c + c; }).join('');
+    }
+    var r = parseInt(h.substring(0, 2), 16);
+    var g = parseInt(h.substring(2, 4), 16);
+    var b = parseInt(h.substring(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return 'rgba(148,163,184,' + alpha + ')';
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+function _getDelayColorByDays(delayDays) {
+    // Continuous gradient based on actual data range (-30 to +60 days)
+    var stops = [
+        { d: -30, r: 22,  g: 163, b: 74  },   // deep green (very early)
+        { d: -14, r: 134, g: 239, b: 172 },   // light green
+        { d:   0, r: 148, g: 163, b: 184 },   // gray (on-time)
+        { d:   7, r: 250, g: 204, b: 21  },   // yellow (slightly late)
+        { d:  20, r: 251, g: 146, b: 60  },   // orange (late)
+        { d:  40, r: 239, g: 68,  b: 68  },   // red (very late)
+        { d:  60, r: 185, g: 28,  b: 28  }    // deep red (critical)
+    ];
+    if (delayDays <= stops[0].d) return rgbToHex(stops[0].r, stops[0].g, stops[0].b);
+    if (delayDays >= stops[stops.length - 1].d) return rgbToHex(stops[stops.length - 1].r, stops[stops.length - 1].g, stops[stops.length - 1].b);
+    for (var i = 0; i < stops.length - 1; i++) {
+        if (delayDays <= stops[i + 1].d) {
+            var t = (delayDays - stops[i].d) / (stops[i + 1].d - stops[i].d);
+            var r = Math.round(stops[i].r + (stops[i + 1].r - stops[i].r) * t);
+            var g = Math.round(stops[i].g + (stops[i + 1].g - stops[i].g) * t);
+            var bb = Math.round(stops[i].b + (stops[i + 1].b - stops[i].b) * t);
+            return rgbToHex(r, g, bb);
+        }
+    }
+    return '#94A3B8';
+}
+
+function rgbToHex(r, g, b) {
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+function _delayDaysFromRaw(raw) {
+    if (!raw) return null;
+    var delay = raw.delay;
+    if (delay == null || delay === "") delay = raw.operationplan__delay;
+    if (delay == null || delay === "") return null;
+    var delaySeconds = Number(delay);
+    if (isNaN(delaySeconds)) return null;
+    return Math.round(delaySeconds / 86400);
+}
+
+function _getDelayStyle(opEnd, dueDate, alpha, raw) {
+    var delayDays = _delayDaysFromRaw(raw);
+    if (delayDays !== null) {
+        var delayColor = _getDelayColorByDays(delayDays);
+        return {
+            bg: _hexToRgba(delayColor, alpha),
+            border: delayColor,
+            delayDays: delayDays
+        };
+    }
+    if (!dueDate || !opEnd || isNaN(dueDate.getTime()) || isNaN(opEnd.getTime())) {
+        return { bg: 'rgba(148,163,184,' + alpha + ')', border: '#94A3B8', delayDays: null };
+    }
+    delayDays = Math.round((opEnd.getTime() - dueDate.getTime()) / 86400000);
+    var color = _getDelayColorByDays(delayDays);
+    return {
+        bg: _hexToRgba(color, alpha),
+        border: color,
+        delayDays: delayDays
+    };
+}
+
+function _getDemandBarStyle(opType, opEnd, dueDate, alpha, raw) {
+    if (_peColorScheme === "delay") {
+        return _getDelayStyle(opEnd, dueDate, alpha, raw);
+    }
+    if (_peColorScheme === "op_category") {
+        return _getOperationCategoryStyle(opType, alpha);
+    }
+    var fallback = _orderStyle(opType || '');
+    return { bg: fallback.bg.replace('{a}', alpha), border: fallback.border };
+}
+
+function _colorForCategory(category) {
+    var key = category || "";
+    if (!_peCategoryColorMap[key]) {
+        var idx = Object.keys(_peCategoryColorMap).length % _peCategoryPalette.length;
+        _peCategoryColorMap[key] = _peCategoryPalette[idx];
+    }
+    return _peCategoryColorMap[key];
+}
+
+function _computeCategoryKey(raw, fallbackType) {
+    // For "Color By Operation Category": MO and WO orders color by operation.category.
+    // All other types (PO, DLVR, STCK) get a single unified gray color.
+    var type = (raw && (raw.type || raw.op_type)) || fallbackType || "";
+    if (type === "MO" || type === "WO") {
+        var cat = (raw && raw.operation_category) || "";
+        return cat || (type + "-no-category");
+    }
+    return "__other__";
+}
+
+function _getOperationCategoryStyle(category, alpha) {
+    var color = _colorForCategory(category);
+    return {
+        bg: _hexToRgba(color, alpha),
+        border: color,
+        label: category || "?"
+    };
+}
+
+function _buildOpDueMap(demandGroups) {
+    var opDueMap = {};
+    Object.keys(demandGroups || {}).forEach(function(dname) {
+        var dg = demandGroups[dname];
+        var due = dg && dg.due ? new Date(dg.due) : null;
+        if (!due || isNaN(due.getTime())) return;
+        (dg.all_orders || []).forEach(function(o) {
+            var ref = o.op_ref;
+            if (!ref) return;
+            var cur = opDueMap[ref];
+            if (!cur || due.getTime() < cur.getTime()) {
+                opDueMap[ref] = due;
+            }
+        });
+    });
+    return opDueMap;
+}
+
+// Assign non-overlapping vertical lanes for bars within a demand row
+function _assignLanes(events, xf) {
+    var sorted = events.slice().sort(function(a, b) {
+        return new Date(a.op_start || a.date) - new Date(b.op_start || b.date);
+    });
+    var lanes = [];
+    var result = [];
+    sorted.forEach(function(ev) {
+        var sx = xf(new Date(ev.op_start || ev.date));
+        var ex = Math.max(sx + 6, xf(new Date(ev.op_end || ev.date)));
+        var placed = false;
+        for (var l = 0; l < lanes.length; l++) {
+            if (lanes[l] <= sx + 4) {
+                result.push({event: ev, lane: l});
+                lanes[l] = ex;
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            result.push({event: ev, lane: lanes.length});
+            lanes.push(ex);
+        }
+    });
+    return {assignments: result, numLanes: lanes.length};
+}
+
+function _sortInventoryPoints(a, b) {
+    var da = new Date(a.date) - new Date(b.date);
+    if (da !== 0) return da;
+    return (b.quantity || 0) - (a.quantity || 0);
+}
+
+function _prepareInventorySeries(invPoints, openingPoints) {
+    var dated = (invPoints || []).filter(function(p) { return p.date; }).slice();
+    dated.sort(_sortInventoryPoints);
+
+    var opening = (openingPoints || []).slice();
+    opening.sort(function(a, b) { return (a.quantity || 0) - (b.quantity || 0); });
+
+    if (opening.length === 0 || dated.length === 0) return dated;
+
+    var base = opening[opening.length - 1];
+    var firstDate = new Date(dated[0].date);
+    var anchor = new Date(firstDate.getTime() - 60000);
+
+    dated.unshift({
+        date: anchor.toISOString(),
+        onhand: Number(base.onhand) || 0,
+        quantity: 0,
+        op_ref: base.op_ref || "opening",
+        op_type: base.op_type || "STCK",
+        op_status: base.op_status || "",
+        _opening_balance: true
+    });
+
+    return dated;
+}
+
+function _compressInventoryLinePoints(points, rangeStart, rangeEnd) {
+    var linePts = (points || []).filter(function(p) { return p && p.date; }).slice();
+    linePts.sort(_sortInventoryPoints);
+
+    if (linePts.length === 0) return linePts;
+
+    var firstMs = new Date(linePts[0].date).getTime();
+    var lastMs = new Date(linePts[linePts.length - 1].date).getTime();
+
+    // Extend the line to the visible time window so inventory isn't cut off
+    // before the first event or after the last event.
+    if (rangeStart) {
+        var startMs = new Date(rangeStart).getTime();
+        if (!isNaN(startMs) && startMs < firstMs) {
+            var leftEdge = Object.assign({}, linePts[0]);
+            leftEdge.date = new Date(startMs).toISOString();
+            leftEdge._edge = true;
+            linePts.unshift(leftEdge);
+            firstMs = startMs;
+        }
+    }
+    if (rangeEnd) {
+        var endMs = new Date(rangeEnd).getTime();
+        if (!isNaN(endMs) && endMs > lastMs) {
+            var rightEdge = Object.assign({}, linePts[linePts.length - 1]);
+            rightEdge.date = new Date(endMs).toISOString();
+            rightEdge._edge = true;
+            linePts.push(rightEdge);
+            lastMs = endMs;
+        }
+    }
+
+    // Fallback: keep a short segment if there's still effectively one instant.
+    if (linePts.length === 1 || firstMs === lastMs) {
+        var only = linePts[0];
+        var t = new Date(only.date).getTime();
+        var pad = 600000;
+        var left = Object.assign({}, only);
+        var right = Object.assign({}, only);
+        left.date = new Date(t - pad).toISOString();
+        right.date = new Date(t + pad).toISOString();
+        left._stub = true;
+        right._stub = true;
+        linePts = [left, only, right];
+    }
+
+    return linePts;
+}
+
+function _renderItemGroup(targetId, groupKey, groupData, sharedTimeParams) {
+    var target = document.getElementById(targetId);
+    if (!target) return;
+
+    var invPoints = groupData.inventory || [];
+    var openingPoints = groupData.opening_inventory || [];
+    var demands = groupData.demands || {};
+    var demandList = Object.keys(demands).sort();
+
+    if (invPoints.length < 2) {
+        target.innerHTML = '<div class="pe-pb-empty">无库存数据</div>';
+        return;
+    }
+
+    var minT, maxT, span, w, weekPositions, monthBlocks, weekBlocks;
+    var isEmbedded = !!sharedTimeParams;
+    if (isEmbedded) {
+        minT = sharedTimeParams.minT;
+        maxT = sharedTimeParams.maxT;
+        span = sharedTimeParams.span;
+        w = sharedTimeParams.w;
+        weekPositions = sharedTimeParams.weekPositions;
+    } else {
+        // Compute time bounds from ALL events (inventory + demand events)
+        minT = null; maxT = null;
+        function _scan(d) { if (d && !isNaN(d)) { if (!minT || d < minT) minT = d; if (!maxT || d > maxT) maxT = d; } }
+        invPoints.forEach(function(p) { if (p.date) _scan(new Date(p.date)); });
+        demandList.forEach(function(dname) {
+            var dd = demands[dname];
+            if (dd.due) _scan(new Date(dd.due));
+            (dd.mo_orders || []).forEach(function(mo) {
+                if (mo.op_start) _scan(new Date(mo.op_start));
+                if (mo.op_end) _scan(new Date(mo.op_end));
+            });
+            (dd.supply_events || []).forEach(function(se) {
+                if (se.op_start) _scan(new Date(se.op_start));
+                if (se.op_end) _scan(new Date(se.op_end));
+                if (se.date) _scan(new Date(se.date));
+            });
+        });
+        if (!minT) { target.innerHTML = '<div class="pe-pb-empty">无有效日期</div>'; return; }
+        minT = new Date(minT.getTime() - 86400000 * 3);
+        maxT = new Date(maxT.getTime() + 86400000 * 3);
+        span = Math.max(maxT - minT, 86400000);
+        w = Math.max(900, Math.ceil(((maxT - minT) / 86400000) * 6));
+        var hdr = _buildAdaptiveGanttHeader(minT, maxT, w);
+        monthBlocks = hdr.monthBlocks;
+        weekBlocks = hdr.weekBlocks;
+        // Store for bar drag support
+        window._itemTimeParams = { minT: minT, maxT: maxT, span: span, w: w };
+        weekPositions = hdr.weekPositions;
+    }
+    function xf(d) { return ((d.getTime() - minT.getTime()) / span) * w; }
+
+    // Inventory Y scaling
+    var plotPts = _prepareInventorySeries(invPoints, openingPoints);
+    var allOH = plotPts.map(function(p) { return p.onhand || 0; });
+    var minOH = Math.min(0, Math.min.apply(null, allOH));
+    var maxOH = Math.max(1, Math.max.apply(null, allOH));
+    var ohSpan = Math.max(1e-9, maxOH - minOH);
+
+    // Build demand rows data
+    var demandRows = [];
+    demandList.forEach(function(dname) {
+        var dd = demands[dname];
+        demandRows.push({
+            name: dname,
+            quantity: dd.quantity || 0,
+            due: dd.due ? new Date(dd.due) : null,
+            customer: dd.customer || "",
+            status: dd.status || "",
+            mos: dd.mo_orders || [],
+            supplies: dd.supply_events || []
+        });
+    });
+
+    var numDemandRows = demandRows.length;
+
+    // ---- Build labels (left panel) ----
+    var validPts = plotPts;
+    var linePts = _compressInventoryLinePoints(plotPts, minT, maxT);
+    var labels = [];
+    labels.push('<div class="pe-gantt-label-row pe-gantt-row-header"><span>' + _esc(groupKey) + '</span></div>');
+    demandRows.forEach(function(dr, di) {
+        labels.push('<div class="pe-gantt-label-row pe-pb-label-row pe-pb-label-demand" style="min-height:' + PB_ROW_H + 'px">');
+        labels.push('<span class="pe-pb-dname">' + _esc(dr.name) + '</span>');
+        labels.push('</div>');
+    });
+
+    // ---- Build time column ----
+    var timeCol = [];
+
+    // Header row with month/week blocks (skip when embedded — shared header is above)
+    if (!isEmbedded) {
+        timeCol.push('<div class="pe-gantt-time-row pe-gantt-row-header">' + hdr.renderHtml() + '</div>');
+    }
+
+    // Today marker line
+    var now = new Date();
+    var todayHtml = '';
+    if (now >= minT && now <= maxT) {
+        var tx = xf(now);
+        todayHtml = '<div style="position:absolute;top:0;bottom:0;left:' + tx + 'px;width:0;border-left:1px dashed #94a3b8;z-index:5;pointer-events:none"></div><div style="position:absolute;top:2px;left:' + (tx + 4) + 'px;font-size:10px;color:#64748b;font-weight:500;z-index:5;pointer-events:none">今天</div>';
+    }
+
+    // Demand rows: one row per demand, with colored order bars inside
+    demandRows.forEach(function(dr, di) {
+        var gridLines = [];
+        for (var gi = 0; gi < weekPositions.length; gi++) {
+            var wp = weekPositions[gi];
+            var cls = wp.isMonthBoundary ? 'pe-gantt-month-split' : 'pe-gantt-tick';
+            gridLines.push('<span class="' + cls + '" style="left:' + wp.x + 'px"></span>');
+        }
+
+        var bars = [];
+
+        // Combine all events with category: 'mo' or 'supply'
+        var allEvents = [];
+        dr.mos.forEach(function(mo) {
+            var ms = mo.op_start ? new Date(mo.op_start) : (mo.date ? new Date(mo.date) : null);
+            var me = mo.op_end ? new Date(mo.op_end) : (mo.date ? new Date(mo.date) : null);
+            if (ms && me) allEvents.push({op_start: mo.op_start, op_end: mo.op_end, op_ref: mo.op_ref, qty: mo.qty, op_type: mo.op_type, op_status: mo.op_status, raw: mo, cat: 'mo'});
+        });
+        dr.supplies.forEach(function(se) {
+            var ss = se.op_start ? new Date(se.op_start) : (se.date ? new Date(se.date) : null);
+            var se2 = se.op_end ? new Date(se.op_end) : (se.date ? new Date(se.date) : null);
+            if (ss && se2) allEvents.push({op_start: se.op_start, op_end: se.op_end, op_ref: se.op_ref, qty: se.qty, op_type: se.op_type, op_status: se.op_status, raw: se, cat: 'supply'});
+        });
+
+        // Filter by visible types
+        allEvents = allEvents.filter(function(ev) {
+            return _peVisibleTypes.indexOf(ev.op_type) !== -1;
+        });
+
+        if (allEvents.length > 0) {
+            var lanes = _assignLanes(allEvents, xf);
+            var numLanes = lanes.numLanes;
+            var dBarH, dBarGap, rowH;
+            if (numLanes > 1) {
+                dBarH = PB_BAR_H;
+                dBarGap = 2;
+                rowH = Math.max(PB_ROW_H, numLanes * (dBarH + dBarGap) + 4);
+            } else {
+                rowH = PB_ROW_H;
+                dBarH = rowH - 4;
+                dBarGap = 0;
+            }
+
+            lanes.assignments.forEach(function(a) {
+                var ev = a.event;
+                var ms = new Date(ev.op_start);
+                var me = new Date(ev.op_end);
+                var left = Math.max(2, xf(ms));
+                var bw = Math.max(6, xf(me) - left);
+                var st = (ev.op_status || '').toLowerCase().replace(/[^a-z]/g, '');
+                var alpha = st === 'proposed' ? 0.25 : (st === 'confirmed' ? 0.40 : 0.35);
+                var style = _orderStyle(ev.op_type || '');
+                var colorKey = _peColorScheme === "op_category" ? _computeCategoryKey(ev.raw, ev.op_type) : (ev.op_type || '');
+                var delayStyle = _getDemandBarStyle(colorKey, me, dr.due, alpha, ev.raw);
+                var top = 2 + a.lane * (dBarH + dBarGap);
+                var info = _esc(JSON.stringify(ev.raw));
+                var days = Math.round((me - ms) / 86400000);
+                var durText = days > 0 ? ' ' + days + 'd' : '';
+                var isSupply = ev.cat === 'supply';
+                var sign = isSupply ? '+' : '-';
+                var fullLabel = (ev.op_ref || style.label) + ' ' + sign + String(Math.abs(ev.qty || 0)) + (bw > 20 ? durText : '');
+                bars.push('<div class="pe-gantt-bar" style="left:' + left + 'px;width:' + bw + 'px;top:' + top + 'px;height:' + dBarH + 'px;background:' + delayStyle.bg + ';border-color:' + delayStyle.border + ';cursor:pointer" data-pe-info="' + info + '">' + (bw > 20 ? _esc(fullLabel) : '') + '</div>');
+            });
+
+            timeCol.push('<div class="pe-gantt-time-row pe-pb-row" style="padding:0;border-bottom:none">');
+            timeCol.push('<div class="pe-gantt-track" style="width:' + w + 'px;height:' + rowH + 'px;border-bottom:1px solid #f1f3f5;box-sizing:border-box">' + todayHtml + gridLines.join('') + bars.join('') + '</div>');
+            timeCol.push('</div>');
+            todayHtml = '';
+        } else {
+            timeCol.push('<div class="pe-gantt-time-row pe-pb-row" style="padding:0;border-bottom:none">');
+            timeCol.push('<div class="pe-gantt-track" style="width:' + w + 'px;height:' + PB_ROW_H + 'px;border-bottom:1px solid #f1f3f5;box-sizing:border-box">' + todayHtml + gridLines.join('') + '</div>');
+            timeCol.push('</div>');
+            todayHtml = '';
+        }
+    });
+
+    // Separator between demands and inventory
+    timeCol.push('<div style="height:2px;background:#94a3b8;width:' + w + 'px"></div>');
+
+    // ---- Inventory SVG chart (keeps SVG for step-line rendering) ----
+    var svgH = PB_INV_ROW_H;
+    var svg = [];
+    svg.push('<svg width="' + w + '" height="' + svgH + '" style="display:block;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;background:#fffbeb">');
+
+    // Vertical grid lines
+    for (var gi = 0; gi < weekPositions.length; gi++) {
+        var wp2 = weekPositions[gi];
+        var sw = wp2.isMonthBoundary ? 2 : 1;
+        var sc = wp2.isMonthBoundary ? 'rgba(15,23,42,0.20)' : '#dee2e6';
+        svg.push('<line x1="' + wp2.x + '" y1="0" x2="' + wp2.x + '" y2="' + svgH + '" stroke="' + sc + '" stroke-width="' + sw + '"/>');
+    }
+
+    var invTop = 22;
+    var invBot = svgH - 10;
+    var invH = invBot - invTop;
+    function invY(onhand) { return invBot - ((onhand - minOH) / ohSpan) * invH; }
+
+    // Zero line
+    if (minOH < 0) {
+        var zy = invY(0);
+        svg.push('<line x1="0" y1="' + zy + '" x2="' + w + '" y2="' + zy + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 4"/>');
+    }
+
+    // Inventory path
+    var pathD = "";
+    linePts.forEach(function(p, i) {
+        var cx = xf(new Date(p.date));
+        var cy = invY(p.onhand || 0);
+        if (i === 0) pathD = "M" + cx + "," + cy;
+        else pathD += " H" + cx + " V" + cy;
+    });
+    svg.push('<path d="' + pathD + '" fill="none" stroke="#e6980a" stroke-width="2.5" stroke-linejoin="round"/>');
+
+    // Event dots on inventory line
+    validPts.forEach(function(p) {
+        if (!p.date) return;
+        var ex = xf(new Date(p.date));
+        var ey = invY(p.onhand || 0);
+        var qty = p.quantity || 0;
+        var dotStyle = _orderStyle(p.op_type || '');
+        var dotColor = p._opening_balance ? "#16a34a" : dotStyle.border;
+        svg.push('<circle cx="' + ex + '" cy="' + ey + '" r="4" style="cursor:pointer;fill:' + dotColor + '">');
+        if (p._opening_balance) {
+            svg.push('<title>' + _esc("opening balance | onhand: " + Number(p.onhand).toFixed(0)) + '</title>');
+        } else {
+            svg.push('<title>' + _esc((p.op_ref || "") + " | " + (p.op_type || "") + " | qty: " + Number(qty).toFixed(0) + " | onhand: " + Number(p.onhand).toFixed(0)) + '</title>');
+        }
+        svg.push('</circle>');
+    });
+
+    svg.push('</svg>');
+
+    timeCol.push('<div class="pe-gantt-time-row" style="padding:0">' + svg.join("") + '</div>');
+
+    // ---- Assemble ----
+    if (isEmbedded) {
+        // Return parts so caller can append to the shared board
+        target._pbLabels = labels.join("");
+        target._pbTime = timeCol.join("");
+        target._pbTimeW = w;
+        target._pbHasContent = true;
+    } else {
+        var h = [];
+        h.push('<div class="pe-gantt-board">');
+        h.push('<div class="pe-gantt-labels-col" style="flex:0 0 ' + PB_LABEL_W + 'px;min-width:' + PB_LABEL_W + 'px">' + labels.join("") + '</div>');
+        h.push('<div class="pe-gantt-time-col" id="pe-svg-col"><div style="width:' + w + 'px">' + timeCol.join("") + '</div></div>');
+        h.push('</div>');
+
+        target.innerHTML = h.join("");
+
+        // ---- Bar click tooltips + drag ----
+        target.querySelectorAll(".pe-gantt-bar[data-pe-info]").forEach(function(bar) {
+            bar.addEventListener("click", function(e) {
+                if (window._barDragJustFinished) { window._barDragJustFinished = false; return; }
+                e.stopPropagation();
+                var infoStr = bar.getAttribute("data-pe-info");
+                if (!infoStr) return;
+                try {
+                    var txt = document.createElement("textarea");
+                    txt.innerHTML = infoStr;
+                    var info = JSON.parse(txt.value);
+                    showSimpleTooltip(
+                        (info.op_ref || "") + "\nqty: " + (info.qty || 0) + "\nstatus: " + (info.op_status || "-") + "\ntype: " + (info.op_type || "-") + "\nstart: " + (info.op_start || "-") + "\nend: " + (info.op_end || "-"),
+                        bar.getBoundingClientRect().left + 10,
+                        bar.getBoundingClientRect().top - 10
+                    );
+                } catch(ex) {}
+            });
+            bar.addEventListener("mousedown", function(e) {
+                if (e.ctrlKey || e.metaKey || e.button !== 0) return;
+                var parsed = _parseBarInfo(bar);
+                if (!parsed) return;
+                if (!_peSelectedOpplan || !_sameOpplanRef(_getOpplanRef(_peSelectedOpplan), parsed.ref)) return;
+                _peLocalProblems = [];
+                _updateProblemsCard();
+                var tp = window._combinedTimeParams || window._itemTimeParams;
+                if (!tp) return;
+                _barDragState = {
+                    bar: bar,
+                    ref: parsed.ref,
+                    originalStart: parsed.originalStart,
+                    originalEnd: parsed.originalEnd,
+                    status: parsed.status,
+                    opType: parsed.opType,
+                    fenceDays: parsed.fenceDays,
+                    startMouseX: e.clientX,
+                    startBarLeft: parseFloat(bar.style.left) || 0,
+                    barWidth: parseFloat(bar.style.width) || 0,
+                    minT: tp.minT,
+                    span: tp.span,
+                    w: tp.w,
+                    didMove: false,
+                    relatedBars: []
+                };
+                document.querySelectorAll('.pe-gantt-bar[data-pe-info]').forEach(function(rb) {
+                    if (rb === bar) return;
+                    var rp = _parseBarInfo(rb);
+                    if (rp && rp.ref === parsed.ref) {
+                        _barDragState.relatedBars.push({
+                            bar: rb,
+                            startBarLeft: parseFloat(rb.style.left) || 0,
+                            barWidth: parseFloat(rb.style.width) || 0
+                        });
+                    }
+                });
+                document.body.style.cursor = "ew-resize";
+                document.body.style.userSelect = "none";
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        // Inventory chart dot click tooltips
+        var svgEl = target.querySelector("svg");
+        if (svgEl) {
+            svgEl.addEventListener("click", function(e) {
+                var circle = e.target.closest("circle");
+                if (!circle) return;
+                var titleEl = circle.querySelector("title");
+                if (titleEl) {
+                    var rect = circle.getBoundingClientRect();
+                    showSimpleTooltip(titleEl.textContent, rect.left + 10, rect.top - 10);
+                }
+            });
+        }
+
+        // Sync scroll
+        var svgCol = target.querySelector(".pe-gantt-time-col");
+        var labelsCol = target.querySelector(".pe-gantt-labels-col");
+        if (svgCol && labelsCol) {
+            svgCol.addEventListener("scroll", function() {
+                labelsCol.scrollTop = svgCol.scrollTop;
+            });
+        }
+    }
+}
+
+/* Render pegging section HTML parts (labels + time column) for embedding in combined view.
+   Returns {labels: string[], time: string[]} — caller appends to combined board. */
+function _renderPeggingSection(groupKey, groupData, sharedTimeParams) {
+    var invPoints = groupData.inventory || [];
+    var openingPoints = groupData.opening_inventory || [];
+
+    var minT = sharedTimeParams.minT;
+    var maxT = sharedTimeParams.maxT;
+    var span = sharedTimeParams.span;
+    var w = sharedTimeParams.w;
+    var weekPositions = sharedTimeParams.weekPositions;
+    function xf(d) { return ((d.getTime() - minT.getTime()) / span) * w; }
+
+    var validPts = _prepareInventorySeries(invPoints, openingPoints);
+    var linePts = _compressInventoryLinePoints(validPts, minT, maxT);
+
+    var allOH = validPts.map(function(p) { return p.onhand || 0; });
+    var minOH = Math.min(0, Math.min.apply(null, allOH));
+    var maxOH = Math.max(1, Math.max.apply(null, allOH));
+    var ohSpan = Math.max(1e-9, maxOH - minOH);
+
+    // Labels: group header with collapse caret
+    var pegParentId = 'peg-' + groupKey.replace(/[^a-zA-Z0-9]/g, '_');
+    var labels = [];
+    labels.push('<div class="pe-gantt-label-row pe-pb-row" style="height:' + PB_INV_ROW_H + 'px;font-weight:600;font-size:15px"><span>' + _esc(groupKey) + '</span></div>');
+
+    // Time column
+    var timeCol = [];
+
+    // === Inventory SVG step chart ===
+    var svgH = PB_INV_ROW_H;
+    var svg = [];
+    svg.push('<svg width="' + w + '" height="' + svgH + '" style="display:block;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;background:#fffbeb">');
+
+    var invTop = 22;
+    var invBot = svgH - 10;
+    var invH = invBot - invTop;
+    function invY(onhand) { return invBot - ((onhand - minOH) / ohSpan) * invH; }
+
+    if (minOH < 0) {
+        var zy = invY(0);
+        svg.push('<line x1="0" y1="' + zy + '" x2="' + w + '" y2="' + zy + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 4"/>');
+    }
+
+    var pathD = "";
+    linePts.forEach(function(p, i) {
+        var cx = xf(new Date(p.date));
+        var cy = invY(p.onhand || 0);
+        if (i === 0) pathD = "M" + cx + "," + cy;
+        else pathD += " H" + cx + " V" + cy;
+    });
+    svg.push('<path d="' + pathD + '" fill="none" stroke="#e6980a" stroke-width="2.5" stroke-linejoin="round"/>');
+
+    validPts.forEach(function(p) {
+        if (!p.date) return;
+        var ex = xf(new Date(p.date));
+        var ey = invY(p.onhand || 0);
+        var qty = p.quantity || 0;
+        var dotStyle = _orderStyle(p.op_type || '');
+        var dotColor = p._opening_balance ? "#16a34a" : dotStyle.border;
+        svg.push('<circle cx="' + ex + '" cy="' + ey + '" r="4" style="cursor:pointer;fill:' + dotColor + '">');
+        if (p._opening_balance) {
+            svg.push('<title>' + _esc("opening balance | onhand: " + Number(p.onhand).toFixed(0)) + '</title>');
+        } else {
+            svg.push('<title>' + _esc((p.op_ref || "") + " | " + (p.op_type || "") + " | qty: " + Number(qty).toFixed(0) + " | onhand: " + Number(p.onhand).toFixed(0)) + '</title>');
+        }
+        svg.push('</circle>');
+    });
+
+    svg.push('</svg>');
+    timeCol.push('<div class="pe-gantt-time-row pe-pb-row" style="padding:0">' + svg.join("") + '</div>');
+
+    return { labels: labels, time: timeCol, pegParentId: pegParentId };
+}
+
+
+function _renderDemandPegging(demandGroups, sharedTimeParams, pegParentId, demandTotal) {
+	    var demandKeys = Object.keys(demandGroups).sort();
+	    if (demandKeys.length === 0) return { labels: [], time: [] };
+	    var totalDemandKeys = demandTotal || demandKeys.length;
+	    var renderLimit = _peDemandRenderLimit || 30;
+	    var omitted = Math.max(0, totalDemandKeys - renderLimit);
+	    demandKeys = demandKeys.slice(0, renderLimit);
+
+	    var minT = sharedTimeParams.minT;
+	    var maxT = sharedTimeParams.maxT;
+	    var span = sharedTimeParams.span;
+	    var w = sharedTimeParams.w;
+	    var weekPositions = sharedTimeParams.weekPositions;
+	    function xf(d) { return ((d.getTime() - minT.getTime()) / span) * w; }
+
+	    var labels = [];
+	    var timeCol = [];
+	    var renderedCount = 0;
+
+	    demandKeys.forEach(function(dname) {
+	        var dg = demandGroups[dname];
+	        var orders = dg.all_orders || [];
+	        // Filter by visible types
+	        orders = orders.filter(function(o) {
+	            return _peVisibleTypes.indexOf(o.op_type) !== -1;
+	        });
+	        if (orders.length === 0) return;
+	        renderedCount++;
+
+	        var laneResult = orders.length > 1 ? _assignLanes(orders, xf) : null;
+	        var assignments = laneResult ? laneResult.assignments : orders.map(function(o, i) { return {event: o, lane: 0}; });
+	        var numLanes = laneResult ? Math.max(1, laneResult.numLanes) : 1;
+
+	        var BAR_H, BAR_GAP, ROW_H;
+	        if (numLanes > 1) {
+	            BAR_H = 18;
+	            BAR_GAP = 2;
+	            ROW_H = Math.max(42, numLanes * (BAR_H + BAR_GAP) + 8);
+	        } else {
+	            ROW_H = 42;
+	            BAR_H = ROW_H - 8;
+	            BAR_GAP = 0;
+	        }
+
+	        var bars = [];
+	        assignments.forEach(function(a) {
+	            var o = a.event;
+	            var lane = a.lane || 0;
+	            var ms = new Date(o.op_start);
+	            var me = new Date(o.op_end);
+	            if (isNaN(ms.getTime()) || isNaN(me.getTime())) return;
+	            var left = Math.max(2, xf(ms));
+	            var bw = Math.max(6, xf(me) - left);
+	            var st = (o.op_status || '').toLowerCase().replace(/[^a-z]/g, '');
+	            var style = _orderStyle(o.op_type || '');
+	            var alpha = st === 'proposed' ? 0.25 : (st === 'confirmed' ? 0.40 : 0.35);
+	            var dueDate = dg.due ? new Date(dg.due) : null;
+	            var colorKey = _peColorScheme === "op_category" ? _computeCategoryKey(o, o.op_type) : (o.op_type || '');
+	            var delayStyle = _getDemandBarStyle(colorKey, me, dueDate, alpha, o);
+	            var info = _esc(JSON.stringify(o));
+	            var barLabel = _esc(o.name || o.item_name || o.op_ref || style.label) + ' ' + (o.quantity != null ? Number(o.quantity).toFixed(0) : '');
+	            var top = 4 + lane * (BAR_H + BAR_GAP);
+	            bars.push('<div class="pe-gantt-bar status-' + _esc(st) + '" style="left:' + left + 'px;width:' + bw + 'px;top:' + top + 'px;height:' + BAR_H + 'px;background:' + delayStyle.bg + ';border-color:' + delayStyle.border + ';cursor:pointer" data-pe-info="' + info + '">' + barLabel + '</div>');
+	        });
+
+	        labels.push(
+	            '<div class="pe-gantt-label-row pe-pb-label-demand pe-peg-child" style="height:' + ROW_H + 'px;padding-left:20px" data-peg-child="' + _esc(pegParentId || '') + '">' +
+	            '<span class="pe-pb-dname">' + _esc(dname) + '</span>' +
+	            '</div>'
+	        );
+
+	        timeCol.push(
+	            '<div class="pe-gantt-time-row pe-peg-child" style="padding:0;height:' + ROW_H + 'px" data-peg-child="' + _esc(pegParentId || '') + '">' +
+	            '<div class="pe-gantt-track" style="width:' + w + 'px;height:' + ROW_H + 'px;border-bottom:1px solid #f1f3f5;box-sizing:border-box">' +
+	            bars.join('') +
+	            '</div>' +
+	            '</div>'
+	        );
+	    });
+
+	    return { labels: labels, time: timeCol, rendered: renderedCount, total: totalDemandKeys, omitted: Math.max(0, totalDemandKeys - renderedCount) };
+	}
+
+function showSimpleTooltip(text, left, top) {
+    if (!_tooltipEl) {
+        _tooltipEl = document.createElement("div");
+        _tooltipEl.className = "pe-tooltip";
+        document.body.appendChild(_tooltipEl);
+    }
+    _tooltipEl.innerHTML = '<div style="font-size:12px;white-space:pre-line">' + _esc(text) + '</div>';
+    if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+    if (top + 100 > window.innerHeight) top = window.innerHeight - 110;
+    _tooltipEl.style.top = Math.max(0, top) + "px";
+    _tooltipEl.style.left = Math.max(0, left) + "px";
+    _tooltipEl.style.display = "block";
+}
+
+function hideTooltip() {
+    if (_tooltipEl) _tooltipEl.style.display = "none";
+}
+
+function _parseBarInfo(bar) {
+    var infoStr = bar.getAttribute("data-pe-info");
+    if (!infoStr) return null;
+    try {
+        var txt = document.createElement("textarea");
+        txt.innerHTML = infoStr;
+        var info = JSON.parse(txt.value);
+    } catch(ex) { return null; }
+    var ref = info.operationplan__reference || info.op_ref || info.reference || null;
+    if (!ref) return null;
+    var startDate = info.op_start || info.startdate || info.operationplan__startdate || null;
+    var endDate = info.op_end || info.enddate || info.operationplan__enddate || null;
+    if (!startDate || !endDate) return null;
+    var sd = new Date(startDate);
+    var ed = new Date(endDate);
+    if (isNaN(sd.getTime()) || isNaN(ed.getTime())) return null;
+    return {
+        ref: ref,
+        originalStart: sd,
+        originalEnd: ed,
+        status: (info.op_status || info.status || info.operationplan__status || "").toLowerCase(),
+        opType: (info.op_type || info.type || info.operationplan__type || "").toUpperCase(),
+        fenceDays: parseInt(info.fence || info.operation_fence || 0) || 0
+    };
+}
+
+function onItemChange() {
+    var itemSel = document.getElementById("pe-item-select");
+    var locSel = document.getElementById("pe-loc-select");
+    if (!itemSel || !locSel) return;
+    var item = itemSel.value;
+    var locs = (window._pbItemMap || {})[item] || [];
+    locSel.innerHTML = "";
+    locs.forEach(function(fullKey) {
+        var loc = fullKey.split(" @ ")[1] || fullKey;
+        locSel.innerHTML += '<option value="' + _esc(fullKey) + '">' + _esc(loc) + '</option>';
+    });
+    if (locs.length > 0) {
+        var nextGroup = locs[0];
+        locSel.value = nextGroup;
+        if (window._pbCurrentGroup !== nextGroup) {
+            switchItemGroup(nextGroup);
+        }
+    }
+}
+function onLocChange() {
+    var locSel = document.getElementById("pe-loc-select");
+    if (!locSel) return;
+    if (locSel.value && window._pbCurrentGroup !== locSel.value) {
+        switchItemGroup(locSel.value);
+    }
+    var menu = document.getElementById("pe-gear-menu");
+    if (menu) menu.style.display = "none";
+}
+function renderPlanningBoard() {
+    var target = document.getElementById("demand-gantt-content");
+    if (!target) return;
+    target.innerHTML = '<div class="pe-gantt-empty">加载中...</div>';
+    fetch(_buildGanttUrl("demand"), { credentials: "same-origin" })
+        .then(function(resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+        })
+        .then(function(data) {
+            var groups = data.item_groups || {};
+            var groupKeys = Object.keys(groups).sort();
+            if (groupKeys.length === 0) {
+                target.innerHTML = '<div class="pe-gantt-empty">未找到库存数据</div>';
+                return;
+            }
+
+            // Build two-level dropdown in gear menu: item → location
+            var itemMap = {};  // {item: [fullKey1, fullKey2, ...]}
+            groupKeys.forEach(function(key) {
+                var parts = key.split(" @ ");
+                var item = parts[0] || key;
+                if (!itemMap[item]) itemMap[item] = [];
+                itemMap[item].push(key);
+            });
+            var items = Object.keys(itemMap).sort();
+
+            // Populate gear menu item select
+            var itemSel = document.getElementById("pe-item-select");
+            if (itemSel) {
+                itemSel.innerHTML = "";
+                items.forEach(function(item) {
+                    itemSel.innerHTML += '<option value="' + _esc(item) + '">' + _esc(item) + '</option>';
+                });
+            }
+
+            target.innerHTML = '<div id="pe-group-content"></div>';
+
+            // Store item map globally
+            window._pbItemMap = itemMap;
+            window._pbGroupKeys = groupKeys;
+
+            // Initialize location dropdown with first item's locations
+            onItemChange();
+        })
+        .catch(function(err) {
+            target.innerHTML = '<div class="pe-gantt-empty">加载失败: ' + _esc(err.message || err) + '</div>';
+        });
+}
+
+function switchItemGroup(groupKey) {
+    window._pbCurrentGroup = groupKey;
+
+    // Sync both dropdowns
+    var parts = groupKey.split(" @ ");
+    var item = parts[0] || groupKey;
+    var itemSel = document.getElementById("pe-item-select");
+    var locSel = document.getElementById("pe-loc-select");
+    if (itemSel && itemSel.value !== item) {
+        itemSel.value = item;
+        if (locSel && window._pbItemMap) {
+            var locs = window._pbItemMap[item] || [];
+            locSel.innerHTML = "";
+            locs.forEach(function(fullKey) {
+                var loc = fullKey.split(" @ ")[1] || fullKey;
+                locSel.innerHTML += '<option value="' + _esc(fullKey) + '">' + _esc(loc) + '</option>';
+            });
+        }
+    }
+    if (locSel) locSel.value = groupKey;
+
+    // Combined mode: re-render entire board using cached data + selected group
+    if (window._combinedTimeParams && window._combinedDemGroups) {
+        var group = window._combinedDemGroups[groupKey];
+        if (!group) {
+            reloadCombinedDemandGroup(groupKey);
+            return;
+        }
+        // Rebuild pegging section HTML
+        var pegParts = _renderPeggingSection(groupKey, group, window._combinedTimeParams);
+        var newParentId = pegParts.pegParentId;
+        // Replace pegging rows in the DOM
+        var boardEl = document.querySelector("#combined-gantt-content .pe-gantt-board");
+        if (!boardEl) {
+            // During initial combined-board loading the DOM isn't mounted yet.
+            // Keep the selected group and let the in-flight render finish.
+            return;
+        }
+        // Remove old pegging rows
+        boardEl.querySelectorAll(".pe-gantt-labels-col > .pe-pb-row").forEach(function(r) { r.remove(); });
+        boardEl.querySelectorAll(".pe-gantt-time-col > .pe-pb-row, .pe-gantt-time-col > div > .pe-pb-row").forEach(function(r) { r.remove(); });
+        // Update demand rows to link to new parent
+        boardEl.querySelectorAll('[data-peg-child]').forEach(function(r) {
+            r.setAttribute("data-peg-child", newParentId);
+        });
+        // Update parent header's data-peg-parent
+        var newHeader = boardEl.querySelector(".pe-peg-parent");
+        if (newHeader) newHeader.setAttribute("data-peg-parent", newParentId);
+        // Insert new pegging rows before the first demand row (keep inventory between resources and demands)
+        var labelsCol = boardEl.querySelector(".pe-gantt-labels-col");
+        var timeInner = boardEl.querySelector(".pe-gantt-time-col > div");
+        if (labelsCol && timeInner) {
+            var firstDemandLabel = labelsCol.querySelector(".pe-peg-child");
+            var firstDemandTime = timeInner.querySelector(".pe-peg-child");
+            pegParts.labels.forEach(function(l) {
+                if (firstDemandLabel) {
+                    firstDemandLabel.insertAdjacentHTML("beforebegin", l);
+                } else {
+                    labelsCol.insertAdjacentHTML("beforeend", l);
+                }
+            });
+            pegParts.time.forEach(function(t) {
+                if (firstDemandTime) {
+                    firstDemandTime.insertAdjacentHTML("beforebegin", t);
+                } else {
+                    timeInner.insertAdjacentHTML("beforeend", t);
+                }
+            });
+        }
+        renderSidePanels();
+        return;
+    }
+
+    // Standalone mode: re-fetch and render independently
+    var content = document.getElementById("pe-group-content");
+    if (!content) return;
+    fetch(_buildGanttUrl("demand"), { credentials: "same-origin" })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            var groups = data.item_groups || {};
+            var group = groups[groupKey];
+            if (!group) {
+                content.innerHTML = '<div class="pe-gantt-empty">该组无数据</div>';
+                return;
+            }
+            content.innerHTML = '';
+            _renderItemGroup("pe-group-content", groupKey, group);
+            renderSidePanels();
+        })
+        .catch(function(err) {
+            content.innerHTML = '<div class="pe-gantt-empty">Error: ' + _esc(err.message || err) + '</div>';
+        });
+}
+
+function _buildGanttUrl(board, compact, itemGroup) {
+    var base = window.location.href.split("#")[0];
+    var url = new URL(base, window.location.origin);
+    url.searchParams.set("format", "gantt");
+    url.searchParams.set("board", board);
+    url.searchParams.set("ganttlimit", String(_peGanttLimit || 400));
+    if (compact) {
+        url.searchParams.set("compact", "1");
+        url.searchParams.set("demandlimit", String(_peDemandRenderLimit || 30));
+        if (itemGroup) url.searchParams.set("itemgroup", itemGroup);
+    }
+    return url.toString();
+}
+
+function loadMoreCombinedGantt() {
+    _peGanttLimit = Math.min((_peGanttLimit || 400) + 400, 10000);
+    _peDemandRenderLimit = Math.min((_peDemandRenderLimit || 30) + (_peDemandRenderStep || 30), 5000);
+    renderCombinedGantt();
+}
+
+function reloadCombinedDemandGroup(groupKey) {
+    var target = document.getElementById("combined-gantt-content");
+    if (target) target.insertAdjacentHTML("afterbegin", '<div class="pe-gantt-load-note"><span>正在加载库存组...</span></div>');
+    fetch(_buildGanttUrl("demand", true, groupKey), {credentials:"same-origin"})
+        .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function(data) {
+            window._combinedDemGroups = data.item_groups || {};
+            window._combinedDemandGroups = data.demand_groups || {};
+            window._combinedDemandGroupsTotal = data.demand_groups_total || Object.keys(window._combinedDemandGroups).length;
+            if (data.records_total != null) window._combinedResRowsTotal = data.records_total;
+            var unified = _buildGlobalTimeRange(window._combinedResRows || [], window._combinedDemGroups, window._combinedDemandGroups);
+            if (unified) window._combinedUnified = { minT: unified.minT, maxT: unified.maxT };
+            window._pbCurrentGroup = groupKey;
+            var tgt = document.getElementById("combined-gantt-content");
+            if (tgt && window._combinedUnified) _reRenderCombinedGantt(tgt);
+        })
+        .catch(function(err) {
+            showSimpleTooltip("库存组加载失败: " + (err.message || err), window.innerWidth / 2 - 120, 80);
+            setTimeout(hideTooltip, 2500);
+        });
+}
+
+function _getResourceNameFromRow(timeRow) {
+    if (!timeRow) return "";
+    var path = timeRow.getAttribute("data-rg-path");
+    if (!path) return "";
+    var labelsCol = timeRow.closest(".pe-gantt-board") ? timeRow.closest(".pe-gantt-board").querySelector(".pe-gantt-labels-col") : null;
+    if (!labelsCol) return "";
+    var labelRow = labelsCol.querySelector('.pe-gantt-label-row[data-rg-path="' + path + '"]');
+    if (!labelRow) return "";
+    var treeEl = labelRow.querySelector(".pe-gantt-tree");
+    if (!treeEl) return "";
+    return (treeEl.textContent || "").replace(/^[▼▶]\s*/, "").trim();
+}
+
+function _getTimeRowAtPoint(clientX, clientY) {
+    // Temporarily hide dragged bar so it doesn't block elementFromPoint
+    var bar = _barDragState && _barDragState.bar;
+    if (bar) bar.style.display = "none";
+    var el = document.elementFromPoint(clientX, clientY);
+    if (bar) bar.style.display = "";
+    if (!el) return null;
+    return el.closest(".pe-gantt-time-row");
+}
+
+/* ======== RESOURCE GANTT ======== */
+var _tooltipEl = null;
+
+function showBarTooltip(info, anchor) {
+    if (!_tooltipEl) {
+        _tooltipEl = document.createElement("div");
+        _tooltipEl.className = "pe-tooltip";
+        document.body.appendChild(_tooltipEl);
+    }
+    var ref = info.operationplan__reference || "-";
+    var type = info.type || "-";
+    var status = info.status || "-";
+    var item = info.item_name || info.item || "-";
+    var qty = info.quantity != null ? Number(info.quantity).toFixed(0) : "-";
+    var demand = info.demand || "-";
+    var customer = info.customer || "";
+    var due = info.due ? _fmtDate(new Date(info.due)) : "";
+    var start = info.startdate ? _fmtDateTime(new Date(info.startdate)) : "-";
+    var end = info.enddate ? _fmtDateTime(new Date(info.enddate)) : "-";
+    var loc = info.location_name || info.location || "-";
+    var supplier = info.supplier_name || "-";
+    var operation = info.operation_name || "-";
+    var resource = info.resource || "";
+
+    var statusMap = {"proposed":"proposed — 计划建议","approved":"approved — 已审批","confirmed":"confirmed — 已确认","completed":"completed — 已完成","closed":"closed — 已关闭"};
+    var statusCN = statusMap[status] || status;
+
+    var rows = [
+        '<div style="font-weight:700;font-size:13px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px">' + _esc(ref || type) + ' <span style="color:#93c5fd">[' + _esc(type) + ']</span></div>',
+        '<table style="font-size:11px;line-height:1.7">',
+        '<tr><td style="color:#94a3b8;padding-right:10px">状态:</td><td>' + _esc(statusCN) + '</td></tr>',
+        '<tr><td style="color:#94a3b8;padding-right:10px">物料:</td><td>' + _esc(item) + '</td></tr>',
+        '<tr><td style="color:#94a3b8;padding-right:10px">数量:</td><td>' + _esc(qty) + '</td></tr>',
+    ];
+    if (demand && demand !== "-") {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">需求:</td><td>' + _esc(demand) + '</td></tr>');
+    }
+    if (customer) {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">客户:</td><td>' + _esc(customer) + '</td></tr>');
+    }
+    if (due) {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">到期日:</td><td>' + _esc(due) + '</td></tr>');
+    }
+    rows.push(
+        '<tr><td style="color:#94a3b8;padding-right:10px">开始日期:</td><td>' + _esc(start) + '</td></tr>',
+        '<tr><td style="color:#94a3b8;padding-right:10px">结束日期:</td><td>' + _esc(end) + '</td></tr>'
+    );
+    if (resource) {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">资源:</td><td>' + _esc(resource) + '</td></tr>');
+    }
+    if (loc && loc !== "-") {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">地点:</td><td>' + _esc(loc) + '</td></tr>');
+    }
+    if (supplier && supplier !== "-") {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">供应商:</td><td>' + _esc(supplier) + '</td></tr>');
+    }
+    if (operation && operation !== "-") {
+        rows.push('<tr><td style="color:#94a3b8;padding-right:10px">工序:</td><td>' + _esc(operation) + '</td></tr>');
+    }
+    rows.push('</table>');
+    _tooltipEl.innerHTML = rows.join("");
+
+    var rect = anchor.getBoundingClientRect();
+    var top = rect.bottom + 6;
+    var left = rect.left;
+    if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+    if (top + 280 > window.innerHeight) top = rect.top - 290;
+    _tooltipEl.style.top = top + "px";
+    _tooltipEl.style.left = left + "px";
+    _tooltipEl.style.display = "block";
+}
+
+document.addEventListener("click", function(e) {
+    if (_tooltipEl && !e.target.closest(".pe-gantt-bar") && !e.target.closest("circle")) {
+        _tooltipEl.style.display = "none";
+    }
+});
+
+function _buildResourceTree(records) {
+    var tree = {};
+    records.forEach(function(r) {
+        var path = r.hierarchy || [r.resource || "unassigned"];
+        if (path.length === 0) return;
+        var rootName = path[0];
+        if (!tree[rootName]) {
+            tree[rootName] = { name: rootName, children: {}, items: [], depth: 0 };
+        }
+        var node = tree[rootName];
+        for (var i = 1; i < path.length; i++) {
+            var seg = path[i];
+            if (!node.children[seg]) {
+                node.children[seg] = { name: seg, children: {}, items: [], depth: i };
+            }
+            node = node.children[seg];
+        }
+        node.items.push(r);
+    });
+    return tree;
+}
+
+function _collectDescendants(node) {
+    var all = node.items.slice();
+    Object.keys(node.children).forEach(function(k) {
+        all = all.concat(_collectDescendants(node.children[k]));
+    });
+    return all;
+}
+
+function _renderResourceNode(node, w, minT, span, depth, pathId, labelsHtml, timeHtml, parentPathIds, weekPositions, opDueMap) {
+    var ownItems = node.items || [];
+    var childKeys = Object.keys(node.children).sort();
+    var hasChildren = childKeys.length > 0;
+    var expanded = depth < 1;
+    var ownItemEvents = ownItems.map(function(it) { return {op_start: it.start, op_end: it.end, _it: it}; });
+    var laneRes = ownItemEvents.length > 1 ? _assignLanes(ownItemEvents, function(d) { return ((new Date(d).getTime() - minT) / span) * w; }) : null;
+    var numLanes = laneRes ? Math.max(1, laneRes.numLanes) : 1;
+    var barH, barGap, rowH;
+    if (numLanes > 1) {
+        barH = 18;
+        barGap = 2;
+        rowH = Math.max(42, numLanes * (barH + barGap) + 8);
+    } else {
+        rowH = 42;
+        barH = rowH - 8;
+        barGap = 0;
+    }
+    var pl = depth * 16;
+
+    var barLaneMap = {};
+    if (laneRes) { laneRes.assignments.forEach(function(a) { barLaneMap[a.event._it.start + "|" + a.event._it.end] = a.lane; }); }
+
+    var bars = [];
+    ownItems.forEach(function(it) {
+        // Keep one visual duration per operationplan reference across all resources.
+        // This aligns the resource bars with the start/end shown in the detail card.
+        var opRef = it.raw.operationplan__reference || "";
+        var opRange = (window._resourceOpRangeByRef && opRef) ? window._resourceOpRangeByRef[opRef] : null;
+        var barStart = opRange && opRange.start ? opRange.start : it.start;
+        var barEnd = opRange && opRange.end ? opRange.end : it.end;
+        var left = Math.max(0, (barStart - minT) / span * w);
+        var bw = Math.max(4, (barEnd - barStart) / span * w);
+        if (bw < 4) bw = 4;
+        // Use the business work-order label in the bar. Internal numeric
+        // references are retained only as data keys for editing/navigation.
+        var ref = it.raw.workorder_display || it.raw.name || it.raw.item_name || it.raw.operation_name || it.raw.operationplan__reference || "";
+        var st = (it.raw.status || "").toLowerCase().replace(/[^a-z]/g, "");
+        var info = _esc(JSON.stringify(it.raw));
+        var lane = barLaneMap[it.start + "|" + it.end] || 0;
+        var top = 4 + lane * (barH + barGap);
+        var alpha = st === 'proposed' ? 0.25 : (st === 'confirmed' ? 0.40 : 0.35);
+        var dueDate = (opDueMap && opRef) ? opDueMap[opRef] : null;
+        var rs = _getDemandBarStyle(it.raw.type || '', barEnd, dueDate, alpha, it.raw);
+        if (_peColorScheme === "op_category") {
+            rs = _getOperationCategoryStyle(_computeCategoryKey(it.raw, it.raw.type), alpha);
+        }
+        bars.push('<div class="pe-gantt-bar status-' + _esc(st) + '" style="left:' + left + 'px;width:' + bw + 'px;top:' + top + 'px;height:' + barH + 'px;background:' + rs.bg + ';border-color:' + rs.border + ';cursor:pointer" data-pe-info="' + info + '">' + _esc(ref) + '</div>');
+    });
+
+    var caret = hasChildren ? '<span class="pe-gantt-caret">' + (expanded ? '&#9660;' : '&#9654;') + '</span>' : '<span class="pe-gantt-caret"></span>';
+    var rowCls = hasChildren ? ' pe-gantt-parent' : '';
+    var rowAttrs = ' data-rg-path="' + _esc(pathId) + '"';
+    if (hasChildren) rowAttrs += ' data-rg-expanded="' + (expanded ? '1' : '0') + '"';
+    var extraStyle = depth >= 2 ? ';display:none' : '';
+
+    labelsHtml.push('<div class="pe-gantt-label-row' + rowCls + '"' + rowAttrs + ' style="height:' + rowH + 'px' + extraStyle + '">');
+    labelsHtml.push('<span class="pe-gantt-tree" style="padding-left:' + pl + 'px;font-size:' + Math.max(12, 15 - depth) + 'px">' + caret + _esc(node.name) + '</span>');
+    labelsHtml.push('</div>');
+
+    timeHtml.push('<div class="pe-gantt-time-row' + rowCls + '"' + rowAttrs + ' style="padding:0;height:' + rowH + 'px' + extraStyle + '">');
+    timeHtml.push('<div class="pe-gantt-track" style="width:' + w + 'px;height:' + rowH + 'px">' + bars.join("") + '</div>');
+    timeHtml.push('</div>');
+
+    var childPathIds = [];
+    childKeys.forEach(function(ck, ci) {
+        var cpid = pathId + "/" + ci;
+        childPathIds.push(cpid);
+        _renderResourceNode(node.children[ck], w, minT, span, depth + 1, cpid, labelsHtml, timeHtml, childPathIds, weekPositions, opDueMap);
+    });
+
+    if (parentPathIds) {
+        parentPathIds.push.apply(parentPathIds, childPathIds);
+    }
+}
+
+function _initBoardResizer(boardEl) {
+    if (!boardEl) return;
+    var labelsCol = boardEl.querySelector(".pe-gantt-labels-col");
+    var resizer = boardEl.querySelector(".pe-gantt-col-resizer");
+    var timeCol = boardEl.querySelector(".pe-gantt-time-col");
+    if (!labelsCol || !resizer || !timeCol) return;
+
+    var dragging = false;
+    var startX = 0;
+    var startW = _peLeftColWidth || 260;
+
+    function applyWidth(w) {
+        var minW = 180;
+        var maxW = 520;
+        var newW = Math.max(minW, Math.min(maxW, w));
+        _peLeftColWidth = newW;
+        labelsCol.style.flex = "0 0 " + newW + "px";
+        labelsCol.style.minWidth = newW + "px";
+    }
+
+    applyWidth(_peLeftColWidth || 260);
+
+    resizer.addEventListener("mousedown", function(e) {
+        dragging = true;
+        startX = e.clientX;
+        startW = labelsCol.getBoundingClientRect().width;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!dragging) return;
+        var dx = e.clientX - startX;
+        applyWidth(startW + dx);
+    });
+
+    document.addEventListener("mouseup", function() {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+    });
+}
+
+/* ── Bar drag state & document-level handlers ── */
+var _barDragState = null;
+
+document.addEventListener("mousemove", function(e) {
+    if (!_barDragState) return;
+    if (!_barDragState.didMove) {
+        var dx = Math.abs(e.clientX - _barDragState.startMouseX);
+        var dy = Math.abs(e.clientY - _barDragState.startMouseY);
+        if (dx < 6 && dy < 6) return;
+        _barDragState.didMove = true;
+        if (dy > dx) {
+            _barDragState.dragMode = "vertical";
+            document.body.style.cursor = "ns-resize";
+            _barDragState._origParent = _barDragState.bar.parentNode;
+            _barDragState._origNextSibling = _barDragState.bar.nextSibling;
+            var rect = _barDragState.bar.getBoundingClientRect();
+            _barDragState._fixedOffsetX = e.clientX - rect.left;
+            _barDragState._fixedOffsetY = e.clientY - rect.top;
+            _barDragState.bar.style.position = "fixed";
+            _barDragState.bar.style.left = (e.clientX - _barDragState._fixedOffsetX) + "px";
+            _barDragState.bar.style.top = (e.clientY - _barDragState._fixedOffsetY) + "px";
+            _barDragState.bar.style.zIndex = "9999";
+            _barDragState.bar.style.opacity = "0.7";
+            _barDragState.relatedBars.forEach(function(rb) {
+                rb.bar.style.opacity = "0.5";
+            });
+        } else {
+            _barDragState.dragMode = "horizontal";
+            _barDragState.bar.style.opacity = "0.7";
+            _barDragState.bar.style.zIndex = "100";
+            _barDragState.relatedBars.forEach(function(rb) {
+                rb.bar.style.opacity = "0.7";
+                rb.bar.style.zIndex = "99";
+            });
+        }
+    }
+    if (_barDragState.dragMode === "vertical") {
+        _barDragState.bar.style.left = (e.clientX - _barDragState._fixedOffsetX) + "px";
+        _barDragState.bar.style.top = (e.clientY - _barDragState._fixedOffsetY) + "px";
+        // Highlight valid target row
+        if (_barDragState._lastTargetRow) {
+            _barDragState._lastTargetRow.classList.remove("pe-drag-target");
+            _barDragState._lastTargetRow = null;
+        }
+        document.body.style.cursor = "ns-resize";
+        _barDragState.targetResource = null;
+        var targetRow = _getTimeRowAtPoint(e.clientX, e.clientY);
+        if (targetRow) {
+            var targetRes = _getResourceNameFromRow(targetRow);
+            if (targetRes && targetRes !== _barDragState.sourceResource && _barDragState.allowedResources[targetRes]) {
+                targetRow.classList.add("pe-drag-target");
+                _barDragState._lastTargetRow = targetRow;
+                _barDragState.targetResource = targetRes;
+            } else if (targetRes && targetRes !== _barDragState.sourceResource) {
+                document.body.style.cursor = "not-allowed";
+            }
+        }
+        return;
+    }
+    // Horizontal mode
+    var dx = e.clientX - _barDragState.startMouseX;
+    var deltaMs = (dx / _barDragState.w) * _barDragState.span;
+    var newStart = new Date(_barDragState.originalStart.getTime() + deltaMs);
+    var newEnd = new Date(_barDragState.originalEnd.getTime() + deltaMs);
+    var minDate = new Date(_barDragState.originalStart.getTime() - (_barDragState.originalStart - _barDragState.minT));
+    if (newStart < minDate) { newStart = minDate; newEnd = new Date(newStart.getTime() + (_barDragState.originalEnd - _barDragState.originalStart)); }
+    var minWidthMs = 86400000;
+    if (newEnd - newStart < minWidthMs) { newEnd = new Date(newStart.getTime() + minWidthMs); }
+    var newLeft = ((newStart - _barDragState.minT) / _barDragState.span) * _barDragState.w;
+    var newWidth = ((newEnd - _barDragState.minT) / _barDragState.span) * _barDragState.w - newLeft;
+    var deltaPx = newLeft - _barDragState.startBarLeft;
+    _barDragState.bar.style.left = Math.max(2, newLeft) + "px";
+    _barDragState.bar.style.width = Math.max(6, newWidth) + "px";
+    _barDragState.relatedBars.forEach(function(rb) {
+        rb.bar.style.left = Math.max(2, rb.startBarLeft + deltaPx) + "px";
+    });
+    _syncSelectedOpplanDatesFromDrag(_barDragState.ref, newStart, newEnd, false);
+});
+
+document.addEventListener("mouseup", function(e) {
+    if (!_barDragState) return;
+    var state = _barDragState;
+    _barDragState = null;
+    hideTooltip();
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    state.relatedBars.forEach(function(rb) {
+        rb.bar.style.opacity = "";
+        rb.bar.style.zIndex = "";
+    });
+    if (!state.didMove) return;
+    window._barDragJustFinished = true;
+
+    // Vertical mode: resource reassignment
+    if (state.dragMode === "vertical") {
+        // Clean up target row highlight
+        if (state._lastTargetRow) {
+            state._lastTargetRow.classList.remove("pe-drag-target");
+        }
+        if (state.targetResource && state.targetResource !== state.sourceResource) {
+            // Move bar into target row's track and restore normal positioning
+            var lastTargetRow = state._lastTargetRow;
+            var targetTrack = lastTargetRow ? lastTargetRow.querySelector(".pe-gantt-track") : null;
+            state.bar.style.position = "";
+            state.bar.style.opacity = "";
+            state.bar.style.zIndex = "";
+            state.bar.style.left = state.startBarLeft + "px";
+            state.bar.style.top = "4px";
+            state.bar.style.width = state.barWidth + "px";
+            if (targetTrack) {
+                targetTrack.appendChild(state.bar);
+            } else if (state._origParent) {
+                state._origParent.insertBefore(state.bar, state._origNextSibling || null);
+            }
+            _saveResourceReassign(state, state.targetResource);
+        } else {
+            // Invalid target, restore bar position
+            state.bar.style.position = "";
+            state.bar.style.opacity = "";
+            state.bar.style.zIndex = "";
+            state.bar.style.left = state.startBarLeft + "px";
+            state.bar.style.top = state.startBarTop + "px";
+            state.bar.style.width = state.barWidth + "px";
+            if (state._origParent) {
+                state._origParent.insertBefore(state.bar, state._origNextSibling || null);
+            }
+            if (!state.targetResource) {
+                showSimpleTooltip("不允许该操作使用此资源", e.clientX + 16, e.clientY - 40);
+                setTimeout(hideTooltip, 2000);
+            }
+        }
+        return;
+    }
+    var dx = e.clientX - state.startMouseX;
+    var deltaMs = (dx / state.w) * state.span;
+    var newStart = new Date(state.originalStart.getTime() + deltaMs);
+    var newEnd = new Date(state.originalEnd.getTime() + deltaMs);
+    if (newEnd - newStart < 86400000) newEnd = new Date(newStart.getTime() + 86400000);
+    var constraints = _checkBarConstraints(state, newStart, newEnd);
+    if (constraints.blocked) {
+        state.bar.style.left = state.startBarLeft + "px";
+        state.bar.style.width = state.barWidth + "px";
+        state.relatedBars.forEach(function(rb) {
+            rb.bar.style.left = rb.startBarLeft + "px";
+            rb.bar.style.width = rb.barWidth + "px";
+        });
+        _syncSelectedOpplanDatesFromDrag(state.ref, state.originalStart, state.originalEnd, false);
+        _pushProblem(constraints.reason || "约束违规", _fmtDateTime(newStart), _fmtDateTime(newEnd));
+        showSimpleTooltip("⛔ " + constraints.reason, e.clientX + 16, e.clientY - 40);
+        setTimeout(hideTooltip, 3000);
+        return;
+    }
+    if (constraints.warnings.length > 0) {
+        showSimpleTooltip("⚠ " + constraints.warnings.join("; "), e.clientX + 16, e.clientY - 40);
+        setTimeout(hideTooltip, 1500);
+    }
+    if (!constraints.blocked) {
+        if (constraints.warnings.length > 0) {
+            constraints.warnings.forEach(function(w) {
+                _pushProblem(w, _fmtDateTime(newStart), _fmtDateTime(newEnd));
+            });
+        }
+    }
+    // Mark as dirty instead of auto-saving — let user review and explicitly save
+    _syncSelectedOpplanDatesFromDrag(state.ref, newStart, newEnd, false);
+    _markOpplanDirty();
+});
+
+function _checkBarConstraints(state, newStart, newEnd) {
+    var blocked = false;
+    var warnings = [];
+    var now = new Date();
+    if (newEnd <= newStart) { blocked = true; warnings.push("结束日期必须晚于开始日期"); }
+    if (state.fenceDays > 0) {
+        var fenceDate = new Date(now.getTime() + state.fenceDays * 86400000);
+        if (newStart < fenceDate && state.status !== "confirmed") {
+            warnings.push("在冻结窗口内");
+        }
+    }
+    if (state.opType === "PO") {
+        if (newStart < now) warnings.push("采购提前期：开始日期在过去");
+    } else if (state.opType === "MO") {
+        if (newStart < now) warnings.push("制造提前期：开始日期在过去");
+    }
+
+    // Resource capacity overlap check
+    var parsed = window._combinedParsed;
+    if (parsed && parsed.length > 0) {
+        var stateResources = {};
+        parsed.forEach(function(r) {
+            if (r.raw && r.raw.operationplan__reference === state.ref) {
+                stateResources[r.resource] = true;
+            }
+        });
+        var resourceNames = Object.keys(stateResources);
+        if (resourceNames.length > 0) {
+            var overlapRefs = [];
+            var seen = {};
+            parsed.forEach(function(r) {
+                if (!r.raw) return;
+                var otherRef = r.raw.operationplan__reference;
+                if (!otherRef || otherRef === state.ref) return;
+                if (!stateResources[r.resource]) return;
+                if (seen[otherRef]) return;
+                // Use normalized range for the other operation plan
+                var opRange = (window._resourceOpRangeByRef && otherRef) ? window._resourceOpRangeByRef[otherRef] : null;
+                var otherStart = (opRange && opRange.start) ? opRange.start : r.start;
+                var otherEnd = (opRange && opRange.end) ? opRange.end : r.end;
+                if (!otherStart || !otherEnd) return;
+                if (otherStart < newEnd && otherEnd > newStart) {
+                    seen[otherRef] = true;
+                    overlapRefs.push(otherRef);
+                }
+            });
+            if (overlapRefs.length > 0) {
+                var overlapMsg = "资源冲突 [" + resourceNames.join(", ") + "]: " + overlapRefs.slice(0, 5).join(", ");
+                if (overlapRefs.length > 5) overlapMsg += "... (+" + (overlapRefs.length - 5) + ")";
+                warnings.push(overlapMsg);
+            }
+        }
+    }
+
+    return { blocked: blocked, warnings: warnings, reason: warnings.join("; ") };
+}
+
+function _saveBarChange(state, newStart, newEnd) {
+    var pad2 = function(n) { return (n < 10 ? '0' : '') + n; };
+    var fmtDate = function(d) {
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+            'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+    };
+    var payload = [{
+        id: state.ref,
+        start: fmtDate(newStart),
+        end: fmtDate(newEnd)
+    }];
+    fetch(url_prefix + "/operationplan/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(resp) {
+        if (resp.ok) return resp.text();
+        return _extractErrorMessage(resp, "保存失败").then(function(msg) {
+            throw new Error(msg);
+        });
+    })
+    .then(function() {
+        _syncSelectedOpplanDatesFromDrag(state.ref, newStart, newEnd, true);
+        state.bar.style.transition = "background 0.4s";
+        var origBg = state.bar.style.background;
+        state.bar.style.background = "rgba(40,167,69,0.6)";
+        state.relatedBars.forEach(function(rb) {
+            rb.bar.style.transition = "background 0.4s";
+            var rbOrigBg = rb.bar.style.background;
+            rb.bar.style.background = "rgba(40,167,69,0.6)";
+            setTimeout(function() { rb.bar.style.background = rbOrigBg; }, 600);
+        });
+        setTimeout(function() { state.bar.style.background = origBg; }, 600);
+    })
+    .catch(function(err) {
+        state.bar.style.left = state.startBarLeft + "px";
+        state.bar.style.width = state.barWidth + "px";
+        state.relatedBars.forEach(function(rb) {
+            rb.bar.style.left = rb.startBarLeft + "px";
+            rb.bar.style.width = rb.barWidth + "px";
+        });
+        _syncSelectedOpplanDatesFromDrag(state.ref, state.originalStart, state.originalEnd, false);
+        _pushProblem("保存失败: " + (err.message || err), _fmtDateTime(newStart), _fmtDateTime(newEnd));
+        showSimpleTooltip("❌ 保存失败: " + (err.message || err), window.innerWidth/2 - 100, window.innerHeight/2 - 30);
+        setTimeout(hideTooltip, 3000);
+    });
+}
+
+function _saveResourceReassign(state, newResource) {
+    var ref = state.ref;
+    var oldResource = state.sourceResource;
+    var allParsed = window._combinedParsed || [];
+    var resources = [];
+    var seen = {};
+    allParsed.forEach(function(r) {
+        var rRef = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+        if (rRef !== ref) return;
+        var rName = r.resource;
+        if (!rName || seen[rName]) return;
+        seen[rName] = true;
+        var qty = r.raw.quantity != null ? Number(r.raw.quantity) : 1;
+        if (rName === oldResource) {
+            resources.push([newResource, qty, ref]);
+        } else {
+            resources.push([rName, qty, ref]);
+        }
+    });
+    if (!seen[oldResource]) {
+        resources.push([newResource, 1, ref]);
+    }
+    var payload = [{id: ref, resources: resources}];
+    fetch(url_prefix + "/operationplan/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+    })
+    .then(function() {
+        _rememberAutoFixScope(ref);
+        _pushProblem("重新分配: " + oldResource + " → " + newResource + " (" + ref + ")", _nowDisplay(), "");
+        // Update _peSelectedOpplan loadplans so Resources card reflects new assignment
+        if (_peSelectedOpplan) {
+            var selRef = _getOpplanRef(_peSelectedOpplan);
+            if (selRef === ref) {
+                var lps = _getLoadplansForOpplan(_peSelectedOpplan);
+                for (var i = 0; i < lps.length; i++) {
+                    var lp = lps[i];
+                    var rn = _getLoadplanResourceName(lp);
+                    if (rn === oldResource) {
+                        if (lp.resource && typeof lp.resource === "object") {
+                            lp.resource.name = newResource;
+                        } else {
+                            lp.resource = { name: newResource };
+                        }
+                        if (Array.isArray(lp.alternates)) {
+                            lp.alternates = lp.alternates.map(function(alt) {
+                                if (alt && alt.name === newResource) return { name: oldResource };
+                                return alt;
+                            });
+                        }
+                        break;
+                    }
+                }
+                // Update _combinedParsed cache so re-renders are consistent
+                if (window._combinedParsed) {
+                    window._combinedParsed.forEach(function(r) {
+                        var rRef = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+                        if (rRef === ref && r.resource === oldResource) {
+                            r.resource = newResource;
+                            if (r.raw) r.raw.resource = newResource;
+                            if (r.hierarchy) r.hierarchy = r.hierarchy.map(function(h) { return h === oldResource ? newResource : h; });
+                        }
+                    });
+                }
+                _renderOperationplanDetailPanels(_peSelectedOpplan);
+                renderSideResourcePanel();
+            }
+        }
+    })
+    .catch(function(err) {
+        _pushProblem("重新分配失败: " + (err.message || err), _nowDisplay(), "");
+        showSimpleTooltip("❌ 重新分配失败", window.innerWidth/2 - 100, window.innerHeight/2 - 30);
+        setTimeout(hideTooltip, 3000);
+        state.bar.style.position = "";
+        state.bar.style.left = state.startBarLeft + "px";
+        state.bar.style.top = state.startBarTop + "px";
+        state.bar.style.width = state.barWidth + "px";
+        if (state._origParent) {
+            state._origParent.insertBefore(state.bar, state._origNextSibling || null);
+        }
+    });
+}
+
+function zoomCombinedGantt(factor) {
+    if (!window._cgBaseW) return;
+    var oldZoom = window._cgZoom || 1.0;
+    var newZoom = oldZoom * factor;
+    if (newZoom < 0.2) newZoom = 0.2;
+    if (newZoom > 30) newZoom = 30;
+    window._cgZoom = newZoom;
+    try { sessionStorage.setItem("peGanttZoom", newZoom); } catch(e) {}
+
+    // Capture center date before re-render
+    var timeCol = document.getElementById("cg-time-col");
+    var centerDate = null;
+    if (timeCol && window._combinedUnified) {
+        var viewCenter = timeCol.scrollLeft + timeCol.clientWidth / 2;
+        var oldW = (window._cgBaseW || 700) * oldZoom;
+        var oldSpan = window._combinedTimeParams ? window._combinedTimeParams.span : (window._combinedUnified.maxT - window._combinedUnified.minT);
+        var oldMinT = window._combinedTimeParams ? window._combinedTimeParams.minT : window._combinedUnified.minT;
+        centerDate = new Date(oldMinT.getTime() + (viewCenter / oldW) * oldSpan);
+    }
+
+    var tgt = document.getElementById("combined-gantt-content");
+    if (tgt && window._combinedUnified) {
+        _reRenderCombinedGantt(tgt);
+    } else {
+        renderCombinedGantt();
+    }
+
+    // Restore scroll to keep center date
+    if (centerDate && window._combinedTimeParams) {
+        var timeCol2 = document.getElementById("cg-time-col");
+        if (timeCol2) {
+            var newW = (window._cgBaseW || 700) * newZoom;
+            var newMinT = window._combinedTimeParams.minT;
+            var newSpan = window._combinedTimeParams.span;
+            var newX = ((centerDate - newMinT) / newSpan) * newW;
+            timeCol2.scrollLeft = newX - timeCol2.clientWidth / 2;
+        }
+    }
+}
+
+function _reRenderCombinedGantt(target) {
+    // Sync any dirty bar positions into the cache before rebuilding
+    _syncEditDatesToCache();
+    var unified = window._combinedUnified;
+    var parsed = window._combinedParsed || [];
+    var demGroups = window._combinedDemGroups || {};
+    var demandGroups = window._combinedDemandGroups || {};
+    var demandGroupsTotal = window._combinedDemandGroupsTotal || Object.keys(demandGroups).length;
+    if (!unified) return;
+
+    // Save scroll position ratio before re-render
+    var prevTimeCol = document.getElementById("cg-time-col");
+    var scrollRatio = 0;
+    if (prevTimeCol && prevTimeCol.scrollWidth > prevTimeCol.clientWidth) {
+        scrollRatio = prevTimeCol.scrollLeft / (prevTimeCol.scrollWidth - prevTimeCol.clientWidth);
+    }
+    try { if (scrollRatio > 0) sessionStorage.setItem("peGanttScroll", scrollRatio); } catch(e) {}
+
+    // minT/maxT already padded by _buildGlobalTimeRange, use directly
+    var minT = new Date(unified.minT.getTime());
+    var maxT = new Date(unified.maxT.getTime());
+    var span = Math.max(maxT - minT, 3600000);
+    var baseW = Math.max(target.clientWidth - 24 - (_peLeftColWidth || 260) - 10, 700);
+    window._cgBaseW = baseW;
+    if (!window._cgZoom) {
+        try { var savedZoom = sessionStorage.getItem("peGanttZoom"); if (savedZoom) window._cgZoom = parseFloat(savedZoom); } catch(e) {}
+        if (!window._cgZoom) window._cgZoom = 1.0;
+    }
+    var w = baseW * window._cgZoom;
+
+    // Build shared header
+    var hdr = _buildAdaptiveGanttHeader(minT, maxT, w);
+    var weekPositions = hdr.weekPositions;
+
+    // Build labels and time HTML
+    var labelsHtml = [];
+    var timeHtml = [];
+
+    // === Shared header row ===
+    labelsHtml.push('<div class="pe-gantt-label-row pe-gantt-row-header" style="height:48px;border-bottom:none"><span></span></div>');
+    timeHtml.push('<div class="pe-gantt-time-row pe-gantt-row-header" style="height:48px;border-bottom:none">' + hdr.renderHtml() + '</div>');
+
+    // === Resource section ===
+    if (parsed.length > 0) {
+        var tree = _buildResourceTree(parsed);
+        var rootKeys = Object.keys(tree).sort();
+        rootKeys.forEach(function(key, ri) {
+            _renderResourceNode(tree[key], w, minT, span, 0, "rg-" + ri, labelsHtml, timeHtml, null, weekPositions, window._combinedOpDueMap || {});
+        });
+    }
+
+    // === Pegging Board section ===
+    var demGroupKeys = (window._pbGroupKeys && window._pbGroupKeys.length) ? window._pbGroupKeys : Object.keys(demGroups).sort();
+
+    // Update time params cache
+    window._combinedTimeParams = { minT: minT, maxT: maxT, span: span, w: w, weekPositions: weekPositions };
+
+    // Render pegging section for selected item group
+    var peggingLabels = [];
+    var peggingTime = [];
+    var availableDemGroupKeys = Object.keys(demGroups).sort();
+    if (availableDemGroupKeys.length > 0) {
+        var selKey = (window._pbCurrentGroup && demGroups[window._pbCurrentGroup]) ? window._pbCurrentGroup : availableDemGroupKeys[0];
+        window._pbCurrentGroup = selKey;
+        // Sync gear dropdowns
+        var parts = selKey.split(" @ ");
+        var selItem = parts[0] || selKey;
+        var itemSel2 = document.getElementById("pe-item-select");
+        var locSel2 = document.getElementById("pe-loc-select");
+        if (itemSel2) itemSel2.value = selItem;
+        if (locSel2 && window._pbItemMap) {
+            var locs = window._pbItemMap[selItem] || [];
+            locSel2.innerHTML = "";
+            locs.forEach(function(fullKey) {
+                var loc = fullKey.split(" @ ")[1] || fullKey;
+                locSel2.innerHTML += '<option value="' + _esc(fullKey) + '">' + _esc(loc) + '</option>';
+            });
+            locSel2.value = selKey;
+        }
+        var pegParts = _renderPeggingSection(selKey, demGroups[selKey], window._combinedTimeParams);
+        peggingLabels = pegParts.labels;
+        peggingTime = pegParts.time;
+        var pegParentId = pegParts.pegParentId;
+    }
+
+    labelsHtml.push.apply(labelsHtml, peggingLabels);
+    timeHtml.push.apply(timeHtml, peggingTime);
+
+    // Build shared grid overlay
+    var gridOverlayParts = [];
+    gridOverlayParts.push('<div style="position:absolute;top:0;left:0;width:' + w + 'px;height:100%;pointer-events:none;z-index:0">');
+    for (var gi2 = 0; gi2 < weekPositions.length; gi2++) {
+        var wp2 = weekPositions[gi2];
+        var cls2 = wp2.isMonthBoundary ? 'pe-gantt-month-split' : 'pe-gantt-tick';
+        gridOverlayParts.push('<span class="' + cls2 + '" style="left:' + wp2.x + 'px"></span>');
+    }
+    var now2 = new Date();
+    if (now2 >= minT && now2 <= maxT) {
+        var tx2 = (now2 - minT) / span * w;
+        gridOverlayParts.push('<div style="position:absolute;top:0;bottom:0;left:' + tx2 + 'px;width:0;border-left:1px dashed #94a3b8;z-index:5"></div>');
+        gridOverlayParts.push('<div style="position:absolute;top:2px;left:' + (tx2 + 4) + 'px;font-size:10px;color:#64748b;font-weight:500;z-index:5">今天</div>');
+    }
+    gridOverlayParts.push('</div>');
+    var gridOverlay = gridOverlayParts.join("");
+
+    // Merge demand rows into combined board
+    var demandRenderMeta = null;
+    if (Object.keys(demandGroups).length > 0) {
+        var demParts = _renderDemandPegging(demandGroups, window._combinedTimeParams, pegParentId, demandGroupsTotal);
+        labelsHtml.push.apply(labelsHtml, demParts.labels);
+        timeHtml.push.apply(timeHtml, demParts.time);
+        demandRenderMeta = demParts;
+    }
+
+    var noteParts = [];
+    var resLoaded = (window._combinedResRows || []).length;
+    var resTotal = window._combinedResRowsTotal || resLoaded;
+    if (resLoaded < resTotal) {
+        noteParts.push("资源甘特还有 " + (resTotal - resLoaded) + " 条未显示");
+    }
+    if (demandRenderMeta && demandRenderMeta.omitted > 0) {
+        noteParts.push("需求行还有 " + demandRenderMeta.omitted + " 行未显示");
+    }
+    var demandShown = demandRenderMeta ? demandRenderMeta.rendered : Object.keys(demandGroups || {}).length;
+    var demandTotalShown = demandRenderMeta ? demandRenderMeta.total : (demandGroupsTotal || demandShown);
+    var summaryHtml = '<div class="pe-gantt-summary">' +
+        '<div class="pe-gantt-summary-main">' +
+        '<span>资源甘特 <strong>' + resLoaded + '</strong> / <strong>' + resTotal + '</strong></span>' +
+        '<span>需求行 <strong>' + demandShown + '</strong> / <strong>' + demandTotalShown + '</strong></span>' +
+        '<span class="pe-gantt-summary-muted">当前显示 / 总数</span>' +
+        '</div>';
+    if (noteParts.length > 0) {
+        summaryHtml += '<div class="pe-gantt-load-note"><span>' + _esc(noteParts.join("；")) + '</span>' +
+            '<button type="button" onclick="loadMoreCombinedGantt()">加载更多</button></div>';
+    }
+    summaryHtml += '</div>';
+
+    /* Assemble single two-column layout */
+    target.innerHTML = summaryHtml + '<div class="pe-gantt-board">' +
+        '<div class="pe-gantt-labels-col" style="flex:0 0 ' + (_peLeftColWidth || 260) + 'px;min-width:' + (_peLeftColWidth || 260) + 'px">' + labelsHtml.join("") + '</div>' +
+        '<div class="pe-gantt-col-resizer" id="cg-col-resizer" title="拖动调整大小"></div>' +
+        '<div class="pe-gantt-time-col" id="cg-time-col"><div style="width:' + w + 'px;position:relative">' + gridOverlay + timeHtml.join("") + '</div></div>' +
+        '</div>';
+
+    var boardEl = target.querySelector(".pe-gantt-board");
+    _initBoardResizer(boardEl);
+
+    // Restore scroll position
+    var timeColEl = document.getElementById("cg-time-col");
+    if (timeColEl && timeColEl.scrollWidth > timeColEl.clientWidth) {
+        try {
+            var savedRatio = parseFloat(sessionStorage.getItem("peGanttScroll"));
+            if (savedRatio > 0 && savedRatio <= 1) {
+                setTimeout(function() {
+                    timeColEl.scrollLeft = savedRatio * (timeColEl.scrollWidth - timeColEl.clientWidth);
+                }, 0);
+            }
+        } catch(e) {}
+    }
+
+    /* Tree toggle */
+    function _updateDescendantVisibility(parentPathId) {
+        var allLabelRows = boardEl.querySelectorAll(".pe-gantt-labels-col [data-rg-path]");
+        var allTimeRows = boardEl.querySelectorAll(".pe-gantt-time-col [data-rg-path]");
+        [allLabelRows, allTimeRows].forEach(function(rowSet) {
+            rowSet.forEach(function(row) {
+                var rp = row.getAttribute("data-rg-path");
+                if (rp === parentPathId || rp.indexOf(parentPathId + "/") !== 0) return;
+                var segs = rp.split("/");
+                var visible = true;
+                for (var s = 1; s < segs.length; s++) {
+                    var ancestorPath = segs.slice(0, s).join("/");
+                    var anc = boardEl.querySelector('[data-rg-path="' + ancestorPath + '"]');
+                    if (anc && anc.getAttribute("data-rg-expanded") === "0") {
+                        visible = false;
+                        break;
+                    }
+                }
+                row.style.display = visible ? "" : "none";
+            });
+        });
+    }
+
+    boardEl.querySelectorAll(".pe-gantt-parent").forEach(function(el) {
+        el.addEventListener("click", function(e) {
+            if (e.target.closest(".pe-gantt-bar")) return;
+            var pathId = el.getAttribute("data-rg-path");
+            var isExpanded = el.getAttribute("data-rg-expanded") === "1";
+            var newExp = isExpanded ? "0" : "1";
+            boardEl.querySelectorAll('[data-rg-path="' + pathId + '"]').forEach(function(r) {
+                r.setAttribute("data-rg-expanded", newExp);
+            });
+            var c = el.querySelector(".pe-gantt-caret");
+            if (c) c.innerHTML = isExpanded ? "&#9654;" : "&#9660;";
+            _updateDescendantVisibility(pathId);
+        });
+    });
+
+    /* Bar click — show details in Attributes panel; mousedown — drag initiation */
+    boardEl.querySelectorAll(".pe-gantt-bar[data-pe-info]").forEach(function(bar) {
+        bar.addEventListener("click", function(e) {
+            if (window._barDragJustFinished) { window._barDragJustFinished = false; return; }
+            e.stopPropagation();
+            var infoStr = bar.getAttribute("data-pe-info");
+            if (!infoStr) return;
+            try {
+                var txt = document.createElement("textarea");
+                txt.innerHTML = infoStr;
+                var info = JSON.parse(txt.value);
+                var ref = info.operationplan__reference || info.op_ref || null;
+                if (ref) {
+                    fetchOperationplanDetail(ref);
+                } else if (info.resource) {
+                    showBarTooltip(info, bar);
+                } else {
+                    showSimpleTooltip(
+                        (info.op_ref || "") + "\nqty: " + (info.qty || 0) + "\nstatus: " + (info.op_status || "-") + "\ntype: " + (info.op_type || "-") + "\nstart: " + (info.op_start || "-") + "\nend: " + (info.op_end || "-"),
+                        bar.getBoundingClientRect().left + 10,
+                        bar.getBoundingClientRect().top - 10
+                    );
+                }
+            } catch(ex) {}
+        });
+        bar.addEventListener("mousedown", function(e) {
+            if (e.ctrlKey || e.metaKey || e.button !== 0) return;
+            var parsed = _parseBarInfo(bar);
+            if (!parsed) return;
+            if (!_peSelectedOpplan || !_sameOpplanRef(_getOpplanRef(_peSelectedOpplan), parsed.ref)) return;
+            _peLocalProblems = [];
+            _updateProblemsCard();
+            var tp = window._combinedTimeParams;
+            if (!tp) return;
+            var sourceRow = bar.closest(".pe-gantt-time-row");
+            var sourceRes = sourceRow ? _getResourceNameFromRow(sourceRow) : "";
+            // Build allowed target resources from the source resource's alternate group.
+            // Only resources in the same alternate group (same loadplan) can be swapped.
+            var allowedResources = {};
+            allowedResources[sourceRes] = true;
+            var selOpplan = _peSelectedOpplan;
+            if (selOpplan && _getOpplanRef(selOpplan) === parsed.ref) {
+                var lps = _getLoadplansForOpplan(selOpplan);
+                lps.forEach(function(lp) {
+                    var rn = _getLoadplanResourceName(lp);
+                    if (rn === sourceRes) {
+                        // This is the source resource's loadplan - include its alternates
+                        allowedResources[rn] = true;
+                        if (Array.isArray(lp.alternates)) {
+                            lp.alternates.forEach(function(alt) {
+                                var an = (alt && alt.name) ? alt.name : "";
+                                if (an) allowedResources[an] = true;
+                            });
+                        }
+                    }
+                });
+            } else {
+                // Fallback: allow all resources from _combinedParsed for this ref
+                (window._combinedParsed || []).forEach(function(r) {
+                    var rRef = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+                    if (rRef === parsed.ref && r.resource) {
+                        allowedResources[r.resource] = true;
+                    }
+                });
+            }
+            _barDragState = {
+                bar: bar,
+                ref: parsed.ref,
+                originalStart: parsed.originalStart,
+                originalEnd: parsed.originalEnd,
+                status: parsed.status,
+                opType: parsed.opType,
+                fenceDays: parsed.fenceDays,
+                startMouseX: e.clientX,
+                startMouseY: e.clientY,
+                startBarLeft: parseFloat(bar.style.left) || 0,
+                startBarTop: parseFloat(bar.style.top) || 0,
+                barWidth: parseFloat(bar.style.width) || 0,
+                barHeight: parseFloat(bar.style.height) || 18,
+                minT: tp.minT,
+                span: tp.span,
+                w: tp.w,
+                didMove: false,
+                dragMode: null,
+                sourceResource: sourceRes,
+                allowedResources: allowedResources,
+                targetResource: null,
+                relatedBars: []
+            };
+            document.querySelectorAll('.pe-gantt-bar[data-pe-info]').forEach(function(rb) {
+                if (rb === bar) return;
+                var rp = _parseBarInfo(rb);
+                if (rp && rp.ref === parsed.ref) {
+                    _barDragState.relatedBars.push({
+                        bar: rb,
+                        startBarLeft: parseFloat(rb.style.left) || 0,
+                        barWidth: parseFloat(rb.style.width) || 0
+                    });
+                }
+            });
+            document.body.style.cursor = "ew-resize";
+            document.body.style.userSelect = "none";
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    });
+
+    /* SVG inventory dot tooltips */
+    var svgEl = boardEl.querySelector("svg");
+    if (svgEl) {
+        svgEl.addEventListener("click", function(e) {
+            var circle = e.target.closest("circle");
+            if (!circle) return;
+            var titleEl = circle.querySelector("title");
+            if (titleEl) {
+                var rect = circle.getBoundingClientRect();
+                showSimpleTooltip(titleEl.textContent, rect.left + 10, rect.top - 10);
+            }
+        });
+    }
+
+    /* Scroll sync */
+    var timeCol = document.getElementById("cg-time-col");
+    var labelsCol = boardEl.querySelector(".pe-gantt-labels-col");
+    if (timeCol && labelsCol) {
+        timeCol.addEventListener("scroll", function() {
+            labelsCol.scrollTop = timeCol.scrollTop;
+        });
+    }
+    renderSidePanels();
+}
+
+function _computeUnifiedTimeRange(resRows, demGroups) {
+    var minT = null, maxT = null;
+    // Ignore dates before 2020-01-01 (closed/historical data may have 1971 dates)
+    var _minValid = new Date(2020, 0, 1);
+    function _scan(d) { if (d && !isNaN(d) && d >= _minValid) { if (!minT || d < minT) minT = d; if (!maxT || d > maxT) maxT = d; } }
+
+    // Scan resource rows
+    (resRows || []).forEach(function(r) {
+        if (r.startdate) _scan(new Date(r.startdate));
+        if (r.enddate) _scan(new Date(r.enddate));
+    });
+
+    // Scan demand groups
+    Object.keys(demGroups || {}).forEach(function(key) {
+        var grp = demGroups[key];
+        (grp.inventory || []).forEach(function(p) { if (p.date) _scan(new Date(p.date)); });
+        var dems = grp.demands || {};
+        Object.keys(dems).forEach(function(dname) {
+            var dd = dems[dname];
+            if (dd.due) _scan(new Date(dd.due));
+            (dd.mo_orders || []).forEach(function(mo) {
+                if (mo.op_start) _scan(new Date(mo.op_start));
+                if (mo.op_end) _scan(new Date(mo.op_end));
+            });
+            (dd.supply_events || []).forEach(function(se) {
+                if (se.op_start) _scan(new Date(se.op_start));
+                if (se.op_end) _scan(new Date(se.op_end));
+                if (se.date) _scan(new Date(se.date));
+            });
+        });
+    });
+
+    if (!minT || !maxT) return null;
+    return { minT: minT, maxT: maxT };
+}
+
+function _extendTimeRange(range, minDate, maxDate) {
+    if (!range) return;
+    if (minDate && (!range.minT || minDate < range.minT)) range.minT = minDate;
+    if (maxDate && (!range.maxT || maxDate > range.maxT)) range.maxT = maxDate;
+}
+
+function _buildGlobalTimeRange(resRows, demGroups, demandGroups) {
+    var range = _computeUnifiedTimeRange(resRows, demGroups);
+    var scan = function(d) {
+        if (d && !isNaN(d)) _extendTimeRange(range, d, d);
+    };
+    Object.keys(demandGroups || {}).forEach(function(key) {
+        var grp = demandGroups[key];
+        (grp.inventory || []).forEach(function(p) { if (p.date) scan(new Date(p.date)); });
+        (grp.all_orders || []).forEach(function(o) {
+            if (o.op_start) scan(new Date(o.op_start));
+            if (o.op_end) scan(new Date(o.op_end));
+            if (o.date) scan(new Date(o.date));
+        });
+    });
+    if (range) {
+        range.minT = new Date(range.minT.getTime() - 86400000 * 3);
+        range.maxT = new Date(range.maxT.getTime() + 86400000 * 3);
+        var minCap = new Date(range.maxT.getTime() - 365 * 86400000);
+        if (range.minT < minCap) range.minT = minCap;
+    }
+    return range;
+}
+
+function renderCombinedGantt() {
+    var target = document.getElementById("combined-gantt-content");
+    if (!target) return;
+    // Clear cached time params so onItemChange→switchItemGroup takes standalone (no-op)
+    // path until _reRenderCombinedGantt rebuilds the board below
+    window._combinedTimeParams = null;
+    target.innerHTML = '<div class="pe-gantt-empty">加载中...</div>';
+
+    Promise.all([
+        fetch(_buildGanttUrl("resource", true), {credentials:"same-origin"}).then(function(r) { if (!r.ok) throw new Error("HTTP "+r.status); return r.json(); }),
+        fetch(_buildGanttUrl("demand", true), {credentials:"same-origin"}).then(function(r) { if (!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    ]).then(function(results) {
+        var resData = results[0];
+        var demData = results[1];
+        _peCategoryColorMap = {"__other__": "#6b7280"};
+
+        var resRows = resData.rows || [];
+        var demGroups = demData.item_groups || {};
+        var demandGroups = demData.demand_groups || {};
+
+        // Parse resource rows
+        var parsed = resRows.map(function(r) {
+            return {
+                raw: r,
+                resource: r.resource || "unassigned",
+                hierarchy: r.hierarchy || [r.resource || "unassigned"],
+                start: r.startdate ? new Date(r.startdate) : null,
+                end: r.enddate ? new Date(r.enddate) : null
+            };
+        }).filter(function(r) { return r.start && !isNaN(r.start) && r.end && !isNaN(r.end) && r.end >= r.start; });
+
+        // Normalize resource bar time windows by operationplan reference.
+        // If multiple resource rows exist for one reference, we use one shared range.
+        var opRangeByRef = {};
+        parsed.forEach(function(r) {
+            var ref = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+            if (!ref) return;
+            if (!opRangeByRef[ref]) {
+                opRangeByRef[ref] = { start: r.start, end: r.end };
+            } else {
+                if (r.start < opRangeByRef[ref].start) opRangeByRef[ref].start = r.start;
+                if (r.end > opRangeByRef[ref].end) opRangeByRef[ref].end = r.end;
+            }
+        });
+        window._resourceOpRangeByRef = opRangeByRef;
+
+        // Compute a single global time range for all charts on the page
+        var unified = _buildGlobalTimeRange(resRows, demGroups, demandGroups);
+        if (!unified && parsed.length === 0) {
+            target.innerHTML = '<div class="pe-gantt-empty">未找到数据</div>';
+            return;
+        }
+        if (!unified) {
+            target.innerHTML = '<div class="pe-gantt-empty">无有效日期</div>';
+            return;
+        }
+
+        window._combinedUnified = { minT: unified.minT, maxT: unified.maxT };
+
+        // Build op_ref -> earliest demand due mapping for delay coloring on resource bars
+        window._combinedOpDueMap = _buildOpDueMap(demandGroups);
+
+        // Cache all data for zoom re-render
+        window._combinedResRows = resRows;
+        window._combinedResRowsTotal = resData.records_total || resData.records || resRows.length;
+        window._combinedParsed = parsed;
+        window._combinedDemGroups = demGroups;
+        window._combinedDemandGroups = demData.demand_groups || {};
+        window._combinedDemandGroupsTotal = demData.demand_groups_total || Object.keys(window._combinedDemandGroups).length;
+
+        // Build item map and populate gear menu (one-time setup)
+        var demGroupKeys = (demData.item_group_keys && demData.item_group_keys.length) ? demData.item_group_keys.slice().sort() : Object.keys(demGroups).sort();
+        var itemMap = {};
+        demGroupKeys.forEach(function(key) {
+            var parts = key.split(" @ ");
+            var item = parts[0] || key;
+            if (!itemMap[item]) itemMap[item] = [];
+            itemMap[item].push(key);
+        });
+        window._pbItemMap = itemMap;
+        window._pbGroupKeys = demGroupKeys;
+
+        var itemSel = document.getElementById("pe-item-select");
+        if (itemSel && demGroupKeys.length > 0) {
+            if (!window._pbCurrentGroup || !demGroups[window._pbCurrentGroup]) {
+                window._pbCurrentGroup = demGroupKeys[0];
+            }
+            var items = Object.keys(itemMap).sort();
+            itemSel.innerHTML = "";
+            items.forEach(function(item) {
+                itemSel.innerHTML += '<option value="' + _esc(item) + '">' + _esc(item) + '</option>';
+            });
+            var selParts = window._pbCurrentGroup.split(" @ ");
+            var selItem = selParts[0] || window._pbCurrentGroup;
+            itemSel.value = selItem;
+            var locSel = document.getElementById("pe-loc-select");
+            if (locSel) {
+                var locs = window._pbItemMap[selItem] || [];
+                locSel.innerHTML = "";
+                locs.forEach(function(fullKey) {
+                    var loc = fullKey.split(" @ ")[1] || fullKey;
+                    locSel.innerHTML += '<option value="' + _esc(fullKey) + '">' + _esc(loc) + '</option>';
+                });
+                locSel.value = window._pbCurrentGroup;
+            }
+        }
+
+        return _reRenderCombinedGantt(target);
+    }).catch(function(err) {
+        target.innerHTML = '<div class="pe-gantt-empty">加载失败: ' + _esc(err.message || err) + '</div>';
+    });
+}
+
+window.addEventListener("resize", function() {
+    if (window._cgResizeTimer) clearTimeout(window._cgResizeTimer);
+    window._cgResizeTimer = setTimeout(function() {
+        renderCombinedGantt();
+    }, 300);
+});
+
+$(function() {
+    setSideTab("attributes");
+    setTimeout(function() {
+        renderCombinedGantt();
+    }, 100);
+});
+
+/* ======== ATTRIBUTES DETAIL PANEL ======== */
+var _attrsCurrentRef = null;
+
+function setSideTab(tabName) {
+    _peActiveTab = tabName;
+    document.querySelectorAll(".pe-side-tab-btn").forEach(function(btn) {
+        btn.classList.toggle("active", btn.getAttribute("data-tab") === tabName);
+    });
+    document.querySelectorAll(".pe-detail-tabpanel").forEach(function(p) {
+        p.classList.toggle("active", p.id === "pe-panel-" + tabName);
+    });
+}
+
+function _renderSimpleTable(containerId, columns, rows) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!rows || rows.length === 0) {
+        el.innerHTML = '<div class="pe-side-empty">未找到数据</div>';
+        return;
+    }
+    var html = ['<table class="pe-side-table"><thead><tr>'];
+    columns.forEach(function(c) { html.push('<th>' + _esc(c.label) + '</th>'); });
+    html.push('</tr></thead><tbody>');
+    rows.forEach(function(r) {
+        html.push("<tr>");
+        columns.forEach(function(c) {
+            html.push('<td>' + _esc(r[c.key] != null && r[c.key] !== "" ? r[c.key] : "-") + "</td>");
+        });
+        html.push("</tr>");
+    });
+    html.push("</tbody></table>");
+    el.innerHTML = html.join("");
+}
+
+function _renderWidgetStack(containerId, sections) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!sections || sections.length === 0) {
+        el.innerHTML = '<div class="pe-widget-empty">未找到数据</div>';
+        return;
+    }
+    var html = ['<div class="pe-widget-stack">'];
+    var visible = 0;
+    sections.forEach(function(sec) {
+        if (sec.hidden) return;
+        visible++;
+        html.push('<div class="pe-widget-card">');
+        html.push('<div class="pe-widget-header">' + _esc(sec.title || "") + '</div>');
+        html.push('<div class="pe-widget-body">');
+        if (sec.html) {
+            html.push(sec.html);
+        } else if (sec.rows && sec.rows.length) {
+            html.push('<table class="pe-widget-table">');
+            sec.rows.forEach(function(r) {
+                html.push('<tr><td class="pe-attrs-lbl">' + _esc(r.label) + '</td><td class="pe-attrs-val">' + _esc(r.value) + '</td></tr>');
+            });
+            html.push('</table>');
+        } else if (sec.table) {
+            html.push(sec.table);
+        } else {
+            html.push('<div class="pe-widget-empty">未找到数据</div>');
+        }
+        html.push('</div></div>');
+    });
+    html.push('</div>');
+    if (visible === 0) {
+        el.innerHTML = '<div class="pe-widget-empty">未找到数据</div>';
+    } else {
+        el.innerHTML = html.join("");
+    }
+}
+
+function _renderArrayTable(headers, rows, emptyText) {
+    if (!rows || rows.length === 0) {
+        return '<div class="pe-widget-empty">' + _esc(emptyText || "未找到数据") + '</div>';
+    }
+    var html = ['<table class="pe-side-table"><thead><tr>'];
+    headers.forEach(function(h) {
+        html.push('<th>' + _esc(h) + '</th>');
+    });
+    html.push('</tr></thead><tbody>');
+    rows.forEach(function(r) {
+        html.push('<tr>');
+        r.forEach(function(c) {
+            html.push('<td>' + _esc(c != null && c !== "" ? c : "-") + '</td>');
+        });
+        html.push('</tr>');
+    });
+    html.push('</tbody></table>');
+    return html.join("");
+}
+
+function _getLoadplansForOpplan(opplan) {
+    if (!opplan) return [];
+    if (Array.isArray(opplan.loadplans)) return opplan.loadplans;
+    if (Array.isArray(opplan.operationresources)) return opplan.operationresources;
+    if (Array.isArray(opplan.resources)) return opplan.resources;
+    return [];
+}
+
+function _getLoadplanResourceName(lp) {
+    if (!lp) return "-";
+    if (lp.resource && lp.resource.name) return lp.resource.name;
+    if (typeof lp.resource === "string" && lp.resource) return lp.resource;
+    return "-";
+}
+
+function _renderResourceWidgetTable(loadplans) {
+    if (!loadplans || !loadplans.length) {
+        return '<div class="pe-widget-empty">无资源</div>';
+    }
+    var h = [
+        '<table class="pe-side-table"><thead><tr>',
+        '<th>名称</th>',
+        '<th>数量</th>',
+        '</tr></thead><tbody>'
+    ];
+    loadplans.forEach(function(lp, idx) {
+        var rname = _getLoadplanResourceName(lp);
+        var base = (_peLoadplansBaseline && _peLoadplansBaseline[idx]) ? _peLoadplansBaseline[idx] : null;
+        var baseName = base ? _getLoadplanResourceName(base) : rname;
+        var isResourceChanged = rname !== baseName ||
+            String(lp && lp.quantity != null ? lp.quantity : "") !== String(base && base.quantity != null ? base.quantity : "") ||
+            String(lp && lp.setup != null ? lp.setup : "") !== String(base && base.setup != null ? base.setup : "");
+        var nameDirtyCls = isResourceChanged ? ' pe-resource-dirty' : '';
+        var buttonCls = isResourceChanged
+            ? 'btn btn-sm btn-danger dropdown-toggle'
+            : 'btn btn-sm pe-resource-plain dropdown-toggle';
+        var qty = (lp.quantity != null ? Number(lp.quantity).toFixed(2) : (lp.load != null ? Number(lp.load).toFixed(2) : "-"));
+        var hasAlternates = Array.isArray(lp.alternates) && lp.alternates.length > 0;
+        var resourceCell = "";
+        if (!hasAlternates) {
+            resourceCell = '<span class="pe-resource-name' + nameDirtyCls + '">' + _esc(rname) + '</span>' +
+              ' <a href="' + _esc(url_prefix + '/detail/input/resource/' + admin_escape(rname) + '/') + '" onclick="event.stopPropagation()"><span class="fa fa-caret-right"></span></a>';
+        } else {
+            resourceCell = '<div class="dropdown pe-resource-select">' +
+              '<button class="' + buttonCls + '" data-bs-toggle="dropdown" type="button">' + _esc(rname) + '</button>' +
+              '<ul class="dropdown-menu">' +
+              '<li><a role="menuitem" href="#" class="dropdown-item text-capitalize pe-resource-alt" data-lp-index="' + idx + '" data-new-resource="' + _esc(rname) + '">' + _esc(rname) + '</a></li>';
+            lp.alternates.forEach(function(alt) {
+                var altName = (alt && alt.name) ? alt.name : "";
+                if (!altName) return;
+                resourceCell += '<li><a role="menuitem" href="#" class="dropdown-item text-capitalize pe-resource-alt" data-lp-index="' + idx + '" data-new-resource="' + _esc(altName) + '">' + _esc(altName) + '</a></li>';
+            });
+            resourceCell += '</ul></div>';
+        }
+        h.push('<tr><td>' + resourceCell + '</td><td>' + _esc(qty) + '</td></tr>');
+    });
+    h.push("</tbody></table>");
+    return h.join("");
+}
+
+function _syncEditDatesToCache() {
+    // Propagate dirty start/end from _peEditState into _combinedParsed and _resourceOpRangeByRef
+    // so that re-renders (e.g. after resource change) keep the dragged bar positions.
+    if (!_peEditState || !_peEditState.reference) return;
+    var ref = _peEditState.reference;
+    var startDate = new Date(_peEditState.start);
+    var endDate = new Date(_peEditState.end);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return;
+
+    if (window._combinedParsed) {
+        window._combinedParsed.forEach(function(r) {
+            var rRef = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+            if (rRef === ref) {
+                var startStr = _fmtLocalDateTimeSeconds(startDate);
+                var endStr = _fmtLocalDateTimeSeconds(endDate);
+                if (r.raw) {
+                    r.raw.operationplan__startdate = startStr;
+                    r.raw.operationplan__enddate = endStr;
+                }
+                r.start = startDate;
+                r.end = endDate;
+            }
+        });
+    }
+    if (window._resourceOpRangeByRef && window._resourceOpRangeByRef[ref]) {
+        window._resourceOpRangeByRef[ref].start = startDate;
+        window._resourceOpRangeByRef[ref].end = endDate;
+    }
+}
+
+function _peSelectAlternateResource(loadplanIndex, newResource) {
+    if (!_peSelectedOpplan) return;
+    var loadplans = _getLoadplansForOpplan(_peSelectedOpplan);
+    var idx = Number(loadplanIndex);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= loadplans.length) return;
+    var targetLoadplan = loadplans[idx];
+    if (!targetLoadplan) return;
+    var currentResource = _getLoadplanResourceName(targetLoadplan);
+    if (!newResource || newResource === currentResource) return;
+
+    if (targetLoadplan.resource && typeof targetLoadplan.resource === "object") {
+        targetLoadplan.resource.name = newResource;
+    } else {
+        targetLoadplan.resource = { name: newResource };
+    }
+
+    if (Array.isArray(targetLoadplan.alternates)) {
+        targetLoadplan.alternates = targetLoadplan.alternates.map(function(alt) {
+            if (alt && alt.name === newResource) {
+                return { name: currentResource };
+            }
+            return alt;
+        });
+    }
+
+    // Sync dirty bar dates into cache before any DOM move or re-render
+    _syncEditDatesToCache();
+
+    // Update _combinedParsed cache so Gantt reflects the new resource
+    var ref = _getOpplanRef(_peSelectedOpplan);
+    if (ref && window._combinedParsed) {
+        // Find existing hierarchy for the target resource (to avoid creating duplicate rows)
+        var targetHierarchy = null;
+        window._combinedParsed.forEach(function(r) {
+            if (r.resource === newResource && r.hierarchy && r.hierarchy.length > 0) {
+                targetHierarchy = r.hierarchy.slice();
+            }
+        });
+        window._combinedParsed.forEach(function(r) {
+            var rRef = (r.raw && r.raw.operationplan__reference) ? String(r.raw.operationplan__reference) : "";
+            if (rRef === ref && r.resource === currentResource) {
+                r.resource = newResource;
+                if (r.raw) r.raw.resource = newResource;
+                if (targetHierarchy) {
+                    r.hierarchy = targetHierarchy.slice();
+                    if (r.raw) r.raw.hierarchy = targetHierarchy.slice();
+                } else if (r.hierarchy) {
+                    r.hierarchy = r.hierarchy.map(function(h) { return h === currentResource ? newResource : h; });
+                }
+            }
+        });
+        // Try to move bar elements directly to the target resource row
+        var ganttBoard = document.querySelector(".pe-gantt-board");
+        var moved = false;
+        if (ganttBoard) {
+            var labelRows = ganttBoard.querySelectorAll(".pe-gantt-label-row");
+            var targetPath = null;
+            for (var lri = 0; lri < labelRows.length; lri++) {
+                var treeEl = labelRows[lri].querySelector(".pe-gantt-tree");
+                if (!treeEl) continue;
+                var rowName = (treeEl.textContent || "").replace(/^[▼▶]\s*/, "").trim();
+                if (rowName === newResource) {
+                    targetPath = labelRows[lri].getAttribute("data-rg-path");
+                    break;
+                }
+            }
+            if (targetPath) {
+                var targetTimeRow = ganttBoard.querySelector('.pe-gantt-time-row[data-rg-path="' + targetPath + '"]');
+                if (targetTimeRow) {
+                    var targetTrack = targetTimeRow.querySelector(".pe-gantt-track");
+                    if (targetTrack) {
+                        var bars = ganttBoard.querySelectorAll(".pe-gantt-bar");
+                        for (var bi = 0; bi < bars.length; bi++) {
+                            var bar = bars[bi];
+                            try {
+                                var info = JSON.parse(bar.getAttribute("data-pe-info") || "{}");
+                                if (String(info.operationplan__reference || "") === String(ref) && String(info.resource || "") === currentResource) {
+                                    targetTrack.appendChild(bar);
+                                    info.resource = newResource;
+                                    bar.setAttribute("data-pe-info", _esc(JSON.stringify(info)));
+                                    moved = true;
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                }
+            }
+        }
+        // If target row doesn't exist yet (no other plans on that resource), re-render
+        if (!moved) {
+            var ganttTarget = document.getElementById("combined-gantt-content");
+            if (ganttTarget) {
+                _reRenderCombinedGantt(ganttTarget);
+            }
+        }
+    }
+
+    _renderOperationplanDetailPanels(_peSelectedOpplan);
+    _setResourceDirty(_isResourceStateDirty(_peSelectedOpplan));
+    renderSideResourcePanel();
+}
+
+if (!window._peResourceAltBound) {
+    window._peResourceAltBound = true;
+    document.addEventListener("click", function(evt) {
+        var el = evt.target && evt.target.closest ? evt.target.closest(".pe-resource-alt") : null;
+        if (!el) return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        _peSelectAlternateResource(el.getAttribute("data-lp-index"), el.getAttribute("data-new-resource"));
+    });
+}
+
+function renderDefaultOrderSummary() {
+    var orderBody = document.getElementById("pe-order-body");
+    if (!orderBody) return;
+    var leftTitle = document.querySelector(".pe-bottom-left .pe-widget-header");
+    if (leftTitle) leftTitle.innerHTML = "订单";
+
+    var html = [
+        '<table class="pe-order-summary-table">',
+        '<tr><td class="pe-order-summary-label">参考</td><td class="pe-order-summary-val">-</td></tr>',
+        '<tr><td class="pe-order-summary-label">类型</td><td class="pe-order-summary-val">-</td></tr>',
+        '<tr><td class="pe-order-summary-label">状态</td><td class="pe-order-summary-val">-</td></tr>',
+        '<tr><td class="pe-order-summary-label">开始</td><td class="pe-order-summary-val">-</td></tr>',
+        '<tr><td class="pe-order-summary-label">结束</td><td class="pe-order-summary-val">-</td></tr>',
+        '<tr><td class="pe-order-summary-label">数量</td><td class="pe-order-summary-val">-</td></tr>',
+        '</table>'
+    ];
+    orderBody.innerHTML = html.join("");
+}
+
+function _renderOperationplanDetailPanels(opplan) {
+    var related = document.getElementById("pe-attrs-related");
+    if (!related) return;
+    var savedProblems = _peLocalProblems.slice();
+    _setEditState(opplan);
+    _peLocalProblems = savedProblems;
+
+    var fmtNum = function(v) {
+        return v === null || v === undefined || v === "" ? "-" : Number(v).toFixed(2);
+    };
+    var fmtDate = _formatDisplayDate;
+
+    var tp = (opplan.type || opplan.operationplan__type || "").toUpperCase();
+
+    function typeLabel(t) {
+        switch ((t || "").toUpperCase()) {
+            case "MO":
+            case "WO": return "制造订单";
+            case "PO": return "采购订单";
+            case "DO": return "配送订单";
+            case "STCK": return "库存";
+            case "DLVR": return "发货单";
+            default: return t || "订单";
+        }
+    }
+
+    // --- Order details section ---
+    var moRows = [];
+    var editHtml = [];
+
+    function addRow(lbl, val) {
+        if (val !== null && val !== undefined && val !== "" && val !== "-") {
+            moRows.push({label: lbl, value: String(val)});
+        }
+    }
+
+    // Keep only the core fields requested for the manufacturing order block
+    if (opplan.operation && opplan.operation.name) {
+        addRow("名称", opplan.operation.name);
+    } else if (opplan.name) {
+        addRow("名称", opplan.name);
+    }
+    addRow("参考", opplan.reference);
+    addRow("物料", opplan.item);
+    addRow("地点", opplan.location);
+
+    // 延迟和紧迫度
+    if (opplan.delay != null && opplan.delay !== "") {
+        var delaySec = Number(opplan.delay);
+        if (!isNaN(delaySec)) {
+            var delayDays = Math.round(delaySec / 86400);
+            var delaySign = delayDays >= 0 ? "+" : "";
+            addRow("延迟", delaySign + delayDays + " days");
+        }
+    }
+    if (opplan.criticality != null && opplan.criticality !== "") {
+        var critVal = Number(opplan.criticality);
+        if (!isNaN(critVal)) {
+            addRow("紧迫度", critVal.toFixed(2));
+        }
+    }
+
+    // Type-dependent date labels
+    var startLbl, endLbl;
+    switch (tp) {
+        case "MO": case "WO": startLbl = "开始日期"; endLbl = "结束日期"; break;
+        case "PO": startLbl = "下单日期"; endLbl = "收货日期"; break;
+        case "DO": startLbl = "发货日期"; endLbl = "收货日期"; break;
+        default: startLbl = "开始"; endLbl = "结束"; break;
+    }
+
+    var moTable = '<table class="pe-widget-table">';
+    moRows.forEach(function(r) {
+        var val = r.isHtml ? r.value : _esc(r.value);
+        moTable += '<tr><td class="pe-attrs-lbl">' + _esc(r.label) + '</td><td class="pe-attrs-val">' + val + '</td></tr>';
+    });
+    moTable += '</table>';
+
+    if (_peEditState && tp !== "STCK") {
+        editHtml.push('<table class="pe-widget-table">');
+        editHtml.push('<tr><td class="pe-attrs-lbl">开始</td><td class="pe-attrs-val"><input data-pe-edit-field="start" class="form-control form-control-sm" type="datetime-local" value="' + _esc(_formatInputDate(_peEditState.start)) + '" onchange="_onStartChange(this.value)"></td></tr>');
+        editHtml.push('<tr><td class="pe-attrs-lbl">结束</td><td class="pe-attrs-val"><input data-pe-edit-field="end" class="form-control form-control-sm" type="datetime-local" value="' + _esc(_formatInputDate(_peEditState.end)) + '" onchange="_onEndChange(this.value)"></td></tr>');
+        editHtml.push('<tr><td class="pe-attrs-lbl">数量</td><td class="pe-attrs-val"><input data-pe-edit-field="quantity" class="form-control form-control-sm" type="number" step="0.01" value="' + _esc(_peEditState.quantity) + '" onchange="_updateEditField(\'quantity\', this.value)"></td></tr>');
+        editHtml.push('<tr><td class="pe-attrs-lbl">状态</td><td class="pe-attrs-val"><div data-pe-edit-field="status" id="pe-status-edit-row" class="btn-group btn-group-sm" role="group" style="display:inline-flex">' +
+            '<button type="button" data-pe-status="proposed" class="btn btn-secondary' + (_peEditState.status === "proposed" ? ' active' : '') + '" onclick="_setStatusFromBtn(this, \'proposed\')"><i class="fa fa-unlock"></i></button>' +
+            '<button type="button" data-pe-status="approved" class="btn btn-secondary' + (_peEditState.status === "approved" ? ' active' : '') + '" onclick="_setStatusFromBtn(this, \'approved\')"><i class="fa fa-unlock-alt"></i></button>' +
+            '<button type="button" data-pe-status="confirmed" class="btn btn-secondary' + (_peEditState.status === "confirmed" ? ' active' : '') + '" onclick="_setStatusFromBtn(this, \'confirmed\')"><i class="fa fa-lock"></i></button>' +
+            '<button type="button" data-pe-status="completed" class="btn btn-secondary' + (_peEditState.status === "completed" ? ' active' : '') + '" onclick="_setStatusFromBtn(this, \'completed\')"><i class="fa fa-check"></i></button>' +
+            '<button type="button" data-pe-status="closed" class="btn btn-secondary' + (_peEditState.status === "closed" ? ' active' : '') + '" onclick="_setStatusFromBtn(this, \'closed\')"><i class="fa fa-times"></i></button>' +
+            '</div></td></tr>');
+        editHtml.push('<tr><td class="pe-attrs-lbl">备注</td><td class="pe-attrs-val"><input data-pe-edit-field="remark" class="form-control form-control-sm" type="text" value="' + _esc(_peEditState.remark) + '" onchange="_updateEditField(\'remark\', this.value)"></td></tr>');
+        editHtml.push('</table>');
+    }
+
+    // --- 资源 section ---
+    var loadplans = _getLoadplansForOpplan(opplan);
+    var resourceWidgetHtml = _renderResourceWidgetTable(loadplans);
+
+    // --- 物料 section ---
+    var materialRows = [];
+    if (opplan.flowplans) {
+        opplan.flowplans.forEach(function(fp) {
+            var itemName = fp.buffer ? (fp.buffer.item || fp.buffer.description || "-") : "-";
+            materialRows.push([itemName, fmtNum(fp.quantity), fmtNum(fp.onhand), fmtDate(fp.date)]);
+        });
+    }
+
+    // --- 需求 section ---
+    var demandRows = [];
+    if (opplan.pegging_demand) {
+        opplan.pegging_demand.forEach(function(pd) {
+            var d = pd.demand || {};
+            if (d.forecast) return;
+            demandRows.push([d.name || "-", d.item ? d.item.name : "-", fmtDate(d.due), fmtNum(pd.quantity)]);
+        });
+    }
+
+    // --- 问题 section ---
+    var problemRows = [];
+    if (Array.isArray(opplan.problems)) {
+        opplan.problems.forEach(function(p) {
+            problemRows.push([p.description || "-", p.start || "-", p.end || "-"]);
+        });
+    }
+    _peLocalProblems.slice(0, 10).forEach(function(p) {
+        problemRows.unshift([p.description || "-", p.start || "-", p.end || "-"]);
+    });
+    var problemsHtml = problemRows.length
+        ? _renderArrayTable(["描述", "开始", "结束"], problemRows, "无问题")
+        : '<div class="pe-widget-empty">无问题</div>';
+
+    function _renderOneWidget(title, html, extraClass, widgetId) {
+        return '<div' + (widgetId ? ' id="' + widgetId + '"' : '') + ' class="pe-widget-card' + (extraClass ? ' ' + extraClass : '') + '">' +
+            '<div class="pe-widget-header">' + title + '</div>' +
+            '<div class="pe-widget-body">' + html + '</div>' +
+            '</div>';
+    }
+
+    var gridHtml = '<div class="pe-attrs-grid">';
+    gridHtml += '<div class="pe-attrs-grid-left">' + _renderOneWidget(typeLabel(tp), moTable + editHtml.join(""), "pe-mo-widget", "pe-mo-widget") + '</div>';
+    gridHtml += '<div class="pe-attrs-grid-right">';
+    gridHtml += _renderOneWidget("{% trans 'Problems' %}", problemsHtml, "", "pe-attrs-problems-card");
+    gridHtml += _renderOneWidget("资源", resourceWidgetHtml, "pe-widget-card-dropdown-host");
+    gridHtml += _renderOneWidget("物料",
+        _renderArrayTable(["物料", "数量", "现有库存", "日期"], materialRows, "无物料移动"));
+    gridHtml += _renderOneWidget("需求",
+        _renderArrayTable(["名称", "物料", "到期日", "数量"], demandRows, "没有需求需要此供应。"));
+    gridHtml += '</div></div>';
+    related.innerHTML = gridHtml;
+    _setTopSaveDirty(_isEditStateDirty());
+}
+
+function renderNoSelectionPlaceholder() {
+    var related = document.getElementById("pe-attrs-related");
+    if (!related) return;
+    related.innerHTML =
+        '<div class="pe-widget-card pe-no-selection">' +
+            '<div class="pe-widget-header">未选择</div>' +
+            '<div class="pe-widget-body"></div>' +
+        '</div>';
+}
+
+function renderSidePanels() {
+    renderSideDemandPanel();
+    renderSideResourcePanel();
+    renderSideBufferPanel();
+    if (!_peSelectedOpplan) {
+        renderNoSelectionPlaceholder();
+    } else {
+        _renderOperationplanDetailPanels(_peSelectedOpplan);
+    }
+}
+
+function renderSideDemandPanel() {
+    var rows = [];
+    if (_peSelectedOpplan && _peSelectedOpplan.pegging_demand) {
+        _peSelectedOpplan.pegging_demand.forEach(function(pd) {
+            var d = pd.demand || {};
+            if (d.forecast) return;
+            rows.push({
+                demand: d.name || "",
+                item: d.item ? d.item.name : "",
+                customer: d.customer || "",
+                due: d.due ? _fmtDateTime(new Date(d.due)) : "",
+                quantity: pd.quantity != null ? Number(pd.quantity).toFixed(2) : "",
+                status: d.status || ""
+            });
+        });
+    } else {
+        var grp = (window._combinedDemGroups || {})[window._pbCurrentGroup || ""];
+        if (grp && grp.demands) {
+            Object.keys(grp.demands).forEach(function(k) {
+                var d = grp.demands[k];
+                rows.push({
+                    demand: d.name || k,
+                    item: d.item || "",
+                    customer: d.customer || "",
+                    due: d.due ? _fmtDateTime(new Date(d.due)) : "",
+                    quantity: d.quantity != null ? Number(d.quantity).toFixed(2) : "",
+                    status: d.status || ""
+                });
+            });
+        }
+    }
+    var table = "";
+    if (rows.length) {
+        var hasCustomer = rows.some(function(r) { return !!r.customer; });
+        var hasStatus = rows.some(function(r) { return !!r.status; });
+        var h = ['<table class="pe-side-table"><thead><tr><th>需求</th><th>物料</th>'];
+        if (hasCustomer) h.push('<th>客户</th>');
+        h.push('<th>到期日</th><th>数量</th>');
+        if (hasStatus) h.push('<th>状态</th>');
+        h.push('</tr></thead><tbody>');
+        rows.forEach(function(r) {
+            h.push('<tr><td>' + _esc(r.demand || "-") + '</td><td>' + _esc(r.item || "-") + '</td>');
+            if (hasCustomer) h.push('<td>' + _esc(r.customer || "-") + '</td>');
+            h.push('<td>' + _esc(r.due || "-") + '</td><td>' + _esc(r.quantity || "-") + '</td>');
+            if (hasStatus) h.push('<td>' + _esc(r.status || "-") + '</td>');
+            h.push('</tr>');
+        });
+        h.push("</tbody></table>");
+        table = h.join("");
+    }
+    _renderWidgetStack("pe-demand-body", [
+        { title: "需求", table: table, hidden: !table }
+    ]);
+}
+
+function renderSideResourcePanel() {
+    var rows = [];
+    if (_peSelectedOpplan) {
+        var loadplans = [];
+        if (Array.isArray(_peSelectedOpplan.loadplans)) {
+            loadplans = _peSelectedOpplan.loadplans;
+        } else if (Array.isArray(_peSelectedOpplan.operationresources)) {
+            loadplans = _peSelectedOpplan.operationresources;
+        } else if (Array.isArray(_peSelectedOpplan.resources)) {
+            loadplans = _peSelectedOpplan.resources;
+        }
+        loadplans.forEach(function(lp) {
+            var rname = "-";
+            if (lp.resource && lp.resource.name) rname = lp.resource.name;
+            else if (typeof lp.resource === "string" && lp.resource) rname = lp.resource;
+            rows.push({
+                resource: rname,
+                quantity: lp.quantity != null ? Number(lp.quantity).toFixed(2) : (lp.load != null ? Number(lp.load).toFixed(2) : ""),
+                date: (lp.date || lp.start || lp.startdate) ? _fmtDateTime(new Date(lp.date || lp.start || lp.startdate)) : "",
+                setup: lp.setup || ""
+            });
+        });
+    } else {
+        var seen = {};
+        (window._combinedResRows || []).forEach(function(r) {
+            var name = r.resource || "";
+            if (!name) return;
+            if (!seen[name]) seen[name] = { count: 0, totalQty: 0 };
+            seen[name].count += 1;
+            seen[name].totalQty += (Number(r.quantity) || 0);
+        });
+        var names = Object.keys(seen).sort().slice(0, 60);
+        names.forEach(function(n) {
+            rows.push({ resource: n, quantity: String(seen[n].count) });
+        });
+    }
+    var table = "";
+    if (rows.length) {
+        var h = ['<table class="pe-side-table"><thead><tr><th>name</th><th>数量</th></tr></thead><tbody>'];
+        rows.forEach(function(r) {
+            h.push('<tr><td>' + _esc(r.resource || "-") + '</td><td>' + _esc(r.quantity || "-") + '</td></tr>');
+        });
+        h.push("</tbody></table>");
+        table = h.join("");
+    }
+    _renderWidgetStack("pe-resource-body", [
+        { title: "资源", table: table || '<div class="pe-widget-empty">未找到数据</div>' }
+    ]);
+}
+
+function renderSideBufferPanel() {
+    var rows = [];
+    if (_peSelectedOpplan && _peSelectedOpplan.flowplans) {
+        _peSelectedOpplan.flowplans.forEach(function(fp) {
+            var itemName = fp.buffer ? (fp.buffer.item || fp.buffer.description || "") : "";
+            var desc = fp.buffer ? (fp.buffer.description || "") : "";
+            rows.push({
+                item: itemName,
+                description: desc,
+                quantity: fp.quantity != null ? Number(fp.quantity).toFixed(2) : "",
+                onhand: fp.onhand != null ? Number(fp.onhand).toFixed(2) : "",
+                date: fp.date ? _fmtDateTime(new Date(fp.date)) : ""
+            });
+        });
+    } else {
+        var grp = (window._combinedDemGroups || {})[window._pbCurrentGroup || ""];
+        if (grp && grp.inventory) {
+            var itemName = (window._pbCurrentGroup || "").split(" @ ")[0] || "";
+            grp.inventory.slice(0, 80).forEach(function(p) {
+                rows.push({
+                    item: itemName,
+                    description: "",
+                    quantity: p.quantity != null ? Number(p.quantity).toFixed(2) : "",
+                    onhand: p.onhand != null ? Number(p.onhand).toFixed(2) : "",
+                    date: p.date ? _fmtDateTime(new Date(p.date)) : ""
+                });
+            });
+        }
+    }
+    var table = "";
+    if (rows.length) {
+        var h = ['<table class="pe-side-table"><thead><tr><th>物料</th><th>数量</th><th>现有库存</th><th>日期</th></tr></thead><tbody>'];
+        rows.forEach(function(r) {
+            var itemCell = _esc(r.item || "-");
+            if (r.description && r.description !== r.item) itemCell += ' <span style="color:#64748b;font-size:10px">' + _esc(r.description) + '</span>';
+            h.push('<tr><td>' + itemCell + '</td><td>' + _esc(r.quantity || "-") + '</td><td>' + _esc(r.onhand || "-") + '</td><td>' + _esc(r.date || "-") + '</td></tr>');
+        });
+        h.push("</tbody></table>");
+        table = h.join("");
+    }
+    _renderWidgetStack("pe-buffer-body", [
+        { title: "物料", table: table, hidden: !table }
+    ]);
+}
+
+function renderSideProblemsPanel() {
+    var rows = [];
+    if (_peSelectedOpplan && Array.isArray(_peSelectedOpplan.problems)) {
+        _peSelectedOpplan.problems.forEach(function(p) {
+            rows.push({
+                description: p.description || "-",
+                start: p.start || "",
+                end: p.end || ""
+            });
+        });
+    }
+    _peLocalProblems.slice(0, 10).forEach(function(p) {
+        rows.unshift(p);
+    });
+
+    var table = "";
+    if (rows.length) {
+        var h = ['<table class="pe-side-table"><thead><tr><th>描述</th><th>开始</th><th>结束</th></tr></thead><tbody>'];
+        rows.forEach(function(r) {
+            h.push('<tr><td>' + _esc(r.description || "-") + '</td><td>' + _esc(r.start || "-") + '</td><td>' + _esc(r.end || "-") + '</td></tr>');
+        });
+        h.push("</tbody></table>");
+        table = h.join("");
+    }
+    _renderWidgetStack("pe-problems-body", [
+        { title: "{% trans 'Problems' %}", table: table || '<div class="pe-widget-empty">无问题</div>' }
+    ]);
+}
+
+function fetchOperationplanDetail(reference) {
+    setSideTab("attributes");
+    var related = document.getElementById("pe-attrs-related");
+    if (related) related.innerHTML = '<div class="pe-attrs-loading">加载中...</div>';
+
+    _attrsCurrentRef = reference;
+    var url = url_prefix + "/operationplan/?reference=" + encodeURIComponent(reference);
+    fetch(url, {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+    .then(function(resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+    })
+    .then(function(data) {
+        if (_attrsCurrentRef !== reference) return;
+        if (data && data.length > 0) {
+            try {
+                _peSelectedOpplan = data[0];
+                _captureLoadplansBaseline(_peSelectedOpplan);
+                _renderOperationplanDetailPanels(data[0]);
+                renderSideDemandPanel();
+                renderSideResourcePanel();
+                renderSideBufferPanel();
+            } catch (err) {
+                console.error("operationplan detail render failed", reference, err, data[0]);
+                if (related) {
+                    related.innerHTML =
+                        '<div class="pe-attrs-empty">详情渲染失败: ' +
+                        _esc(err && err.message ? err.message : err) +
+                        '</div>';
+                }
+            }
+        } else {
+            if (related) related.innerHTML = '<div class="pe-attrs-empty">未找到详情</div>';
+        }
+    })
+    .catch(function(err) {
+        if (_attrsCurrentRef !== reference) return;
+        if (related) related.innerHTML = '<div class="pe-attrs-empty">加载失败: ' + _esc(err.message || err) + '</div>';
+    });
+}
+
+function renderAttrsPanel(opplan) {
+    console.log("renderAttrsPanel opplan:", JSON.parse(JSON.stringify(opplan)));
+    var body = document.getElementById("pe-order-body");
+    if (!body) return;
+    var related = document.getElementById("pe-attrs-related");
+    var leftTitle = document.querySelector(".pe-bottom-left .pe-widget-header");
+
+    var fmtDate = function(v) {
+        if (!v) return "-";
+        var d = new Date(v);
+        if (isNaN(d.getTime())) return _esc(String(v));
+        return d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    };
+    var fmtNum = function(v) {
+        if (v === null || v === undefined || v === "") return "-";
+        return Number(v).toFixed(2);
+    };
+
+    function kv(lbl, val) {
+        return { label: lbl, value: val, isHtml: false };
+    }
+    function kvHtml(lbl, html) {
+        return { label: lbl, value: html, isHtml: true };
+    }
+
+    function typeLabel(t) {
+        switch ((t || "").toUpperCase()) {
+            case "MO":
+            case "WO": return "制造订单";
+            case "PO": return "采购订单";
+            case "DO": return "配送订单";
+            case "STCK": return "库存";
+            case "DLVR": return "发货单";
+            default: return "属性";
+        }
+    }
+
+    var tp = (opplan.type || "").toUpperCase();
+    if (leftTitle) leftTitle.innerHTML = typeLabel(opplan.type || opplan.operationplan__type);
+
+    // Status styling
+    var statusColors = {proposed: "#dc3545", approved: "#17a2b8", confirmed: "#28a745", completed: "#6c757d", closed: "#343a40"};
+    var statusLabels = {proposed: "proposed — 计划建议", approved: "approved — 已审批", confirmed: "confirmed — 已确认", completed: "completed — 已完成", closed: "closed — 已关闭"};
+    var st = (opplan.status || "").toLowerCase().replace(/[^a-z]/g, "");
+    var statusPill = '<span style="display:inline-block;padding:3px 10px;border-radius:4px;background:' +
+        (statusColors[st] || "#6c757d") + ';color:#fff;font-size:12px;font-weight:500">' +
+        _esc(statusLabels[st] || opplan.status || "-") + '</span>';
+
+    // Type-dependent date labels
+    var startLabel, endLabel;
+    switch (tp) {
+        case "MO": case "WO":
+            startLabel = "开始日期"; endLabel = "结束日期"; break;
+        case "PO":
+            startLabel = "下单日期"; endLabel = "收货日期"; break;
+        case "DO":
+            startLabel = "发货日期"; endLabel = "收货日期"; break;
+        default:
+            startLabel = "开始"; endLabel = "结束"; break;
+    }
+
+    // Build rows — order follows operationplanpanel.html layout
+    var rows = [];
+
+    // Operation name
+    if (opplan.operation && opplan.operation.name) {
+        rows.push(kv("工序", opplan.operation.name + " (" + (opplan.operation.type || "") + ")"));
+    } else if (opplan.name) {
+        rows.push(kv("名称", opplan.name));
+    }
+
+    // Reference
+    if (opplan.reference) rows.push(kv("参考", opplan.reference));
+
+    // Owner (MO/WO)
+    if (opplan.owner) rows.push(kv("所有者", opplan.owner));
+
+    // Item with description on same row as secondary text
+    if (opplan.item) {
+        var itemVal = _esc(opplan.item);
+        if (opplan.item__description) itemVal += '<br><span style="color:#64748b;font-size:11px">' + _esc(opplan.item__description) + '</span>';
+        rows.push(kvHtml("物料", itemVal));
+    }
+
+    // Supplier (PO) with description
+    if (opplan.supplier) {
+        var supVal = _esc(opplan.supplier);
+        if (opplan.supplier__description) supVal += '<br><span style="color:#64748b;font-size:11px">' + _esc(opplan.supplier__description) + '</span>';
+        rows.push(kvHtml("供应商", supVal));
+    }
+
+    // Location
+    if (opplan.location) rows.push(kv("地点", opplan.location));
+
+    // DO: origin, destination
+    if (tp === "DO" && opplan.origin) rows.push(kv("来源", opplan.origin));
+    if (tp === "DO" && opplan.destination) rows.push(kv("目的地", opplan.destination));
+
+    // Batch
+    if (opplan.batch) rows.push(kv("批次", opplan.batch));
+
+    // --- Dates section ---
+    if (opplan.start) rows.push(kv(startLabel, fmtDate(opplan.start)));
+    if (opplan.setupend) rows.push(kv("换线结束日期", fmtDate(opplan.setupend)));
+    if (opplan.end) rows.push(kv(endLabel, fmtDate(opplan.end)));
+
+    // --- Quantity ---
+    if (opplan.quantity != null) rows.push(kv("数量", fmtNum(opplan.quantity)));
+    if (opplan.quantity_completed != null) rows.push(kv("已完成数量", fmtNum(opplan.quantity_completed)));
+
+    // --- Status ---
+    rows.push(kvHtml("状态", statusPill));
+
+    // Delay, Criticality
+    if (opplan.delay != null && opplan.delay !== "") rows.push(kv("延迟", fmtNum(opplan.delay)));
+    if (opplan.criticality != null && opplan.criticality !== "") rows.push(kv("紧迫度", fmtNum(opplan.criticality)));
+
+    // Remark
+    if (opplan.remark) rows.push(kv("备注", opplan.remark));
+
+    // Custom colmodel fields (not already covered)
+    var standardKeys = ["delay", "criticality", "quantity", "startdate", "enddate", "color", "quantity_completed",
+        "operationplan__delay", "operationplan__criticality", "operationplan__quantity",
+        "operationplan__startdate", "operationplan__enddate", "operationplan__color",
+        "operationplan__quantity_completed", "setupend", "operationplan__setupend"];
+    if (opplan.colmodel) {
+        Object.keys(opplan.colmodel).forEach(function(key) {
+            if (standardKeys.indexOf(key) !== -1) return;
+            if (opplan.hasOwnProperty(key) && opplan[key] != null && opplan[key] !== "") {
+                var cm = opplan.colmodel[key];
+                var val = opplan[key];
+                if (cm.formatter === "date") val = fmtDate(val);
+                else if (["number", "currency", "currencyWithBlanks", "color"].indexOf(cm.formatter) !== -1) val = fmtNum(val);
+                rows.push(kv(cm.label || key, val));
+            }
+        });
+    }
+
+    // Render
+    var html = ['<table class="pe-order-summary-table">'];
+    rows.forEach(function(r) {
+        var valCell = r.isHtml ? r.value : _esc(String(r.value !== null && r.value !== undefined && r.value !== "" ? r.value : "-"));
+        html.push('<tr><td class="pe-order-summary-label">' + _esc(r.label) + '</td><td class="pe-order-summary-val">' + valCell + '</td></tr>');
+    });
+    html.push('</table>');
+    body.innerHTML = html.join("");
+
+    // Attributes tab: extra/custom fields and network info
+    if (related) _renderOperationplanDetailPanels(opplan);
+}
+
+function closeAttrsPanel() {
+    _attrsCurrentRef = null;
+    _peSelectedOpplan = null;
+    _peLocalProblems = [];
+    renderSidePanels();
+}
+
+function toggleGearMenu() {
+    var menu = document.getElementById("pe-gear-menu");
+    if (!menu) return;
+    var show = menu.style.display === "none";
+    menu.style.display = show ? "block" : "none";
+    if (show) {
+        // Sync color scheme selector
+        var gearColorSel = document.getElementById("pe-gear-color-scheme");
+        if (gearColorSel) gearColorSel.value = _peColorScheme || "delay";
+        setTimeout(function() {
+            document.addEventListener("click", _closeGearOnClick, {once: true});
+        }, 50);
+    }
+}
+
+function _closeGearOnClick(e) {
+    var btn = document.getElementById("pe-gear-btn");
+    var menu = document.getElementById("pe-gear-menu");
+    if (!btn || !menu) return;
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.style.display = "none";
+    } else {
+        document.addEventListener("click", _closeGearOnClick, {once: true});
+    }
+}
+
+function onColorSchemeChange() {
+    var sel = document.getElementById("pe-color-scheme");
+    if (!sel) return;
+    _peColorScheme = sel.value || "delay";
+    // Sync gear menu selector
+    var gearSel = document.getElementById("pe-gear-color-scheme");
+    if (gearSel) gearSel.value = _peColorScheme;
+    var target = document.getElementById("combined-gantt-content");
+    if (target && window._combinedUnified) {
+        _reRenderCombinedGantt(target);
+    } else {
+        renderCombinedGantt();
+    }
+}
+
+function onGearColorSchemeChange() {
+    var sel = document.getElementById("pe-gear-color-scheme");
+    if (!sel) return;
+    _peColorScheme = sel.value || "delay";
+    // Sync Colors tab selector
+    var tabSel = document.getElementById("pe-color-scheme");
+    if (tabSel) tabSel.value = _peColorScheme;
+    var target = document.getElementById("combined-gantt-content");
+    if (target && window._combinedUnified) {
+        _reRenderCombinedGantt(target);
+    } else {
+        renderCombinedGantt();
+    }
+}
+function onTypeFilterChange() {
+    var checks = document.querySelectorAll("#pe-type-checks input[type=checkbox]");
+    _peVisibleTypes = [];
+    checks.forEach(function(cb) { if (cb.checked) _peVisibleTypes.push(cb.value); });
+    var target = document.getElementById("combined-gantt-content");
+    if (target && window._combinedUnified) {
+        _reRenderCombinedGantt(target);
+    } else {
+        renderCombinedGantt();
+    }
+}
+</script>
+{% endblock %}
+
+{% block content_title %}
+{% if title %}<h1 style="padding-left: 10px; padding-top: 24px; margin-bottom: 1rem;">{{ title }}</h1>{% endif %}
+{% endblock %}
+
+{% block save_undo_buttons %}
+  <button id="pe-top-save-btn" class="btn btn-primary" onclick="_saveOpplanToolbar()" style="margin-right:4px">保存</button>
+  <button id="pe-top-undo-btn" class="btn btn-primary" onclick="_undoOpplanToolbar()" style="margin-right:4px">撤销</button>
+{% endblock save_undo_buttons %}
+
+{% block actions %}
+<div style="display:flex;align-items:center;justify-content:flex-end;width:100%;gap:4px">
+    <button id="pe-top-autofix-btn" class="btn pe-autofix-btn" onclick="_autoFixConflicts()" data-bs-toggle="tooltip" data-bs-placement="top" title="自动解决冲突"><span class="pe-autofix-gears"><span class="fa fa-cog pe-autofix-gear pe-autofix-gear-main"></span><span class="fa fa-cog pe-autofix-gear pe-autofix-gear-small-top"></span><span class="fa fa-cog pe-autofix-gear pe-autofix-gear-small-bottom"></span></span><span id="pe-autofix-slash" class="pe-autofix-slash"></span></button>
+    <button class="btn btn-primary" id="rg-zoom-in" onclick="zoomCombinedGantt(1.3)" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'zoom in'|force_escape %}"><span class="fa fa-search-plus"></span></button>
+    <button class="btn btn-primary" id="rg-zoom-out" onclick="zoomCombinedGantt(0.7)" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'zoom out'|force_escape %}"><span class="fa fa-search-minus"></span></button>
+    <div style="position:relative;display:inline-block">
+      <button class="btn btn-primary" id="pe-gear-btn" onclick="toggleGearMenu()" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans '设置'|force_escape %}"><span class="fa fa-cog"></span></button>
+      <div class="pe-gear-menu" id="pe-gear-menu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #dee2e6;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:1050;min-width:400px;padding:12px">
+        <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase">{% trans "配色方案" %}</div>
+        <select id="pe-gear-color-scheme" onchange="onGearColorSchemeChange()" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;margin-bottom:4px">
+          <option value="delay">按延迟着色</option>
+          <option value="op_category">按工序类别着色</option>
+        </select>
+        <div style="border-top:1px solid #e9ecef;padding-top:8px;margin-top:8px">
+          <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase">{% trans "显示订单类型" %}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="pe-type-checks">
+            <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border:1px solid #e9ecef;border-radius:4px;background:#f8f9fa"><input type="checkbox" value="MO" checked onchange="onTypeFilterChange()"> MO</label>
+            <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border:1px solid #e9ecef;border-radius:4px;background:#f8f9fa"><input type="checkbox" value="DO" onchange="onTypeFilterChange()"> DO</label>
+            <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border:1px solid #e9ecef;border-radius:4px;background:#f8f9fa"><input type="checkbox" value="DLVR" onchange="onTypeFilterChange()"> DLVR</label>
+            <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border:1px solid #e9ecef;border-radius:4px;background:#f8f9fa"><input type="checkbox" value="PO" onchange="onTypeFilterChange()"> PO</label>
+            <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border:1px solid #e9ecef;border-radius:4px;background:#f8f9fa"><input type="checkbox" value="WO" checked onchange="onTypeFilterChange()"> WO</label>
+          </div>
+        </div>
+        <div style="border-top:1px solid #e9ecef;padding-top:8px;margin-top:8px">
+            <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase">库存</div>
+            <select id="pe-item-select" onchange="onItemChange()" style="width:100%;padding:4px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:6px"><option value="">--</option></select>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#94a3b8">@</span><select id="pe-loc-select" onchange="onLocChange()" style="flex:1;padding:4px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px"><option value="">--</option></select></div>
+          </div>
+        </div>
+      </div>
+</div>
+{% endblock %}
+{% block before_table %}{% endblock %}
+{% block table %}{% endblock %}
+
+{% block after_table %}
+<div class="pe-gantt-card">
+  <div class="pe-gantt-wrap pe-main-layout">
+    <div class="pe-main-gantt" id="combined-gantt-content"></div>
+    <div class="pe-bottom-details">
+      <div class="pe-tabdock pe-side-panel">
+        <div class="pe-side-tabs">
+          <button class="pe-side-tab-btn active" data-tab="attributes" onclick="setSideTab('attributes')">属性</button>
+        </div>
+        <div class="pe-side-panel-content">
+          <div class="pe-detail-tabpanel active" id="pe-panel-attributes">
+            <div id="pe-attrs-related"></div>
+          </div>
+          <div class="pe-detail-tabpanel" id="pe-panel-demand">
+            <div class="pe-attrs-body" id="pe-demand-body"></div>
+          </div>
+          <div class="pe-detail-tabpanel" id="pe-panel-resource">
+            <div class="pe-attrs-body" id="pe-resource-body"></div>
+          </div>
+          <div class="pe-detail-tabpanel" id="pe-panel-buffer">
+            <div class="pe-attrs-body" id="pe-buffer-body"></div>
+          </div>
+          <div class="pe-detail-tabpanel" id="pe-panel-colors">
+            <div class="pe-widget-card">
+              <div class="pe-widget-header">颜色</div>
+              <div class="pe-widget-body">
+                <div style="margin-bottom:10px">
+                  <select id="pe-color-scheme" onchange="onColorSchemeChange()" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+                    <option value="delay" selected>按延迟着色</option>
+                    <option value="op_category">按工序类别着色</option>
+                  </select>
+                </div>
+                <div class="pe-side-empty">选择着色模式以刷新图表。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block afterPageLoad %}{% endblock %}

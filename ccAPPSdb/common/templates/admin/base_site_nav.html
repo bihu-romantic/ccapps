@@ -1,0 +1,392 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}{{block.super}}{% if not 'navbar' in request.session or request.session.navbar %}
+<style>
+/* ── VSCode-style sidebar layout ── */
+:root {
+  --activity-bar-width: 48px;
+  --sidebar-width: 260px;
+  --sidebar-open: 0px;
+}
+
+body {
+  padding-left: calc(var(--activity-bar-width) + var(--sidebar-open)) !important;
+  transition: padding-left 0.15s ease;
+}
+
+/* Activity bar - fixed left */
+#activity-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--activity-bar-width);
+  background: #ff6d00;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+  z-index: 1040;
+}
+.activity-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  color: rgba(0,0,0,0.55);
+  font-size: 1.3em;
+  text-decoration: none;
+  position: relative;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.activity-icon:hover { color: #1a1a1a; text-decoration: none; }
+.activity-icon.active { color: #1a1a1a; border-left-color: #1a1a1a; }
+
+/* Sidebar panel - slides in from activity bar */
+#sidebar-panel {
+  position: fixed;
+  top: 0; left: var(--activity-bar-width); bottom: 0;
+  width: var(--sidebar-open);
+  background: #fff3e0;
+  border-right: 1px solid #ffe0b2;
+  overflow: hidden;
+  transition: width 0.15s ease;
+  z-index: 1035;
+  display: flex; flex-direction: column;
+}
+#sidebar-panel.open { /* width controlled by --sidebar-open */ }
+	#sidebar-panel.resizing { transition: none !important; }
+	#sidebar-resize-handle {
+	  position: absolute; top: 0; right: 0; bottom: 0;
+	  width: 5px; cursor: col-resize; z-index: 10;
+	  opacity: 0;
+	}
+	#sidebar-panel.open #sidebar-resize-handle { opacity: 1; }
+	#sidebar-resize-handle:hover,
+	#sidebar-panel.resizing #sidebar-resize-handle {
+	  background: rgba(0,0,0,0.12);
+	}
+.sidebar-header {
+  padding: 12px 16px;
+  font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: #e65100; white-space: nowrap;
+  border-bottom: 1px solid #ffe0b2;
+}
+.sidebar-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.sidebar-section-title {
+  padding: 6px 16px;
+  font-size: 0.78rem; font-weight: 700; color: #333;
+  cursor: pointer; display: flex; align-items: center;
+  white-space: nowrap; user-select: none;
+}
+.sidebar-section-title:hover { background: #ffe0b2; }
+.sidebar-chevron {
+  font-size: 0.6em; margin-right: 6px;
+  transition: transform 0.2s; width: 12px; text-align: center;
+}
+.sidebar-section-title.collapsed .sidebar-chevron { transform: rotate(-90deg); }
+.sidebar-item {
+  display: block; padding: 5px 16px 5px 36px;
+  font-size: 0.82rem; color: #444; text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-item:hover { background: #ffe0b2; color: #e65100; text-decoration: none; }
+
+/* Sidebar overlay */
+#sidebar-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3); z-index: 1030;
+}
+#sidebar-overlay.show { display: block; }
+
+/* Top bar */
+#top-bar {
+  background: #ff6d00; border-bottom: 1px solid #e65100;
+  padding: 0 12px; display: flex; align-items: center;
+  min-height: 42px; gap: 4px;
+}
+#top-bar .brand {
+  font-size: 1.15rem; font-weight: 700; color: #1a1a1a;
+  text-decoration: none; margin-right: 12px;
+}
+#top-bar .brand:hover { text-decoration: none; color: #1a1a1a; }
+#top-bar .top-bar-menu { display: flex; align-items: center; gap: 2px; }
+#top-bar .top-bar-menu > .dropdown > .nav-link {
+  font-size: 0.85rem; color: #1a1a1a; padding: 8px 12px;
+  border-radius: 4px; text-decoration: none; white-space: nowrap;
+}
+#top-bar .top-bar-menu > .dropdown > .nav-link:hover { background: rgba(0,0,0,0.08); }
+#top-bar .top-bar-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+
+#nav-menu-header { display: none !important; }
+
+@media (max-width: 768px) {
+  #sidebar-panel.open { box-shadow: 4px 0 12px rgba(0,0,0,0.15); }
+  #top-bar .brand { font-size: 1rem; }
+  #top-bar .top-bar-menu > .dropdown > .nav-link { padding: 8px 6px; font-size: 0.8rem; }
+}
+
+/* Breadcrumbs bar */
+#breadcrumbs-container {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 12px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+#breadcrumbs {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: #666;
+}
+#breadcrumbs li.breadcrumb-item {
+  display: inline;
+  flex-shrink: 0;
+}
+#breadcrumbs li.breadcrumb-item::after {
+  content: "\203A";
+  margin: 0 6px;
+  color: #999;
+}
+#breadcrumbs li.breadcrumb-item:last-child::after {
+  content: "";
+}
+#breadcrumbs li.breadcrumb-item a {
+  color: #555;
+  text-decoration: none;
+}
+#breadcrumbs li.breadcrumb-item a:hover {
+  color: #222;
+  text-decoration: underline;
+}
+@media (max-width: 768px) {
+  #breadcrumbs-container {
+    padding: 0 8px;
+  }
+  #breadcrumbs {
+    font-size: 0.72rem;
+  }
+}
+</style>
+<script>
+// Restore sidebar CSS immediately to avoid flash on page load
+(function() {
+  try {
+    var saved = sessionStorage.getItem('ccAPPS_sidebar');
+    if (saved) {
+      var state = JSON.parse(saved);
+      if (state.open) {
+        var w = state.width || 260;
+        document.documentElement.style.setProperty('--sidebar-width', w + 'px');
+        document.documentElement.style.setProperty('--sidebar-open', w + 'px');
+      }
+    }
+  } catch(e) {}
+})();
+
+$(function() {
+  breadcrumbs_reflow();
+  $(window).resize(breadcrumbs_reflow);
+
+  var activePanel = null;
+  var sidebarWidth = 260;
+
+  // Restore sidebar DOM state from sessionStorage (survives page navigation)
+  try {
+    var saved = sessionStorage.getItem('ccAPPS_sidebar');
+    if (saved) {
+      var state = JSON.parse(saved);
+      sidebarWidth = state.width || 260;
+      activePanel = state.panel || null;
+      if (state.open) {
+        $('#sidebar-panel').addClass('open');
+        $('#sidebar-title').text(state.label || '');
+        $('.sidebar-panel-content').hide();
+        $('#sidebar-' + activePanel).show();
+        $('#activity-bar .activity-icon[data-panel="' + activePanel + '"]').addClass('active');
+      }
+    }
+  } catch(e) {}
+
+  function saveSidebarState() {
+    try {
+      var state = {
+        open: $('#sidebar-panel').hasClass('open'),
+        panel: activePanel,
+        width: sidebarWidth,
+        label: $('#sidebar-title').text()
+      };
+      sessionStorage.setItem('ccAPPS_sidebar', JSON.stringify(state));
+    } catch(e) {}
+  }
+
+  $('#activity-bar').on('click', '.activity-icon.has-panel', function(e) {
+    e.preventDefault();
+    var panel = $(this).data('panel');
+    var label = $(this).data('label');
+    var $sidebar = $('#sidebar-panel');
+    if (activePanel === panel && $sidebar.hasClass('open')) {
+      $sidebar.removeClass('open');
+      document.documentElement.style.setProperty('--sidebar-open', '0px');
+      $(this).removeClass('active'); activePanel = null;
+    } else {
+      $sidebar.addClass('open');
+      document.documentElement.style.setProperty('--sidebar-open', sidebarWidth + 'px');
+      $('#activity-bar .activity-icon.has-panel').removeClass('active');
+      $(this).addClass('active');
+      $('#sidebar-title').text(label);
+      $('.sidebar-panel-content').hide();
+      $('#sidebar-' + panel).show();
+      activePanel = panel;
+    }
+    saveSidebarState();
+  });
+  $(document).on('click', '.sidebar-section-title', function() {
+    $(this).toggleClass('collapsed');
+    var target = $(this).data('bs-target');
+    if (target) $(target).collapse('toggle');
+  });
+
+  // Sidebar resize handle
+  var $resizeHandle = $('#sidebar-resize-handle');
+  var startX, startWidth;
+  $resizeHandle.on('mousedown', function(e) {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = $('#sidebar-panel').width();
+    $('#sidebar-panel').addClass('resizing');
+    $(document).on('mousemove.sidebarResize', function(e) {
+      var newWidth = startWidth + (e.clientX - startX);
+      if (newWidth < 180) newWidth = 180;
+      if (newWidth > 500) newWidth = 500;
+      sidebarWidth = newWidth;
+      document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+      document.documentElement.style.setProperty('--sidebar-open', newWidth + 'px');
+    });
+    $(document).on('mouseup.sidebarResize', function() {
+      $(document).off('.sidebarResize');
+      $('#sidebar-panel').removeClass('resizing');
+      saveSidebarState();
+    });
+  });
+
+});
+</script>
+{% endif %}{% if assistant_installed %}
+<link rel="stylesheet" href="{{STATIC_URL}}css/ccAPPS_assistant.css?v=6" />
+<script src="{{STATIC_URL}}js/ccAPPS_assistant.js?v=5"></script>
+{% endif %}{% endblock %}
+
+{% block nav-global %}{% if not 'navbar' in request.session or request.session.navbar %}
+{% getMenu as menu %}
+
+<!-- Activity Bar (supply chain only) -->
+<div id="activity-bar">
+  {% for group in menu %}{% if group.2 %}
+  {% if group.3 == 'supply_chain' %}
+  <a href="#" class="activity-icon has-panel" data-panel="{{ group.3 }}" data-label="{{ group.0 }}"
+     data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ group.0 }}">
+    <i class="fa fa-sitemap"></i>
+  </a>
+  {% endif %}
+  {% endif %}{% endfor %}
+</div>
+
+<!-- Sidebar Panel (supply chain only) -->
+<div id="sidebar-panel">
+  <div class="sidebar-header"><span id="sidebar-title"></span></div>
+  <div class="sidebar-body">
+    {% for group in menu %}{% if group.2 and group.3 == 'supply_chain' %}
+    <div class="sidebar-panel-content" id="sidebar-{{ group.3 }}" style="display:none">
+      {% for item in group.1 %}
+        {% if item.1.section %}
+        {% if forloop.counter > 1 %}</div>{% endif %}
+        <div class="sidebar-section-title collapsed" data-bs-toggle="collapse" data-bs-target="#sc-{{ group.3 }}-{{ forloop.counter }}">
+          <i class="fa fa-chevron-down sidebar-chevron"></i> {{ item.0 }}
+        </div>
+        <div class="collapse" id="sc-{{ group.3 }}-{{ forloop.counter }}">
+        {% elif not item.1.separator and item.4 %}
+          <a class="sidebar-item" {% if item.1.identifier %}id="{{item.1.identifier}}" {% endif %}{% if item.1.window %}target="_blank" rel="noopener" {% endif %}{% if item.1.javascript %}href="javascript:void(0);" onclick="{{ item.1.javascript }}; return false;"{% else %}href="{% if item.1.prefix %}{{request.prefix}}{% endif %}{{ item.1.url }}"{% endif %} data-populated="{{ item.3 }}">{{ item.0 }}</a>
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+  <div id="sidebar-resize-handle"></div>
+</div>
+
+<div id="sidebar-overlay"></div>
+
+<!-- Top bar -->
+<div id="top-bar">
+  <a href="{{request.prefix}}/" class="brand">{% block branding %}{{ block.super }}{% endblock %}</a>
+
+  <!-- Top menu: admin, help, reports (non-supply_chain groups) -->
+  <div class="top-bar-menu">
+    {% for group in menu %}{% if group.2 and group.3 != 'supply_chain' %}
+    <div class="dropdown">
+      <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        {{ group.0 }}
+      </a>
+      <ul class="dropdown-menu">
+        {% for item in group.1 %}{% if item.4 %}
+        {% if item.1.section %}<li><h6 class="dropdown-header">{{ item.0 }}</h6></li>
+        {% elif item.1.separator %}<li role="separator" class="dropdown-divider"></li>
+        {% else %}<li><a class="dropdown-item text-nowrap" {% if item.1.identifier %}id="{{item.1.identifier}}" {% endif %}{% if item.1.window %}target="_blank" rel="noopener" {% endif %}{% if item.1.javascript %}href="javascript:void(0);" onclick="{{ item.1.javascript }}; return false;"{% else %}href="{% if item.1.prefix %}{{request.prefix}}{% endif %}{{ item.1.url }}"{% endif %} data-populated="{{ item.3 }}">{{ item.0 }}</a></li>
+        {% endif %}
+        {% endif %}{% endfor %}
+      </ul>
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+
+  <div class="top-bar-right">
+    <a href="{{request.prefix}}/inbox/" class="text-muted position-relative px-2" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="{% trans 'No unread messages' %}">
+      <i style="font-size: 1.2em" class="fa fa-envelope-open-o"></i>
+    </a>
+
+    <div class="dropdown">
+      <a href="#" class="dropdown-toggle text-decoration-none d-flex align-items-center text-muted" data-bs-toggle="dropdown"
+         role="button" aria-expanded="false" style="font-size:0.85rem">
+        {% if user.avatar %}<img src="{{ user.avatar.url }}" class="avatar-sm me-1">{% endif %}
+        <span class="d-none d-md-inline">{% firstof user.first_name user.username %}</span>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{{request.prefix}}/preferences/">{% trans 'preferences'|capfirst %}</a></li>
+        <li><a class="dropdown-item" href="/data/logout/">{% trans 'Log out'|capfirst %}</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Breadcrumbs bar -->
+<div id="breadcrumbs-container">
+  <div id="breadcrumbs" class="breadcrumbrow"><li class="breadcrumb-item"><a href="{{request.prefix}}/">{% trans "Home" %}</a></li>{%crumbs%}</div>
+  {% if user.scenarios|length > 1 %}
+  <div class="dropdown" style="flex-shrink:0; margin-left:auto;">
+    <a href="#" class="dropdown-toggle text-nowrap text-decoration-none text-muted" data-bs-toggle="dropdown"
+       role="button" aria-expanded="false" style="font-size:0.78rem; padding:2px 6px; border:1px solid #ddd; border-radius:3px;">
+      {{ request.scenario.name }}
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end">
+    {% for sc in user.scenarios|sortList %}<li>
+      <a class="dropdown-item" data-database="{{ sc.name }}" onclick="selectDatabase(event.target)">{{ sc.name }}
+      {% if sc.help_url %}<span onclick="window.open('{{sc.help_url|safe}}'); event.stopPropagation()" class="fa fa-question-circle float-end"></span>{% endif %}</a>
+      </li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}{% if assistant_installed %}{% include "assistant/chat_panel.html" %}{% endif %}{% endblock %}

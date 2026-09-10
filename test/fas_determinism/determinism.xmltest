@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><current>2020-01-01T00:00:00</current>
+<operations><operation name="make" xsi:type="operation_fixed_time"><duration>P1D</duration></operation><operation name="deliver" xsi:type="operation_fixed_time"><duration>PT0S</duration></operation></operations>
+<buffers><buffer name="finished"><item name="finished"/><producing name="make"/></buffer></buffers>
+<flows><flow xsi:type="flow_end"><operation name="make"/><buffer name="finished"/><quantity>1</quantity></flow><flow xsi:type="flow_start"><operation name="deliver"/><buffer name="finished"/><quantity>-1</quantity></flow></flows>
+<resources><resource name="machine"><maximum>1</maximum><loads><load><operation name="make"/><quantity>1</quantity></load></loads></resource></resources>
+<demands>
+<demand name="z-order"><quantity>5</quantity><priority>1</priority><due>2020-01-10T00:00:00</due><item name="finished"/><operation name="deliver"/></demand>
+<demand name="a-order"><quantity>5</quantity><priority>1</priority><due>2020-01-10T00:00:00</due><item name="finished"/><operation name="deliver"/></demand>
+</demands></plan>

@@ -1,0 +1,101 @@
+sample_id,device_id,status,condition_id,condition_label,stability,health_score,health_grade,fault_patterns,anomalies,available,capacity_factor,risk_level,reason
+AC-01-0001,AC-01,normal,AC-01-C01,中负载工况,unknown,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0002,AC-01,normal,AC-01-C01,中负载工况,unknown,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0003,AC-01,transient,AC-01-C01,中负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0004,AC-01,transient,AC-01-C01,中负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0005,AC-01,transient,AC-01-C01,中负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0006,AC-01,transient,AC-01-C01,中负载工况,transient,0.8894,good,,vib_de 振动有效值 EWMA deviation -7.11σ,1,0.8894,low,enabled for declared operations
+AC-01-0007,AC-01,degraded,AC-01-C01,中负载工况,transient,0.7037,warning,,health score below nominal threshold|vib_de 振动有效值 EWMA deviation -7.53σ|vib_de 谱熵 deviation 3.18σ|单位转速功率 deviation 3.31σ,1,0.563,medium,capacity reduced by health degradation
+AC-01-0008,AC-01,degraded,AC-01-C01,中负载工况,transient,0.7519,warning,,vib_de 振动有效值 EWMA deviation -7.99σ|vib_de 谱熵 deviation 3.94σ,1,0.6015,medium,capacity reduced by health degradation
+AC-01-0009,AC-01,degraded,AC-01-C01,中负载工况,transient,0.7793,warning,,vib_de 振动有效值 EWMA deviation -8.40σ|vib_de 谱熵 deviation 3.49σ,1,0.6234,medium,capacity reduced by health degradation
+AC-01-0010,AC-01,transient,AC-01-C01,中负载工况,transient,0.9184,good,,vib_de 振动有效值 EWMA deviation -7.41σ,1,0.9184,low,enabled for declared operations
+AC-01-0011,AC-01,transient,AC-01-C01,中负载工况,transient,0.8678,good,,vib_de 振动有效值 EWMA deviation -6.24σ,1,0.8678,low,enabled for declared operations
+AC-01-0012,AC-01,normal,AC-01-C01,中负载工况,steady,0.9657,healthy,,vib_de 振动有效值 EWMA deviation -5.20σ,1,0.9657,low,enabled for declared operations
+AC-01-0013,AC-01,normal,AC-01-C01,中负载工况,steady,0.9843,healthy,,vib_de 振动有效值 EWMA deviation -4.34σ,1,0.9843,low,enabled for declared operations
+AC-01-0014,AC-01,normal,AC-01-C01,中负载工况,steady,0.9906,healthy,,vib_de 振动有效值 EWMA deviation -3.61σ,1,0.9906,low,enabled for declared operations
+AC-01-0015,AC-01,normal,AC-01-C01,中负载工况,steady,0.9854,healthy,,vib_de 振动有效值 EWMA deviation -3.02σ,1,0.9854,low,enabled for declared operations
+AC-01-0016,AC-01,normal,AC-01-C01,中负载工况,steady,0.962,healthy,,,1,0.962,low,enabled for declared operations
+AC-01-0017,AC-01,normal,AC-01-C01,中负载工况,steady,0.948,good,,,1,0.948,low,enabled for declared operations
+AC-01-0018,AC-01,normal,AC-01-C01,中负载工况,steady,0.9373,good,,,1,0.9373,low,enabled for declared operations
+AC-01-0019,AC-01,normal,AC-01-C01,中负载工况,steady,0.9271,good,,,1,0.9271,low,enabled for declared operations
+AC-01-0020,AC-01,normal,AC-01-C01,中负载工况,steady,0.904,good,,,1,0.904,low,enabled for declared operations
+AC-01-0021,AC-01,transient,AC-01-C02,满负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0022,AC-01,transient,AC-01-C01,中负载工况,transient,0.8739,good,,,1,0.8739,low,enabled for declared operations
+AC-01-0023,AC-01,transient,AC-01-C02,满负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0024,AC-01,transient,AC-01-C01,中负载工况,transient,0.8486,good,,,1,0.8486,low,enabled for declared operations
+AC-01-0025,AC-01,transient,AC-01-C02,满负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0026,AC-01,transient,AC-01-C01,中负载工况,transient,0.8362,good,,,1,0.8362,low,enabled for declared operations
+AC-01-0027,AC-01,transient,AC-01-C02,满负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0028,AC-01,transient,AC-01-C02,满负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0029,AC-01,transient,AC-01-C02,满负载工况,transient,0.9517,healthy,,,1,0.9517,low,enabled for declared operations
+AC-01-0030,AC-01,transient,AC-01-C02,满负载工况,transient,0.9278,good,,,1,0.9278,low,enabled for declared operations
+AC-01-0031,AC-01,transient,AC-01-C02,满负载工况,transient,0.9273,good,,,1,0.9273,low,enabled for declared operations
+AC-01-0032,AC-01,transient,AC-01-C02,满负载工况,transient,0.9152,good,,,1,0.9152,low,enabled for declared operations
+AC-01-0033,AC-01,transient,AC-01-C02,满负载工况,transient,0.8961,good,,,1,0.8961,low,enabled for declared operations
+AC-01-0034,AC-01,transient,AC-01-C02,满负载工况,transient,0.8961,good,,,1,0.8961,low,enabled for declared operations
+AC-01-0035,AC-01,transient,AC-01-C02,满负载工况,transient,0.8805,good,,,1,0.8805,low,enabled for declared operations
+AC-01-0036,AC-01,transient,AC-01-C03,中负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+AC-01-0037,AC-01,degraded,AC-01-C01,中负载工况,transient,0.6301,warning,,health score below nominal threshold|vib_de 谱熵 deviation 3.55σ|单位转速功率 deviation 3.31σ,1,0.5041,medium,capacity reduced by health degradation
+AC-01-0038,AC-01,degraded,AC-01-C01,中负载工况,transient,0.693,warning,,health score below nominal threshold|vib_de 峰值因子 deviation 3.07σ|vib_de 振动有效值 EWMA deviation -3.94σ|vib_de 谱熵 deviation 4.00σ,1,0.5544,medium,capacity reduced by health degradation
+AC-01-0039,AC-01,transient,AC-01-C02,满负载工况,transient,0.9684,healthy,,,1,0.9684,low,enabled for declared operations
+AC-01-0040,AC-01,transient,AC-01-C02,满负载工况,transient,0.9993,healthy,,,1,0.9993,low,enabled for declared operations
+AC-01-0041,AC-01,transient,AC-01-C02,满负载工况,transient,0.9892,healthy,,,1,0.9892,low,enabled for declared operations
+AC-01-0042,AC-01,transient,AC-01-C01,中负载工况,transient,0.8212,good,,vib_de 振动有效值 EWMA deviation -3.27σ,1,0.8212,low,enabled for declared operations
+AC-01-0043,AC-01,transient,AC-01-C02,满负载工况,transient,0.9772,healthy,,,1,0.9772,low,enabled for declared operations
+AC-01-0044,AC-01,transient,AC-01-C02,满负载工况,transient,0.9547,healthy,,,1,0.9547,low,enabled for declared operations
+AC-01-0045,AC-01,transient,AC-01-C02,满负载工况,transient,0.9292,good,,,1,0.9292,low,enabled for declared operations
+AC-01-0046,AC-01,transient,AC-01-C02,满负载工况,transient,0.9213,good,,,1,0.9213,low,enabled for declared operations
+AC-01-0047,AC-01,transient,AC-01-C02,满负载工况,transient,0.8972,good,,,1,0.8972,low,enabled for declared operations
+AC-01-0048,AC-01,degraded,AC-01-C01,中负载工况,transient,0.7968,warning,,vib_de 振动有效值 EWMA deviation -4.03σ,1,0.6374,medium,capacity reduced by health degradation
+AC-01-0049,AC-01,degraded,AC-01-C01,中负载工况,transient,0.7407,warning,,health score below nominal threshold|vib_de 振动有效值 EWMA deviation -5.06σ|vib_de 谱熵 deviation 3.21σ,1,0.5926,medium,capacity reduced by health degradation
+AC-01-0050,AC-01,degraded,AC-01-C01,中负载工况,transient,0.6899,warning,,health score below nominal threshold|vib_de 峰值因子 deviation 4.09σ|vib_de 振动有效值 EWMA deviation -6.01σ|vib_de 谱熵 deviation 3.84σ,1,0.5519,medium,capacity reduced by health degradation
+FAN-01-0001,FAN-01,normal,FAN-01-C01,高负载工况,unknown,1.0,healthy,,,1,1.0,low,enabled for declared operations
+FAN-01-0002,FAN-01,normal,FAN-01-C01,高负载工况,unknown,1.0,healthy,,,1,1.0,low,enabled for declared operations
+FAN-01-0003,FAN-01,transient,FAN-01-C01,高负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+FAN-01-0004,FAN-01,transient,FAN-01-C01,高负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+FAN-01-0005,FAN-01,transient,FAN-01-C01,高负载工况,transient,1.0,healthy,,,1,1.0,low,enabled for declared operations
+FAN-01-0006,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.9924,healthy,,,1,0.9924,low,enabled for declared operations
+FAN-01-0007,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.9795,healthy,,,1,0.9795,low,enabled for declared operations
+FAN-01-0008,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.9399,good,,,1,0.9399,low,enabled for declared operations
+FAN-01-0009,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.979,healthy,,,1,0.979,low,enabled for declared operations
+FAN-01-0010,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.9719,healthy,,,1,0.9719,low,enabled for declared operations
+FAN-01-0011,FAN-01,transient,FAN-01-C01,高负载工况,transient,0.9527,healthy,,,1,0.9527,low,enabled for declared operations
+FAN-01-0012,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9796,healthy,,,1,0.9796,low,enabled for declared operations
+FAN-01-0013,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9089,good,,,1,0.9089,low,enabled for declared operations
+FAN-01-0014,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9563,healthy,,,1,0.9563,low,enabled for declared operations
+FAN-01-0015,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9886,healthy,,,1,0.9886,low,enabled for declared operations
+FAN-01-0016,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9742,healthy,,,1,0.9742,low,enabled for declared operations
+FAN-01-0017,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9461,good,,,1,0.9461,low,enabled for declared operations
+FAN-01-0018,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9715,healthy,,,1,0.9715,low,enabled for declared operations
+FAN-01-0019,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9112,good,,,1,0.9112,low,enabled for declared operations
+FAN-01-0020,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9169,good,,,1,0.9169,low,enabled for declared operations
+FAN-01-0021,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9702,healthy,,,1,0.9702,low,enabled for declared operations
+FAN-01-0022,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.932,good,,,1,0.932,low,enabled for declared operations
+FAN-01-0023,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9743,healthy,,,1,0.9743,low,enabled for declared operations
+FAN-01-0024,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9798,healthy,,,1,0.9798,low,enabled for declared operations
+FAN-01-0025,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9272,good,,,1,0.9272,low,enabled for declared operations
+FAN-01-0026,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9664,healthy,,,1,0.9664,low,enabled for declared operations
+FAN-01-0027,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9109,good,,,1,0.9109,low,enabled for declared operations
+FAN-01-0028,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9551,healthy,,,1,0.9551,low,enabled for declared operations
+FAN-01-0029,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9795,healthy,,,1,0.9795,low,enabled for declared operations
+FAN-01-0030,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9793,healthy,,,1,0.9793,low,enabled for declared operations
+FAN-01-0031,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.8782,good,,,1,0.8782,low,enabled for declared operations
+FAN-01-0032,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9321,good,,,1,0.9321,low,enabled for declared operations
+FAN-01-0033,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9535,healthy,,,1,0.9535,low,enabled for declared operations
+FAN-01-0034,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9759,healthy,,,1,0.9759,low,enabled for declared operations
+FAN-01-0035,FAN-01,normal,FAN-01-C01,高负载工况,steady,0.9228,good,,,1,0.9228,low,enabled for declared operations
+FAN-01-0036,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4755,critical,,health score below nominal threshold|vib_de 峭度 deviation 11.72σ|vib_de 峰值因子 deviation 11.64σ|vib_de 振动有效值 deviation 4.16σ|vib_de 谱熵 EWMA deviation 3.10σ|vib_de 谱熵 deviation 15.48σ|vib_nde 峭度 deviation 11.60σ|vib_nde 峰值因子 EWMA deviation 3.01σ|vib_nde 峰值因子 deviation 12.47σ|vib_nde 振动有效值 deviation 4.08σ|vib_nde 谱熵 EWMA deviation 3.17σ|vib_nde 谱熵 deviation 15.64σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0037,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4752,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 4.12σ|vib_de 峭度 deviation 11.18σ|vib_de 峰值因子 EWMA deviation 4.65σ|vib_de 峰值因子 deviation 12.06σ|vib_de 振动有效值 deviation 4.15σ|vib_de 谱熵 EWMA deviation 5.61σ|vib_de 谱熵 deviation 15.65σ|vib_nde 峭度 EWMA deviation 4.19σ|vib_nde 峭度 deviation 11.57σ|vib_nde 峰值因子 EWMA deviation 4.86σ|vib_nde 峰值因子 deviation 12.25σ|vib_nde 振动有效值 deviation 4.11σ|vib_nde 谱熵 EWMA deviation 5.64σ|vib_nde 谱熵 deviation 15.50σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0038,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.474,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 5.57σ|vib_de 峭度 deviation 11.39σ|vib_de 峰值因子 EWMA deviation 5.97σ|vib_de 峰值因子 deviation 11.23σ|vib_de 振动有效值 deviation 4.19σ|vib_de 谱熵 EWMA deviation 7.63σ|vib_de 谱熵 deviation 15.69σ|vib_nde 峭度 EWMA deviation 5.67σ|vib_nde 峭度 deviation 11.61σ|vib_nde 峰值因子 EWMA deviation 6.10σ|vib_nde 峰值因子 deviation 11.06σ|vib_nde 振动有效值 deviation 4.18σ|vib_nde 谱熵 EWMA deviation 7.63σ|vib_nde 谱熵 deviation 15.59σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0039,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4762,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 6.85σ|vib_de 峭度 deviation 11.95σ|vib_de 峰值因子 EWMA deviation 7.24σ|vib_de 峰值因子 deviation 12.36σ|vib_de 振动有效值 deviation 4.08σ|vib_de 谱熵 EWMA deviation 9.19σ|vib_de 谱熵 deviation 15.43σ|vib_nde 峭度 EWMA deviation 6.81σ|vib_nde 峭度 deviation 11.37σ|vib_nde 峰值因子 EWMA deviation 7.31σ|vib_nde 峰值因子 deviation 12.17σ|vib_nde 振动有效值 deviation 4.09σ|vib_nde 谱熵 EWMA deviation 9.22σ|vib_nde 谱熵 deviation 15.60σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0040,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.475,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 7.88σ|vib_de 峭度 deviation 12.00σ|vib_de 峰值因子 EWMA deviation 8.19σ|vib_de 峰值因子 deviation 11.96σ|vib_de 振动有效值 deviation 4.09σ|vib_de 谱熵 EWMA deviation 10.42σ|vib_de 谱熵 deviation 15.35σ|vib_nde 峭度 EWMA deviation 7.86σ|vib_nde 峭度 deviation 12.03σ|vib_nde 峰值因子 EWMA deviation 8.32σ|vib_nde 峰值因子 deviation 12.37σ|vib_nde 振动有效值 deviation 4.19σ|vib_nde 谱熵 EWMA deviation 10.47σ|vib_nde 谱熵 deviation 15.46σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0041,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4751,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 8.55σ|vib_de 峭度 deviation 11.20σ|vib_de 峰值因子 EWMA deviation 8.59σ|vib_de 峰值因子 deviation 10.21σ|vib_de 振动有效值 deviation 4.06σ|vib_de 谱熵 EWMA deviation 11.45σ|vib_de 谱熵 deviation 15.56σ|vib_nde 峭度 EWMA deviation 8.59σ|vib_nde 峭度 deviation 11.51σ|vib_nde 峰值因子 EWMA deviation 8.96σ|vib_nde 峰值因子 deviation 11.48σ|vib_nde 振动有效值 deviation 4.20σ|vib_nde 谱熵 EWMA deviation 11.50σ|vib_nde 谱熵 deviation 15.62σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0042,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4752,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 9.23σ|vib_de 峭度 deviation 11.96σ|vib_de 峰值因子 EWMA deviation 9.26σ|vib_de 峰值因子 deviation 11.92σ|vib_de 振动有效值 EWMA deviation 3.15σ|vib_de 振动有效值 deviation 4.16σ|vib_de 谱熵 EWMA deviation 12.30σ|vib_de 谱熵 deviation 15.72σ|vib_nde 峭度 EWMA deviation 9.20σ|vib_nde 峭度 deviation 11.67σ|vib_nde 峰值因子 EWMA deviation 9.44σ|vib_nde 峰值因子 deviation 11.38σ|vib_nde 振动有效值 EWMA deviation 3.17σ|vib_nde 振动有效值 deviation 4.10σ|vib_nde 谱熵 EWMA deviation 12.33σ|vib_nde 谱熵 deviation 15.62σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0043,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4666,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 9.62σ|vib_de 峭度 deviation 11.16σ|vib_de 峰值因子 EWMA deviation 9.60σ|vib_de 峰值因子 deviation 10.98σ|vib_de 振动有效值 EWMA deviation 3.43σ|vib_de 振动有效值 deviation 4.52σ|vib_de 谱熵 EWMA deviation 12.89σ|vib_de 谱熵 deviation 15.25σ|vib_nde 峭度 EWMA deviation 9.68σ|vib_nde 峭度 deviation 11.60σ|vib_nde 峰值因子 EWMA deviation 9.62σ|vib_nde 峰值因子 deviation 10.31σ|vib_nde 振动有效值 EWMA deviation 3.44σ|vib_nde 振动有效值 deviation 4.51σ|vib_nde 谱熵 EWMA deviation 12.92σ|vib_nde 谱熵 deviation 15.28σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0044,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4634,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.02σ|vib_de 峭度 deviation 11.65σ|vib_de 峰值因子 EWMA deviation 10.29σ|vib_de 峰值因子 deviation 13.03σ|vib_de 振动有效值 EWMA deviation 3.67σ|vib_de 振动有效值 deviation 4.66σ|vib_de 谱熵 EWMA deviation 13.36σ|vib_de 谱熵 deviation 15.25σ|vib_nde 峭度 EWMA deviation 9.96σ|vib_nde 峭度 deviation 11.05σ|vib_nde 峰值因子 EWMA deviation 9.83σ|vib_nde 峰值因子 deviation 10.68σ|vib_nde 振动有效值 EWMA deviation 3.68σ|vib_nde 振动有效值 deviation 4.66σ|vib_nde 谱熵 EWMA deviation 13.40σ|vib_nde 谱熵 deviation 15.35σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0045,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4636,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.27σ|vib_de 峭度 deviation 11.27σ|vib_de 峰值因子 EWMA deviation 10.42σ|vib_de 峰值因子 deviation 10.95σ|vib_de 振动有效值 EWMA deviation 3.86σ|vib_de 振动有效值 deviation 4.62σ|vib_de 谱熵 EWMA deviation 13.76σ|vib_de 谱熵 deviation 15.35σ|vib_nde 峭度 EWMA deviation 10.17σ|vib_nde 峭度 deviation 11.04σ|vib_nde 峰值因子 EWMA deviation 10.06σ|vib_nde 峰值因子 deviation 10.99σ|vib_nde 振动有效值 EWMA deviation 3.88σ|vib_nde 振动有效值 deviation 4.68σ|vib_nde 谱熵 EWMA deviation 13.75σ|vib_nde 谱熵 deviation 15.13σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0046,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.464,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.44σ|vib_de 峭度 deviation 11.12σ|vib_de 峰值因子 EWMA deviation 10.66σ|vib_de 峰值因子 deviation 11.63σ|vib_de 振动有效值 EWMA deviation 4.02σ|vib_de 振动有效值 deviation 4.65σ|vib_de 谱熵 EWMA deviation 14.06σ|vib_de 谱熵 deviation 15.24σ|vib_nde 峭度 EWMA deviation 10.41σ|vib_nde 峭度 deviation 11.36σ|vib_nde 峰值因子 EWMA deviation 10.05σ|vib_nde 峰值因子 deviation 9.99σ|vib_nde 振动有效值 EWMA deviation 4.03σ|vib_nde 振动有效值 deviation 4.61σ|vib_nde 谱熵 EWMA deviation 14.06σ|vib_nde 谱熵 deviation 15.31σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0047,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4621,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.60σ|vib_de 峭度 deviation 11.22σ|vib_de 峰值因子 EWMA deviation 10.69σ|vib_de 峰值因子 deviation 10.82σ|vib_de 振动有效值 EWMA deviation 4.16σ|vib_de 振动有效值 deviation 4.74σ|vib_de 谱熵 EWMA deviation 14.29σ|vib_de 谱熵 deviation 15.24σ|vib_nde 峭度 EWMA deviation 10.63σ|vib_nde 峭度 deviation 11.50σ|vib_nde 峰值因子 EWMA deviation 10.22σ|vib_nde 峰值因子 deviation 10.92σ|vib_nde 振动有效值 EWMA deviation 4.16σ|vib_nde 振动有效值 deviation 4.71σ|vib_nde 谱熵 EWMA deviation 14.27σ|vib_nde 谱熵 deviation 15.12σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0048,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4626,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.78σ|vib_de 峭度 deviation 11.52σ|vib_de 峰值因子 EWMA deviation 10.93σ|vib_de 峰值因子 deviation 11.87σ|vib_de 振动有效值 EWMA deviation 4.28σ|vib_de 振动有效值 deviation 4.73σ|vib_de 谱熵 EWMA deviation 14.44σ|vib_de 谱熵 deviation 15.03σ|vib_nde 峭度 EWMA deviation 10.76σ|vib_nde 峭度 deviation 11.31σ|vib_nde 峰值因子 EWMA deviation 10.60σ|vib_nde 峰值因子 deviation 12.14σ|vib_nde 振动有效值 EWMA deviation 4.26σ|vib_nde 振动有效值 deviation 4.67σ|vib_nde 谱熵 EWMA deviation 14.46σ|vib_nde 谱熵 deviation 15.22σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0049,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4638,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.85σ|vib_de 峭度 deviation 11.13σ|vib_de 峰值因子 EWMA deviation 10.96σ|vib_de 峰值因子 deviation 11.10σ|vib_de 振动有效值 EWMA deviation 4.35σ|vib_de 振动有效值 deviation 4.62σ|vib_de 谱熵 EWMA deviation 14.60σ|vib_de 谱熵 deviation 15.25σ|vib_nde 峭度 EWMA deviation 10.85σ|vib_nde 峭度 deviation 11.18σ|vib_nde 峰值因子 EWMA deviation 10.59σ|vib_nde 峰值因子 deviation 10.52σ|vib_nde 振动有效值 EWMA deviation 4.34σ|vib_nde 振动有效值 deviation 4.67σ|vib_nde 谱熵 EWMA deviation 14.58σ|vib_nde 谱熵 deviation 15.04σ,0,0.0,high,health or runtime indicates fault
+FAN-01-0050,FAN-01,fault,FAN-01-C01,高负载工况,steady,0.4634,critical,,health score below nominal threshold|vib_de 峭度 EWMA deviation 10.98σ|vib_de 峭度 deviation 11.48σ|vib_de 峰值因子 EWMA deviation 11.04σ|vib_de 峰值因子 deviation 11.35σ|vib_de 振动有效值 EWMA deviation 4.41σ|vib_de 振动有效值 deviation 4.65σ|vib_de 谱熵 EWMA deviation 14.74σ|vib_de 谱熵 deviation 15.27σ|vib_nde 峭度 EWMA deviation 10.87σ|vib_nde 峭度 deviation 10.96σ|vib_nde 峰值因子 EWMA deviation 10.71σ|vib_nde 峰值因子 deviation 11.22σ|vib_nde 振动有效值 EWMA deviation 4.41σ|vib_nde 振动有效值 deviation 4.67σ|vib_nde 谱熵 EWMA deviation 14.66σ|vib_nde 谱熵 deviation 14.97σ,0,0.0,high,health or runtime indicates fault

@@ -1,0 +1,1054 @@
+# Copyright (C) 2015-2016 by ccAPPS bv
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+# General Public License for more details.
+# You should have received a copy of the GNU Affero General Public
+# License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2023-10-24 12:30+0200\n"
+"Last-Translator: Joao Ranita <jranita@ccAPPS.com>\n"
+"Language-Team: ccAPPS\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 2.4.3\n"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:518
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:551
+msgid "%s allocated out of %s"
+msgstr "%s asignado fuera de %s"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1262
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1283
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1301
+msgid "Add to the graph"
+msgstr "Añadir al gráfico"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1488
+msgid ""
+"An operation gets the color of its category.<br>\n"
+"                        The operation categories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"La operación toma el color de su categoría.<br>\n"
+"                        Las categorías de operación deben ser llenadas en la "
+"tabla de operación.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1523
+msgid ""
+"An operation gets the color of its subcategory.<br>\n"
+"                        The operation subcategories should be filled in the "
+"operation table.\n"
+"                        <br><br>"
+msgstr ""
+"La operación toma el color de su subcategoría.<br>\n"
+"                        Las subcategorías de operación deben ser llenadas en "
+"la tabla de operación.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1420
+msgid ""
+"An operation gets the color the category of the item it produces.<br>\n"
+"                        The item categories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"La operación toma el color de la categoría del artículo que produce.<br>\n"
+"                        Las categorías de artículo deben ser llenadas en la "
+"tabla de artículos.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1454
+msgid ""
+"An operation gets the color the subcategory of the item it produces.<br>\n"
+"                        The item subcategories should be filled in the item "
+"table.\n"
+"                        <br><br>"
+msgstr ""
+"La operación toma el color de la subcategoría del artículo que produce.<br>\n"
+"                        Las subcategorías de artículo deben ser llenadas en "
+"la tabla de artículos.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:383
+msgid "Automatic"
+msgstr "Automático"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:892
+msgid "Available Cross"
+msgstr "Cruces disponibles"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:902
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1265
+msgid "Clear the plan of selected demands"
+msgstr "Limpiar la planificación de las demandas seleccionadas"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:875
+msgid "Close"
+msgstr "Cerrar"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:62
+msgid "Configure time buckets"
+msgstr "Configurar intervalos de tiempo"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:388
+msgid "Constant"
+msgstr "Constante"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:455
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:62
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:142
+#: ccAPPSdb/quoting/static/quoting/quoting.html:227
+msgid "Continue"
+msgstr "Continuar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1332
+msgid "Criticality color setup"
+msgstr "Configuración de criticidad de color"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:79
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:878
+msgid "Customize"
+msgstr "Personalizar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1360
+msgid "Delay color setup"
+msgstr "Configuración de color de retraso"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:34
+msgid "Delivery"
+msgstr "Entrega"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecastgridDrv.js:36
+msgid "Demand outlier"
+msgstr "Demanda atípica"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:32
+msgid "Distribution Order"
+msgstr "Orden de Distribución"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:450
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:53
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:133
+msgid "Do you want to save your changes first?"
+msgstr "¿Quieres guardar los cambios primero?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:264
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:343
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:467
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:591
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:717
+msgid "Duplicate"
+msgstr "Duplicar"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:426
+msgid "Estimated forecast error"
+msgstr "Error de pronóstico estimado"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:372
+msgid "Forecast method"
+msgstr "Método de pronóstico"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:82
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:71
+msgid "Help"
+msgstr "Ayuda"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:400
+msgid "Intermittent"
+msgstr "Intermitente"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1414
+msgid "Item category color setup"
+msgstr "Configuración de color de categoría de artículo"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1448
+msgid "Item subcategory color setup"
+msgstr "Configuración de subcategoría de artículo"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:408
+msgid "Manual"
+msgstr "Manual"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:30
+msgid "Manufacturing Order"
+msgstr "Orden de Producción"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:404
+msgid "Moving average"
+msgstr "Media móvil"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:247
+msgid "No comments yet"
+msgstr "Aún no hay comentarios"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:139
+msgid "No plan yet"
+msgstr "Aún no hay plan"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:901
+msgid "OK"
+msgstr "OK"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1482
+msgid "Operation category color setup"
+msgstr "Configuración de color de categoría de operación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1517
+msgid "Operation subcategory color setup"
+msgstr "Configuración de color de subcategoría de operación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:302
+msgid "Operationplan"
+msgstr "Plan de operación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:818
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:235
+msgid "Plan selected demands backward from their due date"
+msgstr "Planifique las demandas seleccionadas desde su fecha de vencimiento"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1259
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:821
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:236
+msgid "Plan selected demands forward from the current date"
+msgstr "Planifique las demandas seleccionadas a partir de la fecha actual"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:57
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:137
+msgid "Please be patient, the chart may take some time to complete."
+msgstr ""
+"Por favor, tenga paciencia, el gráfico puede tardar algún tiempo en "
+"completarse."
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1387
+msgid "Priority color setup"
+msgstr "Configuración de color de prioridad"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1392
+msgid ""
+"Priority is a demand property, available in the demands table. The priority "
+"value will have effect in the plan results.<br>\n"
+"                        The highest priority value is 0, and the greater the "
+"value the lower the priority.\n"
+"                        <br><br>"
+msgstr ""
+"La prioridad es una propiedad de la Demanda, disponible en la tabla de "
+"demanda. El valor de la prioridad tendrá efecto en el resultado del plan."
+"<br>\n"
+"                        El valor de prioridad más alto es 0, entre más alto "
+"el número menor es su prioridad.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:31
+msgid "Purchase Order"
+msgstr "Orden de Compra"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:223
+msgid "Quoting error"
+msgstr "Error de cotización"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Recalculate"
+msgstr "Recalcular"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:267
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:346
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:594
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:720
+msgid "Remove"
+msgstr "Quitar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:815
+msgid "Remove this demand from planning"
+msgstr "Eliminar esta demanda de la planificación"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:903
+msgid "Reset"
+msgstr "Resetear"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+#: ccAPPSdb/forecast/static/forecast/forecast.html:454
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:61
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:141
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save"
+msgstr "Guardar"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:153
+msgid "Save changes to the database"
+msgstr "Guardar los cambios en la base de datos"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:153
+msgid "Save plan from memory to the database"
+msgstr "Guardar los cambios desde la memória hacia la base de datos"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:396
+msgid "Seasonal"
+msgstr "Estacional"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:376
+msgid ""
+"Select forecast method, only possible at single item/location/customer level"
+msgstr ""
+"Seleccionar el método de pronóstico, sólo es posible a nivel individual de "
+"artículo/localización/cliente"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:5
+msgid "Select panel sequence"
+msgstr "Seleccionar la secuencia de los paneles"
+
+#: ccAPPSdb/forecast/static/forecast/src/forecast.js:884
+msgid "Selected Cross"
+msgstr "Cruce seleccionado"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:417
+msgid "Selected forecast method"
+msgstr "Método de pronóstico seleccionado"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:156
+msgid "Simulate changes without saving"
+msgstr "Simular sin guardar cambios"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:270
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:349
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:473
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:597
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:723
+msgid "Split in half"
+msgstr "Partir en dos"
+
+#: ccAPPSdb/input/static/operationplandetail/src/operationplanpanelDrv.js:33
+msgid "Stock"
+msgstr "Inventario"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:56
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:136
+msgid "The Gantt chart is limited to {{rowlimit}} rows."
+msgstr "El gráfico de Gantt está limitado a {{rowlimit}} filas."
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1337
+msgid ""
+"The criticality of an operationplan measures the slack time available till "
+"the delivery of the customer demand.<br>\n"
+"                        A criticality of 0 indicates that the order is on "
+"the critical path of one or more demands.<br>\n"
+"                        Higher criticality values indicate that a delay will "
+"not immediately impact the delivery of any demand.\n"
+"                        <br><br>"
+msgstr ""
+"La criticidad de un plan de operación mide el tiempo disponible hasta la "
+"entrega de la demanda del cliente.<br>\n"
+"                        Una criticidad de 0 indica que la orden esta en la "
+"ruta crítica de una o más demandas.<br>\n"
+"\n"
+"                        Los valores de criticidad más altos indican que un "
+"retraso no impactará inmediatamente la entrega de ninguna demanda.\n"
+" <br><br>"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1365
+msgid ""
+"The delay of an operationplan compares its end date with the delivery due "
+"date of the customer demand(s) it feeds.<br>\n"
+"                        This also consider the duration of the follow-up "
+"operations still required to produce the finished end item.\n"
+"                        <br><br>"
+msgstr ""
+"El retraso de un plan de operación compara su fecha de finalización con la "
+"fecha de entrega de la (s) demanda (s) de cliente alimentadas.<br>\n"
+"\t\t\tEsto también considera la duración de las operaciones de seguimiento "
+"aún necesarias para producir el artículo final terminado.\n"
+"                        <br><br>"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:392
+msgid "Trend"
+msgstr "Tendencia"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo"
+msgstr "Deshacer"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:154
+msgid "Undo changes"
+msgstr "Deshacer cambios"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:45
+msgid "action"
+msgstr "acción"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:375
+msgid "aggregate"
+msgstr "agregada"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:122
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:433
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:559
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:683
+msgid "approved"
+msgstr "aprobado"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:235
+msgid "approved: {{aggregatedoperationplans.status.approved }}"
+msgstr "aprobado: {{aggregatedoperationplans.status.approved }}"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:158
+msgid "attributes"
+msgstr "atributos"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:167
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:190
+msgid "buffer"
+msgstr "inventario"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:98
+msgid "cancel"
+msgstr "cancelar"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:274
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:335
+msgid "category"
+msgstr "categoría"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:125
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:448
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:572
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:697
+msgid "closed"
+msgstr "cerrado"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:244
+msgid "closed: {{aggregatedoperationplans.status.closed }}"
+msgstr "cerrado: {{aggregatedoperationplans.status.closed }}"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:11
+msgid "color by"
+msgstr "colorear por"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:173
+msgid "colors"
+msgstr "color"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:170
+msgid "comments"
+msgstr "comentarios"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:241
+msgid "completed: {{aggregatedoperationplans.status.completed }}"
+msgstr "completado: {{aggregatedoperationplans.status.completed }}"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:68
+msgid "configure time buckets"
+msgstr "configurar intervalos de tiempo"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:100
+msgid "confirm"
+msgstr "confirmar"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:123
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:438
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:563
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:688
+msgid "confirmed"
+msgstr "confirmado"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:238
+msgid "confirmed: {{aggregatedoperationplans.status.confirmed }}"
+msgstr "confirmado: {{aggregatedoperationplans.status.confirmed }}"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:40
+msgid "cost"
+msgstr "coste"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:97
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:18
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:412
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:538
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:658
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:742
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:795
+msgid "criticality"
+msgstr "criticidad"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:63
+msgid "current onhand"
+msgstr "inventario actual"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:838
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:89
+#: ccAPPSdb/quoting/static/quoting/quoting.html:40
+msgid "customer"
+msgstr "cliente"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:195
+msgid "customer delivery"
+msgstr "entrega al cliente"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:120
+msgid "customers"
+msgstr "clientes"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:447
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:50
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:130
+msgid "database transaction failed"
+msgstr "error en la transacción de base de datos"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:37
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1098
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1142
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1143
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:279
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1095
+msgid "date"
+msgstr "fecha"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1436
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1470
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1539
+msgid "default"
+msgstr "por defecto"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:104
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:21
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:418
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:544
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:666
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:801
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:163
+msgid "delay"
+msgstr "retraso"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:149
+msgid "delivery date"
+msgstr "fecha de entrega"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:139
+msgid "delivery quantity"
+msgstr "cantidad de entrega"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:161
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:188
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:762
+msgid "demand"
+msgstr "demanda"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1206
+msgid "demands"
+msgstr "demandas"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:368
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:492
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:618
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:986
+#: ccAPPSdb/quoting/static/quoting/quoting.html:171
+#: ccAPPSdb/quoting/static/quoting/quoting.html:198
+#: ccAPPSdb/quoting/static/quoting/quoting.html:21
+msgid "description"
+msgstr "descripción"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:57
+msgid "destination"
+msgstr "destino"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:193
+msgid "distribution order"
+msgstr "orden de distribución"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:40
+msgid "distribution orders"
+msgstr "pedidos de distribución"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:35
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1218
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:848
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:126
+msgid "due"
+msgstr "fecha de vencimiento"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:79
+msgid "due date"
+msgstr "fecha límite"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:48
+msgid "effective end"
+msgstr "fin efectivo"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:46
+msgid "effective start"
+msgstr "inicio efectivo"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1144
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:211
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:391
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:519
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:639
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:777
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:992
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1092
+msgid "end"
+msgstr "fin"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:76
+#: ccAPPSdb/quoting/static/quoting/quoting.html:133
+#: ccAPPSdb/quoting/static/quoting/quoting.html:177
+msgid "end date"
+msgstr "fecha final"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:35
+msgid "expected onhand"
+msgstr "a mano actuel"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:126
+msgid "export"
+msgstr "exportar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:15
+msgid "feasibility"
+msgstr "factibilidad"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:139
+#: ccAPPSdb/forecast/static/forecast/forecast.html:167
+msgid "forecast"
+msgstr "pronóstico"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:198
+msgid "forecast baseline"
+msgstr "pronóstico base"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:206
+msgid "forecast consumed"
+msgstr "pronóstico consumido"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:204
+msgid "forecast net"
+msgstr "pronóstico neto"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:200
+msgid "forecast override"
+msgstr "pronóstico anulado"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:202
+msgid "forecast total"
+msgstr "planificación total"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:49
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:129
+msgid "gantt chart rows limit"
+msgstr "límite de filas de tabla de gantt"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:173
+msgid "history"
+msgstr "historial"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:482
+msgid "identifier"
+msgstr "identificador"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:94
+msgid "inquiry"
+msgstr "indagación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:194
+msgid "inventory"
+msgstr "inventario"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:22
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:27
+msgid "inventory status"
+msgstr "estado del inventario"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:186
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:40
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1215
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:857
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:946
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:324
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:78
+#: ccAPPSdb/quoting/static/quoting/quoting.html:27
+msgid "item"
+msgstr "ítem"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:30
+msgid "item category"
+msgstr "categoría de artículo"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:33
+msgid "item subcategory"
+msgstr "subcategoría de artículo"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:107
+msgid "items"
+msgstr "ítems"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:38
+msgid "lead time"
+msgstr "tiempo de espera"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:218
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:48
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:58
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:867
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:920
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:956
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:263
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:353
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:67
+#: ccAPPSdb/quoting/static/quoting/quoting.html:53
+msgid "location"
+msgstr "ubicación"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:94
+msgid "locations"
+msgstr "ubicaciones"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:191
+msgid "manufacturing order"
+msgstr "pedidos de producción"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:42
+msgid "manufacturing orders"
+msgstr "pedidos de producción"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1083
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:187
+msgid "material"
+msgstr "material"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:85
+msgid "maximum lateness (in days)"
+msgstr "retraso máximo (en días)"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:170
+msgid "messages"
+msgstr "mensajes"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:73
+msgid "minimum shipment"
+msgstr "envío mínimo"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:26
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:31
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:32
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:31
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1022
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1089
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1212
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:256
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:313
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:462
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:585
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:711
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:752
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:811
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:907
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:934
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:251
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:312
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:55
+#: ccAPPSdb/quoting/static/quoting/quoting.html:15
+msgid "name"
+msgstr "nombre"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:245
+msgid "new customer comment"
+msgstr "nuevo comentario de cliente"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:242
+msgid "new item comment"
+msgstr "comentario de nuevo ítem"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:243
+msgid "new item-location comment"
+msgstr "comentario de nuevo ítem-ubicación"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:244
+msgid "new location comment"
+msgstr "comentario de nueva ubicación"
+
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:44
+msgid "no demands"
+msgstr "sin demandas"
+
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:44
+msgid "no movements"
+msgstr "sin movimientos"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:43
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:998
+msgid "no problems"
+msgstr "no hay problemas"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:40
+msgid "no resources"
+msgstr "sin recursos"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:18
+msgid "no selection"
+msgstr "sin selección"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1095
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1137
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1138
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:295
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:966
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1094
+msgid "onhand"
+msgstr "en mano"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplypositionpanelDrv.js:29
+msgid "onhand at lead time"
+msgstr "tiempo de espera en mano"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:194
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:215
+msgid "open orders"
+msgstr "pedidos abiertas"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1131
+msgid "operation"
+msgstr "operación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:36
+msgid "operation category"
+msgstr "categoría de operación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:39
+msgid "operation subcategory"
+msgstr "categoría de suboperación"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1122
+msgid "operationplans"
+msgstr "planes de operacion"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:117
+msgid "operations"
+msgstr "operaciones"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:196
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:217
+msgid "orders adjustment"
+msgstr "ajuste pedidos"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:52
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:606
+msgid "origin"
+msgstr "ubicación de origen"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:44
+msgid "overdue sales orders"
+msgstr "pedidos retrasadas"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:367
+msgid "parameters"
+msgstr "parámetros"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:32
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:24
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:883
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:100
+msgid "priority"
+msgstr "prioridad"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:29
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:980
+#: ccAPPSdb/quoting/static/quoting/quoting.html:165
+msgid "problems"
+msgstr "problemas"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:121
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:428
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:554
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:678
+msgid "proposed"
+msgstr "propuesto"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:192
+msgid "purchase order"
+msgstr "pedidos de compra"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:38
+msgid "purchase orders"
+msgstr "pedidos de compra"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:89
+#: ccAPPSdb/input/static/operationplandetail/src/bufferspanelDrv.js:33
+#: ccAPPSdb/input/static/operationplandetail/src/demandpeggingpanelDrv.js:37
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:33
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1025
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1092
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1134
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1221
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:220
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:287
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:402
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:528
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:648
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:732
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:786
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:893
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1093
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:113
+#: ccAPPSdb/quoting/static/quoting/quoting.html:127
+#: ccAPPSdb/quoting/static/quoting/quoting.html:67
+msgid "quantity"
+msgstr "cantidad"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:96
+msgid "quote"
+msgstr "cotización"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:8
+msgid "quote form"
+msgstr "formulario presupuesto"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:77
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:78
+msgid "receipt date"
+msgstr "fecha planeada"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:36
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1128
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:358
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:612
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1090
+msgid "reference"
+msgstr "referencia"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:62
+msgid "remove all rows"
+msgstr "eliminar todas las filas"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:59
+msgid "remove row"
+msgstr "eliminar fila"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/planningboard.js:234
+msgid "remove this demand from planning"
+msgstr "eliminar esta demanda de la planificación"
+
+#: ccAPPSdb/input/static/operationplandetail/src/resourcespanelDrv.js:28
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:164
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:189
+msgid "resource"
+msgstr "recurso"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1016
+msgid "resources"
+msgstr "recursos"
+
+#: ccAPPSdb/input/static/operationplandetail/src/networkstatusDrv.js:46
+msgid "sales orders"
+msgstr "pedidos de venta"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:74
+msgid "save"
+msgstr "guardar"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1028
+msgid "setup"
+msgstr "configuración"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:42
+msgid "size minimum"
+msgstr "tamaño mínimo"
+
+#: ccAPPSdb/input/static/operationplandetail/src/supplyinformationDrv.js:44
+msgid "size multiple"
+msgstr "tamaño múltiple"
+
+#: ccAPPSdb/input/static/operationplandetail/src/problemspanelDrv.js:34
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:1139
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:202
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:374
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:504
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:624
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:768
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:989
+#: ccAPPSdb/planningboard/static/planningboard/src/ganttchart.js:1091
+msgid "start"
+msgstr "inicio"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:63
+#: ccAPPSdb/quoting/static/quoting/quoting.html:130
+#: ccAPPSdb/quoting/static/quoting/quoting.html:174
+msgid "start date"
+msgstr "fecha de inicio"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:118
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:228
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:424
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:550
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:674
+#: ccAPPSdb/quoting/static/quoting/quoting.html:91
+msgid "status"
+msgstr "estado"
+
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:283
+#: ccAPPSdb/planningboard/static/planningboard/src/grid.js:344
+msgid "subcategory"
+msgstr "subcategoría"
+
+#: ccAPPSdb/input/static/operationplandetail/operationplanpanel.html:44
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:498
+msgid "supplier"
+msgstr "proveedor"
+
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:192
+#: ccAPPSdb/forecast/static/forecast/src/displayForecastGraph.js:213
+msgid "total orders"
+msgstr "total de pedidos"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:446
+#: ccAPPSdb/input/static/operationplandetail/operationplandetail.html:48
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:128
+msgid "unsaved changes"
+msgstr "cambios sin guardar"
+
+#: ccAPPSdb/quoting/static/quoting/quoting.html:193
+msgid "why short or late?"
+msgstr "por qué  escaso o demorado?"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:53
+msgid "zoom in"
+msgstr "hacer zoom"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:56
+msgid "zoom out"
+msgstr "reducir zoom"
+
+#: ccAPPSdb/planningboard/static/planningboard/planningboard.html:196
+msgid "{{ aggregatedoperationplans.count }} selected"
+msgstr "{{ aggregatedoperationplans.count }}  seleccionados"
+
+#: ccAPPSdb/forecast/static/forecast/forecast.html:316
+msgid "{{m.label}}"
+msgstr "{{m.label}}"

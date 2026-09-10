@@ -1,0 +1,10 @@
+[
+    {
+        "pk": "plan.webservice",
+        "model": "common.parameter",
+        "fields": {
+            "value": "true",
+            "description": "指定是否使用 Web 服务。"
+        }
+    }
+]

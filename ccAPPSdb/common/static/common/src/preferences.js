@@ -1,0 +1,63 @@
+angular.module("ccAPPS.common").service("PreferenceSvc", PreferenceSvc);
+
+PreferenceSvc.$inject = ["$http"];
+
+/*
+ * This service updates and retrieves user preferences for a certain report.
+ * TODO Current implementation completely relies on the "preferences" and "reportkey" global variables passed from django.
+ */
+function PreferenceSvc($http) {
+  'use strict';
+
+  function save(key, value, callback) {
+    var data = preferences;
+    if (typeof (data) !== 'undefined' && data !== 'None' && data !== null)
+      data = angular.fromJson(preferences);
+    else
+      data = {};
+
+    // Key and value can both be an array to save lists of keys
+    // and values with just one call
+    if (typeof key === 'object' && key.length === value.length) {
+      angular.forEach(key, function (currentKey, index) {
+        data[currentKey] = value[index];
+      });
+    } else
+      data[key] = value;
+
+    // Post to the server
+    var urlprefix = (typeof url_prefix !== 'undefined') ? url_prefix : '';
+    var tmp = {};
+    tmp[reportkey] = data;
+    $http.post(urlprefix + '/settings/', angular.toJson(tmp))
+      .then(
+        function (response) {
+          if (typeof callback === 'function')
+            callback(response);
+        },
+        function (response) {
+          angular.element(document).find('.modal-body').html('<div style="width: 100%; overflow: auto;">' + response.data + '</div>');
+          showModal('popup2');
+        }
+      );
+  };
+
+  function get(key, defaultvalue) {
+    var data = preferences;
+    if (typeof (data) !== 'undefined' && data !== 'None' && data !== null)
+      data = angular.fromJson(preferences);
+    else
+      data = {};
+    if (key in data)
+      return data[key];
+    else
+      return defaultvalue;
+  };
+
+  var service = {
+    get: get,
+    save: save
+  };
+  return service;
+
+};

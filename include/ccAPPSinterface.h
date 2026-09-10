@@ -1,0 +1,120 @@
+/***************************************************************************
+ *                                                                         *
+ * Copyright (C) 2007-2015 by ccAPPS bv                                   *
+ *                                                                         *
+ * Permission is hereby granted, free of charge, to any person obtaining   *
+ * a copy of this software and associated documentation files (the         *
+ * "Software"), to deal in the Software without restriction, including     *
+ * without limitation the rights to use, copy, modify, merge, publish,     *
+ * distribute, sublicense, and/or sell copies of the Software, and to      *
+ * permit persons to whom the Software is furnished to do so, subject to   *
+ * the following conditions:                                               *
+ *                                                                         *
+ * The above copyright notice and this permission notice shall be          *
+ * included in all copies or substantial portions of the Software.         *
+ *                                                                         *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,         *
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF      *
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND                   *
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE  *
+ * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION  *
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION   *
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.         *
+ *                                                                         *
+ ***************************************************************************/
+
+/* This is the public header file for high-level access to the library
+ * functionality.
+ * The methods listed provide also a safe interface API for accessing the
+ * library functionality from C, C++, Visual Basic and other programming
+ * languages.
+ *
+ * When extending the library, use the header file ccAPPS.h instead.
+ * It provides a more detailed API to interface with ccAPPS.
+ */
+
+#pragma once
+
+#ifdef __cplusplus
+#include <string>
+#endif
+
+/* This method returns a version string. */
+const char* ccAPPSVersion();
+
+/* This function should be called once when the client application starts,
+ * and before calling any other function in the API.
+ *
+ * This method is synchronous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSInitialize(bool = true);
+
+/* The character buffer pointed to by the first parameter contains data in
+ * XML format that is passed on to ccAPPS for processing.
+ * The second argument specifies whether ccAPPS should validate the data
+ * against the XSD schema.
+ * The last argument specifies whether ccAPPS needs to perform only the
+ * validation and skip the actual processing.
+ *
+ * The client is responsible for the memory management in the data buffer.
+ *
+ * This method is synchroneous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSReadXMLData(const char*, bool, bool);
+
+/* The first parameter is the name of a file that contains data in XML
+ * format for ccAPPS processing. If a nullptr pointer is passed, ccAPPS
+ * will read from the standard input.
+ * The second argument specifies whether ccAPPS should validate the data
+ * against the XSD schema.
+ * The last argument specifies whether ccAPPS needs to perform only the
+ * validation and skip the actual processing.
+ *
+ * This method is synchroneous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSReadXMLFile(const char*, bool, bool, bool);
+
+void ccAPPSReadJSONFile(const char*);
+
+/* Execute the Python code in a file.
+ *
+ * This method is synchroneous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSReadPythonFile(const char*);
+
+/* Calling this function will save the ccAPPS data in the file that
+ * is passed as the argument.
+ *
+ * This method is synchroneous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSSaveFile(const char*);
+
+/* This function causes the ccAPPS executable to shut down in an orderly
+ * way.
+ *
+ * This method is synchroneous, i.e. it returns only when the complete
+ * processing is finished. The method can throw exceptions, and the client
+ * is responsible for defining the correct handlers for these.
+ */
+void ccAPPSExit();
+
+#ifdef __cplusplus
+/* Echo a message in the ccAPPS log stream (which is either a file or
+ * the standard output stream).
+ *
+ * This function is only available when using C++. The same functionality
+ * is available to C with the function ccAPPSLog(const char*).
+ */
+void ccAPPSLog(const std::string&);
+
+#endif

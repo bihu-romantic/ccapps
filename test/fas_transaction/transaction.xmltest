@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><current>2020-01-01T00:00:00</current>
+<operations>
+<operation name="legacy make" xsi:type="operation_fixed_time"><duration>P1D</duration></operation>
+<operation name="make component" xsi:type="operation_fixed_time"><duration>P1D</duration><flows><flow xsi:type="flow_end"><buffer name="component"/><quantity>1</quantity></flow></flows></operation>
+<operation name="assemble" xsi:type="operation_fixed_time"><duration>P1D</duration><flows><flow><buffer name="component"/><quantity>-1</quantity></flow><flow xsi:type="flow_end"><buffer name="finished"/><quantity>1</quantity></flow></flows></operation>
+<operation name="deliver" xsi:type="operation_fixed_time"><duration>PT0S</duration></operation></operations>
+<buffers><buffer name="component"><item name="component"/><producing name="make component"/></buffer><buffer name="finished"><item name="finished"/><producing name="assemble"/></buffer></buffers>
+<flows><flow xsi:type="flow_start"><operation name="deliver"/><buffer name="finished"/><quantity>-1</quantity></flow></flows>
+<operationplans><operationplan><operation name="legacy make"/><reference>legacy-proposed</reference><quantity>1</quantity><start>2020-01-03T00:00:00</start><end>2020-01-04T00:00:00</end><status>proposed</status></operationplan></operationplans>
+<demands><demand name="order"><quantity>5</quantity><due>2020-01-10T00:00:00</due><item name="finished"/><operation name="deliver"/></demand></demands></plan>

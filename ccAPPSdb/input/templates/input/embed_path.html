@@ -1,0 +1,2459 @@
+{% load i18n %}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% trans "supply path" %}</title>
+<link rel="stylesheet" href="{{STATIC_URL}}css/jquery-ui.min.css">
+<link rel="stylesheet" href="{{STATIC_URL}}css/ui.jqgrid.css">
+<link rel="stylesheet" href="{{STATIC_URL}}css/bootstrap.min.css">
+<link rel="stylesheet" href="{{STATIC_URL}}css/font-awesome.min.css">
+<script src="{{STATIC_URL}}js/jquery-3.6.0.min.js"></script>
+<script src="{{STATIC_URL}}js/jquery-ui.min.js"></script>
+<script src="{{STATIC_URL}}js/jquery.jqgrid.min.js"></script>
+<script src="{{STATIC_URL}}js/ccAPPS.js"></script>
+<script>var url_prefix = '{{request.prefix}}';</script>
+<style>
+#svggraph {
+  background-color: #ffffff;
+  cursor: default;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  max-width: 100%;
+}
+
+path.flow {
+  fill: none;
+  stroke: #475569;
+  stroke-width: 1.5px;
+  cursor: default;
+  marker-mid: url(#arrow);
+}
+
+path.load {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 1.2px;
+  cursor: default;
+  stroke-dasharray: 5,4;
+}
+
+path.depends {
+  fill: none;
+  stroke: #475569;
+  stroke-width: 1.5px;
+  cursor: default;
+  marker-mid: url(#dependsmarker);
+}
+
+text {
+  font: 10px 'Inter', 'Segoe UI', sans-serif;
+  pointer-events: none;
+  fill: #1e293b;
+  letter-spacing: 0.01em;
+}
+
+text.id {
+  text-anchor: middle;
+  fill: #ffffff !important;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+g.node-routing text, g.node-alternate text, g.node-split text {
+  fill: #ffffff !important;
+  font-weight: 700;
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: rgba(15, 23, 42, 0.55);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.collapse-control {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.collapse-control-icon {
+  stroke: #475569;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  pointer-events: all;
+}
+
+#buffer-tooltip {
+  position: fixed;
+  background: #ffffff;
+  color: #000000;
+  font: 11px 'Inter', 'Segoe UI', sans-serif;
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid #cccccc;
+  pointer-events: none;
+  white-space: pre;
+  z-index: 9999;
+  display: none;
+}
+
+.collapse-control-label {
+  font: 11px 'Inter', 'Segoe UI', sans-serif;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: all;
+  fill: #475569;
+}
+.ui-jqgrid, .ui-jqgrid-view, .ui-jqgrid-titlebar, .ui-jqgrid-hdiv, .ui-jqgrid-bdiv, #gridpager, #gview_grid, .ui-jqdialog {display:none !important;}
+</style>
+<script src="{{STATIC_URL}}js/d3.min.js"></script>
+<script>
+
+function reslistfmt(cellvalue, options, row)
+{
+  if (cellvalue === undefined || cellvalue ==='') return '';
+  var result = '';
+  for (var i in cellvalue)
+    result += cellvalue[i][0]
+      + "<a href=\"" + url_prefix + "/detail/input/resource/" + admin_escape(cellvalue[i][0]) + "/\">"
+      + "<span class='ps-2 fa fa-caret-right'></span></a><br>";
+  return result;
+}
+
+var force;
+var nodes = [];
+var links = [];
+var operations = {};
+var operindices = {};
+var buffers = {};
+var resources = {};
+var width = 800;
+var width_level = 100;
+var minlevel = 0;
+var maxlevel = 0;
+var path;
+var shapes;
+var level_controls;
+var routing_label_overlay;
+var collapsed_upstream = {};
+var collapsed_downstream = {};
+var visible_nodes = {};
+var viewBoxY = 0;
+var viewBoxH = 400;
+
+function isOperationNode(d)
+{
+  return d && ['operation', 'operation_alternate', 'routing', 'split', 'alternate', 'itemsupplier', 'itemdistribution', 'itemdistribution_alternate'].includes(d.type);
+}
+
+function collectReachable(nodeid, reverse)
+{
+  var visited = {};
+  var stack = [nodeid];
+  visited[nodeid] = true;
+  while (stack.length) {
+    var current = stack.pop();
+    for (var i = 0; i < links.length; i++) {
+      var src = links[i].source.id;
+      var tgt = links[i].target.id;
+      var next = -1;
+      if (reverse) {
+        if (tgt == current) next = src;
+      }
+      else {
+        if (src == current) next = tgt;
+      }
+      if (next >= 0 && !visited[next]) {
+        visited[next] = true;
+        stack.push(next);
+      }
+    }
+  }
+  return visited;
+}
+
+function getLevelSeedIds(level)
+{
+  var seeds = {};
+  for (var i = 0; i < nodes.length; i++)
+    if (nodes[i].level == level)
+        seeds[nodes[i].id] = true;
+  return seeds;
+}
+
+function expandHiddenWithRoutingFamilies(hidden_nodes, reverse)
+{
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!hidden_nodes[node.id] || node.parent < 0)
+        continue;
+      var parentnode = nodes[node.parent];
+      if (!parentnode || parentnode.type != 'routing')
+        continue;
+
+      if (!hidden_nodes[parentnode.id]) {
+        hidden_nodes[parentnode.id] = true;
+        changed = true;
+      }
+
+      for (var j = 0; j < nodes.length; j++)
+        if (nodes[j].parent == parentnode.id) {
+          if (!hidden_nodes[nodes[j].id]) {
+            hidden_nodes[nodes[j].id] = true;
+            changed = true;
+          }
+          var sibling_branch = collectReachable(nodes[j].id, reverse);
+          for (var sibling_nodeid in sibling_branch)
+            if (!hidden_nodes[sibling_nodeid]) {
+              hidden_nodes[sibling_nodeid] = true;
+              changed = true;
+            }
+        }
+    }
+  }
+  return hidden_nodes;
+}
+
+function hideHiddenRoutingUpstreamBuffers(hidden_nodes, preserve_upstream)
+{
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!hidden_nodes[node.id] || node.parent < 0)
+        continue;
+      var parentnode = nodes[node.parent];
+      if (!parentnode || parentnode.type != 'routing')
+        continue;
+
+      var upstream_nodes = collectReachable(node.id, true);
+      for (var upstream_id in upstream_nodes) {
+        var upstream_node = nodes[parseInt(upstream_id)];
+        if (
+          upstream_node
+          && upstream_node.type == 'buffer'
+          && !preserve_upstream[upstream_id]
+          && !hidden_nodes[upstream_id]
+        ) {
+          hidden_nodes[upstream_id] = true;
+          changed = true;
+        }
+      }
+    }
+  }
+  return hidden_nodes;
+}
+
+function hideHiddenOperationUpstreams(hidden_nodes, preserve_upstream)
+{
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!hidden_nodes[node.id] || !isOperationNode(node))
+        continue;
+
+      var upstream_nodes = collectReachable(node.id, true);
+      for (var upstream_id in upstream_nodes)
+        if (!preserve_upstream[upstream_id] && !hidden_nodes[upstream_id]) {
+          hidden_nodes[upstream_id] = true;
+          changed = true;
+        }
+    }
+  }
+  return hidden_nodes;
+}
+
+function hideResourcesOfHiddenNodes(hidden_nodes, preserve_visible)
+{
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+    if (node.type != 'resource') continue;
+    if (preserve_visible && preserve_visible[node.id]) continue;
+    var all_ops_hidden = true;
+    var has_any_op = false;
+    for (var j = 0; j < links.length; j++) {
+      if (links[j].type != 'load') continue;
+      if (links[j].target.id != node.id) continue;
+      has_any_op = true;
+      if (!hidden_nodes[links[j].source.id]) {
+        all_ops_hidden = false;
+        break;
+      }
+    }
+    if (has_any_op && all_ops_hidden)
+      hidden_nodes[node.id] = true;
+  }
+  return hidden_nodes;
+}
+
+function hideOperationsWithAllBuffersHidden(hidden_nodes, preserve_visible)
+{
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (hidden_nodes[node.id]) continue;
+      if (preserve_visible && preserve_visible[node.id]) continue;
+      if (!isOperationNode(node)) continue;
+      var has_any_buffer = false;
+      var all_buffers_hidden = true;
+      for (var j = 0; j < links.length; j++) {
+        if (links[j].type != 'flow') continue;
+        var buf = null;
+        if (links[j].source.id == node.id && links[j].target.type == 'buffer')
+          buf = links[j].target;
+        else if (links[j].target.id == node.id && links[j].source.type == 'buffer')
+          buf = links[j].source;
+        if (!buf) continue;
+        has_any_buffer = true;
+        if (!hidden_nodes[buf.id]) {
+          all_buffers_hidden = false;
+          break;
+        }
+      }
+      if (has_any_buffer && all_buffers_hidden) {
+        hidden_nodes[node.id] = true;
+        changed = true;
+      }
+    }
+  }
+  return hidden_nodes;
+}
+
+function markSeedResourcesPreserved(seed_ids, preserve_visible)
+{
+  for (var j = 0; j < links.length; j++) {
+    if (links[j].type != 'load') continue;
+    if (links[j].target.type != 'resource') continue;
+
+    var srcid = links[j].source.id;
+    var srcnode = links[j].source;
+    if (seed_ids[srcid] || (srcnode.parent >= 0 && seed_ids[srcnode.parent]))
+      preserve_visible[links[j].target.id] = true;
+  }
+}
+
+function markSeedProducedBuffersPreserved(seed_ids, preserve_visible)
+{
+  for (var j = 0; j < links.length; j++) {
+    if (links[j].type != 'flow') continue;
+    if (links[j].target.type != 'buffer') continue;
+
+    var srcid = links[j].source.id;
+    var srcnode = links[j].source;
+    if (seed_ids[srcid] || (srcnode.parent >= 0 && seed_ids[srcnode.parent]))
+      preserve_visible[links[j].target.id] = true;
+  }
+}
+
+function hideSeedProducedBuffers(seed_ids, hidden_nodes)
+{
+  for (var j = 0; j < links.length; j++) {
+    if (links[j].type != 'flow') continue;
+    if (links[j].target.type != 'buffer') continue;
+
+    var srcid = links[j].source.id;
+    var srcnode = links[j].source;
+    if (seed_ids[srcid] || (srcnode.parent >= 0 && seed_ids[srcnode.parent]))
+      hidden_nodes[links[j].target.id] = true;
+  }
+}
+
+function hideBuffersOfHiddenProducers(hidden_nodes, preserve_visible)
+{
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+    if (node.type != 'buffer') continue;
+    if (preserve_visible[node.id]) continue;
+
+    var has_any_producer = false;
+    var all_producers_hidden = true;
+    for (var j = 0; j < links.length; j++) {
+      if (links[j].type != 'flow') continue;
+      if (links[j].target.id != node.id) continue;
+      if (!isOperationNode(links[j].source)) continue;
+
+      has_any_producer = true;
+      if (!hidden_nodes[links[j].source.id]) {
+        all_producers_hidden = false;
+        break;
+      }
+    }
+
+    if (has_any_producer && all_producers_hidden)
+      hidden_nodes[node.id] = true;
+  }
+  return hidden_nodes;
+}
+
+function applyVisibilityFilters()
+{
+  for (var i = 0; i < nodes.length; i++)
+    visible_nodes[nodes[i].id] = true;
+
+  var preserve_visible = {};
+  var effective_upstream = null;
+  var effective_downstream = null;
+
+  for (var collapsed_level_up in collapsed_upstream)
+    if (collapsed_upstream[collapsed_level_up]) {
+      var up_level = parseFloat(collapsed_level_up);
+      if (effective_upstream === null || up_level < effective_upstream)
+        effective_upstream = up_level;
+    }
+
+  for (var collapsed_level_down in collapsed_downstream)
+    if (collapsed_downstream[collapsed_level_down]) {
+      var down_level = parseFloat(collapsed_level_down);
+      if (effective_downstream === null || down_level > effective_downstream)
+        effective_downstream = down_level;
+    }
+
+  if (effective_upstream !== null) {
+      var hidden_upstream = {};
+      var upstream_seeds = getLevelSeedIds(effective_upstream);
+      // Preserve all nodes at the button's own level
+      for (var seed in upstream_seeds)
+        preserve_visible[seed] = true;
+      // Only hide nodes strictly upstream of the button's level
+      for (var seed in upstream_seeds) {
+        var seed_hidden_upstream = collectReachable(parseInt(seed), true);
+        for (var nodeid in seed_hidden_upstream)
+          if (!upstream_seeds[nodeid])
+            hidden_upstream[nodeid] = true;
+      }
+      hidden_upstream = expandHiddenWithRoutingFamilies(hidden_upstream, true);
+      hidden_upstream = hideBuffersOfHiddenProducers(hidden_upstream, preserve_visible);
+      hidden_upstream = hideOperationsWithAllBuffersHidden(hidden_upstream, preserve_visible);
+      hidden_upstream = hideResourcesOfHiddenNodes(hidden_upstream, preserve_visible);
+      for (var nodeid in hidden_upstream)
+        if (!preserve_visible[nodeid]) visible_nodes[nodeid] = false;
+    }
+
+  if (effective_downstream !== null) {
+      var hidden_downstream = {};
+      var downstream_seeds = getLevelSeedIds(effective_downstream);
+      var preserve_upstream_path = {};
+      // Preserve all nodes at the button's own level
+      for (var seed2 in downstream_seeds) {
+        preserve_visible[seed2] = true;
+        var seed_upstream_path = collectReachable(parseInt(seed2), true);
+        for (var upstreamid in seed_upstream_path)
+          preserve_upstream_path[upstreamid] = true;
+      }
+      // Only hide nodes strictly downstream of the button's level
+      for (var seed2 in downstream_seeds) {
+        var seed_hidden_downstream = collectReachable(parseInt(seed2), false);
+        for (var nodeid2 in seed_hidden_downstream)
+          if (!downstream_seeds[nodeid2])
+            hidden_downstream[nodeid2] = true;
+      }
+      hidden_downstream = expandHiddenWithRoutingFamilies(hidden_downstream, false);
+      hidden_downstream = hideHiddenOperationUpstreams(hidden_downstream, preserve_upstream_path);
+      hidden_downstream = hideHiddenRoutingUpstreamBuffers(hidden_downstream, preserve_upstream_path);
+      hidden_downstream = hideBuffersOfHiddenProducers(hidden_downstream, preserve_visible);
+      hidden_downstream = hideOperationsWithAllBuffersHidden(hidden_downstream, preserve_visible);
+      hidden_downstream = hideResourcesOfHiddenNodes(hidden_downstream, preserve_visible);
+      for (var nodeid2 in hidden_downstream)
+        if (!preserve_visible[nodeid2]) visible_nodes[nodeid2] = false;
+    }
+
+  if (shapes)
+    shapes.style('display', function(d) {
+      return visible_nodes[d.id] ? null : 'none';
+    });
+
+  if (path)
+    path.style('display', function(d) {
+      return (visible_nodes[d.source.id] && visible_nodes[d.target.id]) ? null : 'none';
+    });
+
+  if (level_controls) {
+    level_controls.style('display', function(d) {
+      for (var lvl in collapsed_upstream)
+        if (collapsed_upstream[lvl] && d.level > parseFloat(lvl)) return 'none';
+      for (var lvl2 in collapsed_downstream)
+        if (collapsed_downstream[lvl2] && d.level < parseFloat(lvl2)) return 'none';
+      return null;
+    });
+    level_controls.select('line.level-upstream-vertical')
+      .style('display', function(d) {
+        return d.show_upstream && !collapsed_upstream[d.level] ? null : 'none';
+      });
+    level_controls.select('line.level-downstream-vertical')
+      .style('display', function(d) {
+        return d.show_downstream && !collapsed_downstream[d.level] ? null : 'none';
+      });
+  }
+
+  updateLevelControlPositions();
+}
+
+function toggleCollapsedLevel(level, direction)
+{
+  var collapsed_set = direction == 'upstream' ? collapsed_upstream : collapsed_downstream;
+  if (collapsed_set[level])
+    delete collapsed_set[level];
+  else {
+    for (var existing_level in collapsed_set)
+      if (collapsed_set[existing_level])
+        delete collapsed_set[existing_level];
+    collapsed_set[level] = true;
+  }
+  applyVisibilityFilters();
+}
+
+function clickedLevelCollapseControl(d, direction)
+{
+  d3.event.stopPropagation();
+  toggleCollapsedLevel(d.level, direction);
+}
+
+function isNonClickableOperationType(type)
+{
+  return ['purchase', 'itemsupplier', 'itemdistribution', 'itemdistribution_alternate'].includes(type);
+}
+
+function clickedShaped(d)
+{
+  return;
+}
+
+
+function nodeTransform(d) {
+  if (d.parent >= 0 && d.suboperindex >= 0) {
+    // Suboperation of a routing — compute desired width (no scale transform)
+    var parentnode = nodes[d.parent];
+    var parentw = parentnode && parentnode.halfW ? (2 * parentnode.halfW) : 105;
+    var cols = parentnode && parentnode.colnb > 0 ? parentnode.colnb : 1;
+    var subops = parentnode && parentnode.numsuboperations > 0 ? parentnode.numsuboperations : 1;
+    var subop_margin = 8;
+    var pill_margin = 4;
+    var slot_w;
+    if (d.rownb > 0) {
+      slot_w = (parentw - 2 * subop_margin) / cols;
+    } else {
+      slot_w = (parentw - 2 * subop_margin) / subops;
+    }
+    d._subopW = slot_w - 2 * pill_margin;
+  }
+  return 'translate(' + d.x + ' ' + d.y + ')';
+}
+
+function resizeSubopRects() {
+  if (!shapes) return;
+  shapes.each(function(d) {
+    if (d.parent >= 0 && d.suboperindex >= 0 && d._subopW) {
+      var rect = d3.select(this).select('rect.bg-rect');
+      if (!rect.empty()) {
+        rect.attr('width', d._subopW)
+            .attr('x', -d._subopW / 2)
+            .attr('rx', 13).attr('ry', 13);
+        d.halfW = d._subopW / 2;
+      }
+    }
+  });
+}
+
+function updateGraphGeometry()
+{
+  if (shapes)
+    shapes.attr('transform', nodeTransform);
+  resizeSubopRects();
+  drawPaths();
+  updateLevelControlPositions();
+  if (routing_label_overlay)
+    routing_label_overlay.selectAll('text.id')
+      .attr('x', function(d) { return d.x; })
+      .attr('y', function(d) { return d.y + 4; });
+}
+
+function updateLevelControlPositions()
+{
+  if (!level_controls)
+    return;
+
+  // Find the absolute topmost y of any node or its children (regardless of visibility)
+  var top_y = Infinity;
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+    var ny = node.y;
+    // For resources, account for their ellipse height
+    if (node.type === 'resource') {
+      ny = node.y - (node.halfH || 14);
+    }
+    // For routing/alternate/split parents, account for children above center
+    else if ((node.type === 'routing' || node.type === 'alternate' || node.type === 'split') && node.numsuboperations) {
+      if (node.type === 'alternate' || node.type === 'split')
+        ny = node.y - 13;  // badge is above center
+      else if (node.rownb > 0)
+        ny = node.y - 40;  // routing box top
+    }
+    if (ny < top_y)
+      top_y = ny;
+  }
+
+  if (!isFinite(top_y))
+    top_y = 60;
+
+  var controls_y = top_y - 40;
+  level_controls
+    .attr('transform', function(d) { return 'translate(' + d.x + ' ' + controls_y + ')'; });
+}
+
+// Update force layout (called automatically each iteration)
+function tick(e)
+{
+  var k = 2*e.alpha;
+  // Bring operations vertically closer to the center and
+  // horizontally close to the position linked to their level.
+  shapes.attr('transform', function(d, i) {
+    if (d.type == 'operation' || d.type == 'operation_alternate' || d.type == 'routing' || d.type == 'split' || d.type == 'alternate' || d.type == 'buffer')
+    {
+      if (d.parent >= 0)
+      {
+        if (d.suboperindex < 0)
+        {
+          // Suboperation of an alternate or split operation
+          d.x = nodes[d.parent].x;
+          d.y = nodes[d.parent].y + (d.suboperindex + nodes[d.parent].numsuboperations + 1) * 30 - 5;
+        }
+        else
+        {
+          // Suboperation of a routing
+          var parentnode = nodes[d.parent];
+          var parentw = parentnode && parentnode.halfW ? (2 * parentnode.halfW) : 105;
+          var halfparentw = parentw / 2;
+          var subop_margin = 8;
+          if (d.rownb > 0) {
+          	d.y = nodes[d.parent].y - 40 + subop_margin + (d.rownb-0.5) * (80 - 2*subop_margin) / nodes[d.parent].rownb;
+	          d.x = nodes[d.parent].x - halfparentw + subop_margin + (d.colnb-0.5) * (parentw - 2*subop_margin) / nodes[d.parent].colnb;
+    	  }
+    	  else {
+    	  	d.y = nodes[d.parent].y;
+	          d.x = nodes[d.parent].x - halfparentw + subop_margin + (d.suboperindex-0.5) * (parentw - 2*subop_margin) / nodes[d.parent].numsuboperations;
+    	 }
+        }
+      }
+      else
+      {
+        var target_x = width_level * (0.5 + maxlevel - d.level);
+        // Hard-pin all top-level nodes to their exact level column
+        d.x = target_x;
+        if (d.type != 'buffer')
+           d.y += (1000 - d.y) * k / 10;
+      }
+    }
+    else if (d.parent < 0)
+    {
+      // Hard-pin all top-level nodes to their exact level column (except resources)
+      if (d.type !== 'resource')
+        d.x = width_level * (0.5 + maxlevel - d.level);
+      d.y += (1000 - d.y) * k / 10;
+    }
+    if (d.parent >= 0 && d.suboperindex >= 0) {
+      // Suboperation of a routing — compute desired width (no scale transform)
+      var parentnode2 = nodes[d.parent];
+      var parentw2 = parentnode2 && parentnode2.halfW ? (2 * parentnode2.halfW) : 105;
+      var cols2 = parentnode2 && parentnode2.colnb > 0 ? parentnode2.colnb : 1;
+      var subops2 = parentnode2 && parentnode2.numsuboperations > 0 ? parentnode2.numsuboperations : 1;
+      var subop_margin2 = 8;
+      var pill_margin2 = 4;
+      var slot_w2;
+      if (d.rownb > 0) {
+        slot_w2 = (parentw2 - 2 * subop_margin2) / cols2;
+      } else {
+        slot_w2 = (parentw2 - 2 * subop_margin2) / subops2;
+      }
+      d._subopW = slot_w2 - 2 * pill_margin2;
+	}
+      return 'translate(' + d.x + ' ' + d.y + ')';
+    });
+
+  resizeSubopRects();
+
+  // Gradually increase the repulsive charges between objects to "-2000 * object size"
+  for (var i in e.charges)
+    if (e.charges[i]) e.charges[i] -= (2000 * (nodes[i].numsuboperations+1) + e.charges[i]) * 0.3;
+
+  // Draw paths
+  drawPaths();
+}
+
+function drawPaths() {
+  if (!path) return;
+
+  // Pre-compute per-operation load link indices so we can spread dashed lines.
+  // Group by source operation id: each load link gets an index and a count.
+  var loadByOp = {};
+  path.each(function(d) {
+    if (d.type !== 'load') return;
+    var opId = d.source.id;
+    if (!loadByOp[opId]) loadByOp[opId] = [];
+    loadByOp[opId].push(d);
+  });
+  for (var opId in loadByOp) {
+    var grp = loadByOp[opId];
+    // Sort by target resource y so the spread order is stable
+    grp.sort(function(a, b) { return a.target.y - b.target.y; });
+    for (var gi = 0; gi < grp.length; gi++) {
+      grp[gi]._loadIndex = gi;
+      grp[gi]._loadCount = grp.length;
+    }
+  }
+
+  path.attr('d', function(d) {
+    var sx = d.source.x;
+    var sy = d.source.y;
+    var tx = d.target.x;
+    var ty = d.target.y;
+
+    if (d.source.type == 'itemsupplier') {
+      var sdx = tx - sx;
+      var sdy = ty - sy;
+      var shw = d.source.halfW || 52;
+      var sscale = Math.max(Math.abs(sdx) / shw, Math.abs(sdy) / 13);
+      if (sscale > 0) { sx += sdx / sscale; sy += sdy / sscale; }
+    }
+    if (d.target.type == 'itemsupplier') {
+      var tdx = sx - tx;
+      var tdy = sy - ty;
+      var thw = d.target.halfW || 52;
+      var tscale2 = Math.max(Math.abs(tdx) / thw, Math.abs(tdy) / 13);
+      if (tscale2 > 0) { tx += tdx / tscale2; ty += tdy / tscale2; }
+    }
+    if (d.source.type == 'itemdistribution' || d.source.type == 'itemdistribution_alternate') {
+      var dsx = tx - sx;
+      var dsy = ty - sy;
+      var dshw = d.source.halfW || 52;
+      var dscale = Math.max(Math.abs(dsx) / dshw, Math.abs(dsy) / 13);
+      if (dscale > 0) { sx += dsx / dscale; sy += dsy / dscale; }
+    }
+    if (d.target.type == 'itemdistribution' || d.target.type == 'itemdistribution_alternate') {
+      var dtx = sx - tx;
+      var dty = sy - ty;
+      var dthw = d.target.halfW || 52;
+      var tscale = Math.max(Math.abs(dtx) / dthw, Math.abs(dty) / 13);
+      if (tscale > 0) { tx += dtx / tscale; ty += dty / tscale; }
+    }
+    // Also handle operations and routings with dynamic width
+    var pillTypesPath = ['operation','operation_alternate','routing','alternate','split'];
+    if (pillTypesPath.indexOf(d.source.type) >= 0 && d.source.halfW) {
+      var osdx = tx - sx, osdy = ty - sy;
+      var oscale = Math.max(Math.abs(osdx) / d.source.halfW, Math.abs(osdy) / 13);
+      if (oscale > 0) { sx += osdx / oscale; sy += osdy / oscale; }
+    }
+    if (pillTypesPath.indexOf(d.target.type) >= 0 && d.target.halfW) {
+      var otdx = sx - tx, otdy = sy - ty;
+      var otscale = Math.max(Math.abs(otdx) / d.target.halfW, Math.abs(otdy) / 13);
+      if (otscale > 0) { tx += otdx / otscale; ty += otdy / otscale; }
+    }
+    if (d.source.type == 'resource') {
+      var rsdx = tx - sx;
+      var rsdy = ty - sy;
+      var rshw = d.source.halfW || 22;
+      var rshh = d.source.halfH || 14;
+      var rsscale = Math.max(Math.abs(rsdx) / rshw, Math.abs(rsdy) / rshh);
+      if (rsscale > 0) { sx += rsdx / rsscale; sy += rsdy / rsscale; }
+    }
+    if (d.target.type == 'resource') {
+      var rtdx = sx - tx;
+      var rtdy = sy - ty;
+      var rthw = d.target.halfW || 22;
+      var rthh = d.target.halfH || 14;
+      var rtscale = Math.max(Math.abs(rtdx) / rthw, Math.abs(rtdy) / rthh);
+      if (rtscale > 0) { tx += rtdx / rtscale; ty += rtdy / rtscale; }
+    }
+
+    var mx = (sx + tx) / 2;
+    var my = (sy + ty) / 2;
+
+    // For load links sharing a source operation, spread control points vertically
+    // so the dashed lines fan out and don't overlap each other.
+    if (d.type === 'load' && d._loadCount > 1) {
+      var spreadTotal = 12 * (d._loadCount - 1);
+      var offset = -spreadTotal / 2 + d._loadIndex * 12;
+      my += offset;
+    }
+
+    var cp1x = (sx + mx) / 2;
+    var cp1y = my;
+    var cp2x = (mx + tx) / 2;
+    var cp2y = my;
+    return 'M' + sx + ',' + sy
+       + 'C' + cp1x + ',' + cp1y + ' ' + cp1x + ',' + cp1y + ' ' + mx + ',' + my
+       + 'C' + cp2x + ',' + cp2y + ' ' + cp2x + ',' + cp2y + ' ' + tx + ',' + ty;
+  });
+}
+
+function drawGraph(jsondata)
+{
+  if ($("#svggraph").children().length > 1)
+  	// It has already been drawn!
+  	return;
+
+  var count = -1;
+  var itemsuppliers_by_buffer = {};
+  var realdepth_levels = {};
+  for (var oper in jsondata['rows'])
+  {
+    // Don't add the same operation twice
+    if (
+      jsondata['rows'][oper]['operation'] in operations
+      && jsondata['rows'][oper]['type'] != 'purchase'
+    ) continue;
+
+    // Keep track of the levels
+    var level = parseInt(jsondata['rows'][oper]['realdepth']);
+    realdepth_levels[level] = true;
+    if (level < minlevel) minlevel = level;
+    if (level > maxlevel) maxlevel = level;
+
+    // Add the operation node
+    var parentoper = -1;
+    if ('parentoper' in jsondata['rows'][oper])
+      parentoper = operations[jsondata['rows'][oper]['parentoper']];
+    var nodetype = 'operation';
+    if (jsondata['rows'][oper]['alternate'] == 'true')
+    	nodetype = 'operation_alternate';
+    if (jsondata['rows'][oper]['type'] == 'alternate'
+      || jsondata['rows'][oper]['type'] == 'routing'
+      || jsondata['rows'][oper]['type'] == 'split')
+      nodetype = jsondata['rows'][oper]['type'];
+    else if (jsondata['rows'][oper]['type'] == 'purchase') {
+    	nodetype = 'itemsupplier';
+    }
+    else if (jsondata['rows'][oper]['type'] == 'distribution') {
+    	if (jsondata['rows'][oper]['alternate'] == 'true')
+            nodetype = 'itemdistribution_alternate';
+      	else
+      	  nodetype = 'itemdistribution';
+    }
+    var numsuboperations = 0;
+    if ('numsuboperations' in jsondata['rows'][oper])
+      numsuboperations = Math.abs(parseInt(jsondata['rows'][oper]['numsuboperations']));
+    var supplier_buffer_key = null;
+    var operindex = -1;
+    if (nodetype == 'itemsupplier') {
+      var supplier_buffers = [];
+      for (var b in jsondata['rows'][oper]['buffers'])
+        supplier_buffers.push(jsondata['rows'][oper]['buffers'][b][0]);
+      supplier_buffers.sort();
+      supplier_buffer_key = supplier_buffers.join('|');
+      if (supplier_buffer_key && supplier_buffer_key in itemsuppliers_by_buffer)
+        operindex = itemsuppliers_by_buffer[supplier_buffer_key];
+    }
+    if (operindex < 0) {
+      count ++;
+      operindex = nodes.push({
+         id: count,
+         level: level,
+         name: jsondata['rows'][oper]['operation'],
+         item: jsondata['rows'][oper]['item'] || jsondata['rows'][oper]['operation'],
+         tooltip: [(jsondata['rows'][oper]['type'] == "purchase")? jsondata['rows'][oper]['operation'].replace(" from ", " from:\n") + " (" + jsondata['rows'][oper]['priority'] + ")" : jsondata['rows'][oper]['operation']],
+         weight:1,
+         type: nodetype,
+         parent: parentoper,
+         suboperindex: parseInt(jsondata['rows'][oper]['suboperation']),
+         numsuboperations: numsuboperations,
+         y: 1000 + count,
+         charge: parentoper>-1 ? 0 : -200,
+         rownb: parseInt(jsondata['rows'][oper]['rownb']),
+         colnb: parseInt(jsondata['rows'][oper]['colnb']),
+         }) - 1;
+      if (supplier_buffer_key)
+        itemsuppliers_by_buffer[supplier_buffer_key] = operindex;
+    }
+    else if (nodetype == 'itemsupplier') {
+      var purchase_parts = jsondata['rows'][oper]['operation'].split(" from ");
+      var merged_tooltip = (purchase_parts.length > 1 ? purchase_parts[1] : jsondata['rows'][oper]['operation'])
+        + " (" + jsondata['rows'][oper]['priority'] + ")";
+      if (nodes[operindex].tooltip.indexOf(merged_tooltip) < 0)
+        nodes[operindex].tooltip.push(merged_tooltip);
+    }
+    operations[jsondata['rows'][oper]['operation']] = nodes[operindex].id;
+
+    // Check if a blocking/blockedby operation exists
+
+    if (jsondata['rows'][oper]['blockedby'] != null)
+      for (var i = 0; i < jsondata['rows'][oper]['blockedby'].length; i++) {
+          if (jsondata['rows'][oper]['blockedby'][i][0] in operations) {
+            links.push({source: nodes[operations[jsondata['rows'][oper]['blockedby'][i][0]]], target: nodes[operindex], type: 'depends'});
+          }
+      }
+    if (jsondata['rows'][oper]['blocking'] != null)
+    for (var i = 0; i < jsondata['rows'][oper]['blocking'].length; i++) {
+        if (jsondata['rows'][oper]['blocking'][i][0] in operations) {
+          links.push({source: nodes[operindex], target: nodes[operations[jsondata['rows'][oper]['blocking'][i][0]]], type: 'depends'});
+        }
+    }
+
+
+
+    // Add nodes for the resources and load links
+    for (var res in jsondata['rows'][oper]['resources'])
+    {
+      if (jsondata['rows'][oper]['resources'][res][0] in resources)
+        links.push({source: nodes[operindex], target: nodes[resources[jsondata['rows'][oper]['resources'][res][0]]], type: 'load'});
+      else
+      {
+        count ++;
+        var resindx = nodes.push({
+          id: count,
+          level: level,
+          name: jsondata['rows'][oper]['resources'][res][0],
+          weight:1,
+          type: 'resource',
+          numsuboperations: 0,
+          y: 950 + count,
+          charge: -200
+          }) - 1;
+        resources[jsondata['rows'][oper]['resources'][res][0]] = resindx;
+        links.push({source: nodes[operindex], target: nodes[resindx], type: 'load'});
+      }
+    }
+
+    // Add nodes for the buffers and flow links
+    for (var buf in jsondata['rows'][oper]['buffers'])
+    {
+      var producer = jsondata['rows'][oper]['buffers'][buf][1] > 0;
+      var buflevel = producer ? level - 0.5 : level + 0.5;
+      if (buflevel < minlevel) minlevel = buflevel;
+      if (buflevel > maxlevel) maxlevel = buflevel;
+      if (jsondata['rows'][oper]['buffers'][buf][0] in buffers)
+      {
+        if (nodes[buffers[jsondata['rows'][oper]['buffers'][buf][0]]]['level'] < buflevel)
+          nodes[buffers[jsondata['rows'][oper]['buffers'][buf][0]]]['level'] = buflevel;
+        if (producer)
+          links.push({source: nodes[operindex], target: nodes[buffers[jsondata['rows'][oper]['buffers'][buf][0]]], type: 'flow'});
+        else
+          links.push({source: nodes[buffers[jsondata['rows'][oper]['buffers'][buf][0]]], target: nodes[operindex], type: 'flow'});
+      }
+      else
+      {
+        count ++;
+        var bufindx = nodes.push({
+          id: count,
+          level: buflevel,
+          name: jsondata['rows'][oper]['buffers'][buf][0],
+          weight:1,
+          type: 'buffer',
+          numsuboperations: 0,
+          y: 1050,
+          charge: -200
+          }) - 1;
+        buffers[jsondata['rows'][oper]['buffers'][buf][0]] = bufindx;
+        if (producer)
+          links.push({source: nodes[operindex], target: nodes[bufindx], type: 'flow'});
+        else
+          links.push({source: nodes[bufindx], target: nodes[operindex], type: 'flow'});
+      }
+    }
+  }
+
+  // Post-processing: ensure all arrows point left-to-right (source.level > target.level).
+  // Higher level = further left on screen. We iteratively bump source levels until no
+  // right-to-left arrows remain. For sub-operations, we adjust the parent instead since
+  // the child's visual position is derived from its parent.
+  var levelChanged = true;
+  var maxRelaxIter = 50;
+  while (levelChanged && maxRelaxIter-- > 0) {
+    levelChanged = false;
+    for (var li5 = 0; li5 < links.length; li5++) {
+      var lnk5 = links[li5];
+      if (lnk5.type !== 'flow' && lnk5.type !== 'depends') continue;
+
+      var src = lnk5.source;
+      var tgt = lnk5.target;
+
+      // Effective visual level: for sub-operations use parent level if higher
+      var srcLevel = src.level;
+      if (src.parent >= 0 && nodes[src.parent])
+        srcLevel = Math.max(srcLevel, nodes[src.parent].level);
+      var tgtLevel = tgt.level;
+      if (tgt.parent >= 0 && nodes[tgt.parent])
+        tgtLevel = Math.max(tgtLevel, nodes[tgt.parent].level);
+
+      if (srcLevel > tgtLevel) continue; // already left-to-right
+
+      // Minimum gap: 0.5 when one side is a buffer, 1 between two operations
+      var gap = (src.type === 'buffer' || tgt.type === 'buffer') ? 0.5 : 1;
+      var requiredLevel = tgtLevel + gap;
+
+      // Determine which node to actually bump (parent for sub-operations)
+      var nodeToFix = src;
+      if (src.parent >= 0 && nodes[src.parent])
+        nodeToFix = nodes[src.parent];
+
+      if (nodeToFix.level < requiredLevel) {
+        nodeToFix.level = requiredLevel;
+        if (requiredLevel > maxlevel) maxlevel = requiredLevel;
+        levelChanged = true;
+      }
+    }
+  }
+
+  // Compact levels: after relaxation, level numbers may have large gaps
+  // (e.g. 0, 0.5, 1, 1.5, 8, 8.5, 10, 10.5). Remap to a dense sequence
+  // (0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5) so unused levels don't waste space.
+  var uniqueLevels = {};
+  for (var ci2 = 0; ci2 < nodes.length; ci2++)
+    uniqueLevels[nodes[ci2].level] = true;
+  var sortedLevels = [];
+  for (var ul in uniqueLevels)
+    sortedLevels.push(parseFloat(ul));
+  sortedLevels.sort(function(a, b) { return a - b; });
+  var levelMap = {};
+  for (var li6 = 0; li6 < sortedLevels.length; li6++)
+    levelMap[sortedLevels[li6]] = li6 * 0.5;
+  for (var ci3 = 0; ci3 < nodes.length; ci3++)
+    nodes[ci3].level = levelMap[nodes[ci3].level];
+  // Remap the collapse-control level set to match compacted levels
+  var remapped_realdepth = {};
+  for (var rdl in realdepth_levels) {
+    var orig = parseFloat(rdl);
+    if (levelMap[orig] !== undefined)
+      remapped_realdepth[levelMap[orig]] = true;
+  }
+  realdepth_levels = remapped_realdepth;
+  minlevel = sortedLevels.length > 0 ? 0 : minlevel;
+  maxlevel = sortedLevels.length > 0 ? (sortedLevels.length - 1) * 0.5 : maxlevel;
+
+  // Compute the initial horizontal position
+  width = $("#graph").width();
+  width_level = width / (maxlevel - minlevel + 1);
+  if (width_level < 500) width_level = 500;
+  for (var i in nodes)
+    nodes[i].x = width_level * (0.5 + maxlevel - nodes[i].level);
+
+  // Initialize D3 force layout
+  var svg = d3.select('#svggraph')
+    .attr('width', width)
+    .attr('height', 2000)
+    .attr('viewBox','0 0 ' + width + ' 400')
+    .call(d3.behavior.zoom().on("zoom", function() {
+        var ev = d3.event;
+        $("#svggraph > g").attr("transform", "translate(" + ev.translate + ") scale(" + ev.scale + ")");
+      }))
+    .on('dblclick.zoom', null);
+
+  $("#graph").scrollTop(0);
+  force = d3.layout.force()
+    .nodes(nodes)
+    .links(links)
+    .size([width, $("#svggraph").height()])
+    .gravity(0)   // Gravity would pull objects towards the center
+    .charge( function(d,i) { return d.charge; } )
+    .linkStrength( function(d,i) {
+      return (d.type == 'load') ? 0.5 : 1;
+      })
+    .on('tick', tick)
+    .stop();
+
+  // Handles to link and node element groups
+  path = svg.append('svg:g').selectAll('path');
+  shapes = svg.append('svg:g').selectAll('g');
+
+  // Path (link) group
+  path = path.data(links);
+  path.enter().append('svg:path')
+    .attr('class', function(d) { return d.type; });
+  path.exit().remove();
+
+  // Shapes (node) group
+  // NB: the function arg is crucial here! nodes are known by id, not by index!
+  shapes = shapes.data(nodes, function(d) { return d.id; });
+
+  // Add new nodes
+  var g = shapes.enter().append('svg:g')
+    .attr('class', function(d) { return 'node-' + d.type; })
+    .on('click', function(d) {
+      if (d3.event.defaultPrevented) return;
+      clickedShaped(d);
+    });
+
+  var nodeDrag = d3.behavior.drag()
+    .on('dragstart', function(d) {
+      if (d.parent >= 0) return;
+      d3.event.sourceEvent.stopPropagation();
+    })
+    .on('drag', function(d) {
+      if (d.parent >= 0) return;
+      d.x += d3.event.dx;
+      d.y += d3.event.dy;
+      // Move child suboperations with the parent
+      var parentw = d.halfW ? (2 * d.halfW) : 105;
+      var halfparentw = parentw / 2;
+      for (var ci = 0; ci < nodes.length; ci++) {
+        var child = nodes[ci];
+        if (child.parent !== d.id) continue;
+        if (child.suboperindex >= 0) {
+          // Suboperation of a routing
+          var subop_margin = 8;
+          if (child.rownb > 0) {
+            child.y = d.y - 40 + subop_margin + (child.rownb - 0.5) * (80 - 2*subop_margin) / d.rownb;
+            child.x = d.x - halfparentw + subop_margin + (child.colnb - 0.5) * (parentw - 2*subop_margin) / d.colnb;
+          } else {
+            child.y = d.y;
+            child.x = d.x - halfparentw + subop_margin + (child.suboperindex - 0.5) * (parentw - 2*subop_margin) / d.numsuboperations;
+          }
+        } else {
+          // Suboperation of alternate/split
+          child.x = d.x;
+          child.y = d.y + (child.suboperindex + d.numsuboperations + 1) * 30 - 5;
+        }
+      }
+      updateGraphGeometry();
+    });
+
+  g.call(nodeDrag);
+
+  // Pill-shaped nodes get a direct <rect> so we can resize it to fit the label.
+  // Buffer keeps <use>; resource gets a dedicated ellipse sized to its label.
+  var pillTypes = ['operation','operation_alternate','routing','alternate','split',
+                   'itemsupplier','itemdistribution','itemdistribution_alternate'];
+
+  // For pill nodes: append background rect + any icon overlay via <use>
+  g.filter(function(d) { return pillTypes.indexOf(d.type) >= 0; })
+   .append('svg:rect')
+   .attr('class', function(d) { return 'bg-rect ' + d.type; })
+   .attr('rx', 13).attr('ry', 13)
+   .attr('height', 26)
+   .attr('width', 104)          // default; will be resized after text measurement
+   .attr('x', -52).attr('y', -13)
+  .style('cursor', 'default')
+   .style('fill', function(d) {
+      if (d.type === 'operation') return '#2563eb';
+      if (d.type === 'operation_alternate') return '#60a5fa';
+      if (d.type === 'itemsupplier') return '#0d9488';
+      if (d.type === 'itemdistribution') return '#0ea5e9';
+      if (d.type === 'itemdistribution_alternate') return '#06b6d4';
+    if (d.type === 'routing') return '#93c5fd';
+      if (d.type === 'alternate' || d.type === 'split') return '#0f172a';
+      return '#2563eb';
+   })
+   .style('stroke', function(d) {
+      if (d.type === 'routing') return '#64748b';
+      if (d.type === 'alternate' || d.type === 'split') return '#475569';
+      return 'none';
+   })
+   .style('stroke-width', function(d) {
+      return (d.type === 'routing' || d.type === 'alternate' || d.type === 'split') ? '1.5' : '0';
+   })
+   .style('filter', 'url(#dropshadow)')
+   .style('opacity', function(d) { return (d.suboperindex > 0) ? 0.75 : 1; });
+
+  // For pill nodes that have icons (itemsupplier, itemdistribution*): overlay the icon via <use>
+  g.filter(function(d) {
+      return d.type === 'itemsupplier' || d.type === 'itemdistribution' || d.type === 'itemdistribution_alternate';
+    })
+   .append('svg:use')
+   .attr('xlink:href', function(d) { return '#icon-' + d.type; })
+   .style('pointer-events', 'none');
+
+  // Buffer keeps original icon-only <use>
+  g.filter(function(d) { return d.type === 'buffer'; })
+   .append("svg:use")
+   .attr("xlink:href", function(d) { return "#" + d.type; })
+   .style("opacity", function(d) { return (d.suboperindex > 0) ? 0.75 : 1; })
+   .attr("transform", function(d) {
+      if (d.numsuboperations)
+      {
+        if (d.type == 'alternate' || d.type == 'split')
+          return "scale(1,"+ (2+d.numsuboperations) +")";
+        else
+          if (d.rownb > 0)
+            return "translate(0 -8) scale(1,"+ (1+d.rownb) +")";
+          else
+            return "scale(1,1.4)";
+      }
+      else
+        return '';
+      });
+
+  // Resource nodes use a dedicated oval that we resize to fit the label.
+  g.filter(function(d) { return d.type === 'resource'; })
+   .append('svg:ellipse')
+   .attr('class', 'bg-ellipse resource')
+   .attr('cx', 0)
+   .attr('cy', 0)
+   .attr('rx', 22)
+   .attr('ry', 14)
+   .style('cursor', 'default')
+   .style('fill', '#f97316')
+   .style('filter', 'url(#glowfilter)')
+   .style('opacity', function(d) { return (d.suboperindex > 0) ? 0.75 : 1; });
+
+  // Routing/alternate/split pill nodes also need the scaling transform on their rect
+  g.filter(function(d) {
+      return (d.type === 'routing' || d.type === 'alternate' || d.type === 'split') && d.numsuboperations;
+    })
+   .select('rect.bg-rect')
+   .attr('transform', function(d) {
+      if (d.type === 'alternate' || d.type === 'split')
+        return "scale(1,"+ (2+d.numsuboperations) +")";
+      if (d.rownb > 0)
+        return "translate(0 -8) scale(1,"+ (1+d.rownb) +")";
+      return "scale(1,1.4)";
+   });
+
+  var level_list = [];
+  for (var lvl in realdepth_levels)
+    level_list.push(parseFloat(lvl));
+  level_list.sort(function(a, b) { return a - b; });
+
+  var level_controls_data = [];
+  for (var li = 0; li < level_list.length; li++)
+    level_controls_data.push({
+      level: level_list[li],
+      x: width_level * (0.5 + maxlevel - level_list[li]),
+      y: 900,
+      show_upstream: li < level_list.length - 1,
+      show_downstream: li > 0
+    });
+
+  level_controls = svg.append('svg:g').selectAll('g.level-control')
+    .data(level_controls_data)
+    .enter()
+    .append('svg:g')
+    .attr('class', 'level-control')
+    .attr('transform', function(d) { return 'translate(' + d.x + ' ' + d.y + ')'; });
+
+  level_controls.append('svg:circle')
+    .attr('class', 'collapse-control level-upstream')
+    .attr('cx', -12)
+    .attr('cy', 0)
+    .attr('r', 9)
+    .style('display', function(d) { return d.show_upstream ? null : 'none'; })
+    .style('fill', '#f1f5f9')
+    .style('stroke', '#94a3b8')
+    .style('stroke-width', '1.5')
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'upstream'); })
+    .append('svg:title')
+    .text(function(d) { return 'Collapse/expand upstream for level ' + d.level; });
+
+  level_controls.append('svg:line')
+    .attr('class', 'collapse-control collapse-control-icon level-upstream-horizontal')
+    .attr('x1', -16)
+    .attr('y1', 0)
+    .attr('x2', -8)
+    .attr('y2', 0)
+    .style('display', function(d) { return d.show_upstream ? null : 'none'; })
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'upstream'); });
+
+  level_controls.append('svg:line')
+    .attr('class', 'collapse-control collapse-control-icon level-upstream-vertical')
+    .attr('x1', -12)
+    .attr('y1', -4)
+    .attr('x2', -12)
+    .attr('y2', 4)
+    .style('display', function(d) { return d.show_upstream ? null : 'none'; })
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'upstream'); });
+
+  level_controls.append('svg:circle')
+    .attr('class', 'collapse-control level-downstream')
+    .attr('cx', 12)
+    .attr('cy', 0)
+    .attr('r', 9)
+    .style('display', function(d) { return d.show_downstream ? null : 'none'; })
+    .style('fill', '#f1f5f9')
+    .style('stroke', '#94a3b8')
+    .style('stroke-width', '1.5')
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'downstream'); })
+    .append('svg:title')
+    .text(function(d) { return 'Collapse/expand downstream for level ' + d.level; });
+
+  level_controls.append('svg:line')
+    .attr('class', 'collapse-control collapse-control-icon level-downstream-horizontal')
+    .attr('x1', 8)
+    .attr('y1', 0)
+    .attr('x2', 16)
+    .attr('y2', 0)
+    .style('display', function(d) { return d.show_downstream ? null : 'none'; })
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'downstream'); });
+
+  level_controls.append('svg:line')
+    .attr('class', 'collapse-control collapse-control-icon level-downstream-vertical')
+    .attr('x1', 12)
+    .attr('y1', -4)
+    .attr('x2', 12)
+    .attr('y2', 4)
+    .style('display', function(d) { return d.show_downstream ? null : 'none'; })
+    .on('click', function(d) { clickedLevelCollapseControl(d, 'downstream'); });
+    //.call(force.drag);
+
+  updateLevelControlPositions();
+
+  // Show node IDs — appended inside each node's <g> as original
+  // Buffers are excluded: they show their name on hover via <title> instead
+  // itemsupplier/itemdistribution handled separately below
+  g.filter( function(d, i) {
+      return ((d.type != 'operation' && d.type != 'operation_alternate') || d.suboperindex <= 0)
+        && d.type != 'itemsupplier'
+        && d.type != 'itemdistribution'
+        && d.type != 'itemdistribution_alternate'
+        && d.type != 'buffer';
+    } )
+   .append('svg:text')
+   .attr('x', 0)
+   .attr('y', 4)
+   .attr('class', 'id')
+  .attr('fill', '#ffffff')
+  .style('fill', '#ffffff')
+   .text(function(d) { return d.name; });
+
+  // itemsupplier label: item name centered in the right portion of the pill (after the cart icon)
+  g.filter(function(d) { return d.type === 'itemsupplier'; })
+   .append('svg:text')
+   .attr('x', 12)
+   .attr('y', 4)
+   .attr('class', 'id')
+  .attr('fill', '#ffffff')
+  .style('fill', '#ffffff')
+   .text(function(d) { return d.item; });
+
+  // itemdistribution label: item name in the right portion of the pill (after the truck icon)
+  g.filter(function(d) { return d.type === 'itemdistribution' || d.type === 'itemdistribution_alternate'; })
+   .append('svg:text')
+   .attr('x', 12)
+   .attr('y', 4)
+   .attr('class', 'id')
+  .attr('fill', '#ffffff')
+  .style('fill', '#ffffff')
+   .text(function(d) { return d.item; });
+
+  // Add instant hover tooltip to all nodes (replaces slow native <title>)
+  g.on('mouseover', function(d) {
+      $('#buffer-tooltip').text(d.tooltip ? d.tooltip.join('\n') : d.name).show();
+    })
+    .on('mousemove', function() {
+      var tip = $('#buffer-tooltip');
+      var tipW = tip.outerWidth();
+      var tipH = tip.outerHeight();
+      var x = d3.event.clientX + 10;
+      var y = d3.event.clientY - 32;
+      if (x + tipW > window.innerWidth) x = d3.event.clientX - tipW - 10;
+      if (y + tipH > window.innerHeight) y = d3.event.clientY - tipH - 8;
+      if (y < 0) y = d3.event.clientY + 16;
+      tip.css({ top: y, left: x });
+    })
+    .on('mouseout', function() {
+      $('#buffer-tooltip').hide();
+    });
+
+  // Remove old nodes
+  shapes.exit().remove();
+
+  // Resize pill rects to fit their text labels.
+  // Must happen after text is in DOM so getBBox() works.
+  var iconWidth = 40;  // reserved left lane for icon + separator + gap
+  var hPad = 16;       // horizontal padding on each side (right side)
+  var minPillW = 60;   // minimum pill width
+  d3.selectAll('g[class^="node-"] rect.bg-rect').each(function(d) {
+    var nodeGroup = this.parentNode;
+    var textEl = d3.select(nodeGroup).select('text.id').node();
+    if (!textEl) return;
+    var hasIcon = (d.type === 'itemsupplier' || d.type === 'itemdistribution' || d.type === 'itemdistribution_alternate');
+    var textW;
+    try { textW = textEl.getBBox().width; } catch(e) { return; }
+    var leftPad = hasIcon ? iconWidth : hPad;
+    var totalW = Math.max(minPillW, leftPad + textW + hPad);
+    var halfW = totalW / 2;
+    d3.select(this).attr('width', totalW).attr('x', -halfW);
+    // Store halfW on node data for edge offset and collision detection
+    d.halfW = halfW;
+
+    // Keep cart/truck icon pinned near the left edge as pill width grows.
+    if (hasIcon) {
+      var iconUse = d3.select(nodeGroup).select('use');
+      if (!iconUse.empty())
+        iconUse.attr('transform', 'translate(' + (-halfW + 52) + ' 0)');
+    }
+
+    // Re-center text: for icon nodes offset right of icon, else centered
+    if (hasIcon)
+      d3.select(textEl).attr('x', -halfW + leftPad + textW / 2);
+    else
+      d3.select(textEl).attr('x', 0);
+  });
+
+  var resourceHpad = 18;
+  var resourceMinHalfW = 22;
+  var resourceHalfH = 14;
+  d3.selectAll('g.node-resource ellipse.bg-ellipse.resource').each(function(d) {
+    var nodeGroup = this.parentNode;
+    var textEl = d3.select(nodeGroup).select('text.id').node();
+    if (!textEl) return;
+    var textW;
+    try { textW = textEl.getBBox().width; } catch(e) { return; }
+    var halfW = Math.max(resourceMinHalfW, textW / 2 + resourceHpad);
+    d3.select(this).attr('rx', halfW).attr('ry', resourceHalfH);
+    d.halfW = halfW;
+    d.halfH = resourceHalfH;
+    d3.select(textEl).attr('x', 0);
+  });
+
+  // After text measurement: if any node's pill width would overlap the
+  // adjacent level column, increase width_level and reposition all nodes.
+  var hSpacingPad = 20;  // minimum horizontal gap between a node edge and the next level center
+  var maxHalfW = 0;
+  for (var hwi = 0; hwi < nodes.length; hwi++) {
+    if (nodes[hwi].halfW && nodes[hwi].halfW > maxHalfW)
+      maxHalfW = nodes[hwi].halfW;
+  }
+  // Levels are spaced by width_level/2 for half-levels (buffer columns).
+  // A node centered at its level's x extends halfW in each direction.
+  // The adjacent half-level center is at width_level/2 away.
+  // We need: halfW + hSpacingPad < width_level / 2
+  var neededWidthLevel = (maxHalfW + hSpacingPad) * 2;
+  if (neededWidthLevel > width_level) {
+    width_level = neededWidthLevel;
+    for (var hwj = 0; hwj < nodes.length; hwj++)
+      nodes[hwj].x = width_level * (0.5 + maxlevel - nodes[hwj].level);
+    // Update SVG width to accommodate the new spacing
+    var newWidth = width_level * (maxlevel - minlevel + 1);
+    if (newWidth > width) {
+      width = newWidth;
+      d3.select('#svggraph').attr('width', width).attr('viewBox', '0 0 ' + width + ' 400');
+    }
+  }
+
+  // Fix z-order for routing labels: collect routing/alternate/split nodes,
+  // remove their text from inside the <g>, and re-add them in a top-level
+  // overlay group that paints after all shapes.
+  var shapesParent = d3.select(d3.selectAll('#svggraph > g')[0][1]);
+  routing_label_overlay = svg.append('svg:g').attr('class', 'routing-label-overlay');
+
+  var routingLabelNodes = nodes.filter(function(d) {
+    return d.type === 'routing' || d.type === 'alternate' || d.type === 'split';
+  });
+
+  // Remove text from inside the routing <g> elements
+  d3.selectAll('g.node-routing text.id, g.node-alternate text.id, g.node-split text.id')
+    .remove();
+
+  // Add equivalent text elements to the overlay, bound to node data
+  routing_label_overlay.selectAll('text.id')
+    .data(routingLabelNodes, function(d) { return d.id; })
+    .enter()
+    .append('svg:text')
+    .attr('class', 'id routing-label')
+    .attr('fill', '#ffffff')
+    .style('fill', '#ffffff')
+    .attr('text-anchor', 'middle')
+    .attr('x', function(d) { return d.x || 0; })
+    .attr('y', function(d) { return (d.y || 0) + 4; })
+    .text(function(d) { return d.name; });
+
+  // Compute layout silently — run all ticks without animation then stop
+  force.start();
+  for (var t = 0; t < 300; ++t) force.tick();
+  force.stop();
+
+  var minSpacing = 42;
+  var pinnedTypes = ['itemsupplier', 'itemdistribution', 'itemdistribution_alternate', 'buffer'];
+
+  // Step 1: assign each buffer's y based ONLY on its consuming operations
+  // (the operations it feeds into). For sub-operations use the parent's y.
+  // Fall back to producer operations if there are no consumers.
+  var bufConsumerSum = {}, bufConsumerCount = {};
+  var bufProducerSum = {}, bufProducerCount = {};
+  for (var li2 = 0; li2 < links.length; li2++) {
+    var lnk = links[li2];
+    if (lnk.type !== 'flow') continue;
+    if (lnk.source.type === 'buffer') {
+      // buffer -> operation (consumer)
+      var consOp = lnk.target;
+      var consY = consOp.y;
+      if (consOp.parent >= 0 && nodes[consOp.parent])
+        consY = nodes[consOp.parent].y;
+      if (bufConsumerSum[lnk.source.id] === undefined) {
+        bufConsumerSum[lnk.source.id] = 0;
+        bufConsumerCount[lnk.source.id] = 0;
+      }
+      bufConsumerSum[lnk.source.id] += consY;
+      bufConsumerCount[lnk.source.id]++;
+    }
+    if (lnk.target.type === 'buffer') {
+      // operation -> buffer (producer)
+      var prodOp = lnk.source;
+      var prodY = prodOp.y;
+      if (prodOp.parent >= 0 && nodes[prodOp.parent])
+        prodY = nodes[prodOp.parent].y;
+      if (bufProducerSum[lnk.target.id] === undefined) {
+        bufProducerSum[lnk.target.id] = 0;
+        bufProducerCount[lnk.target.id] = 0;
+      }
+      bufProducerSum[lnk.target.id] += prodY;
+      bufProducerCount[lnk.target.id]++;
+    }
+  }
+  for (var ni = 0; ni < nodes.length; ni++) {
+    var n = nodes[ni];
+    if (n.type !== 'buffer') continue;
+    if (bufConsumerCount[n.id] > 0)
+      n.y = bufConsumerSum[n.id] / bufConsumerCount[n.id];
+    else if (bufProducerCount[n.id] > 0)
+      n.y = bufProducerSum[n.id] / bufProducerCount[n.id];
+  }
+
+  // Step 1b: assign itemsupplier/itemdistribution y from their connected buffer
+  var supplierNeighbourSum = {}, supplierNeighbourCount = {};
+  for (var li3 = 0; li3 < links.length; li3++) {
+    var lnk3 = links[li3];
+    if (lnk3.type !== 'flow') continue;
+    var src3 = lnk3.source, tgt3 = lnk3.target;
+    if (pinnedTypes.indexOf(src3.type) >= 0 && src3.type !== 'buffer' && tgt3.type === 'buffer') {
+      if (supplierNeighbourSum[src3.id] === undefined) {
+        supplierNeighbourSum[src3.id] = 0;
+        supplierNeighbourCount[src3.id] = 0;
+      }
+      supplierNeighbourSum[src3.id] += tgt3.y;
+      supplierNeighbourCount[src3.id]++;
+    }
+    if (pinnedTypes.indexOf(tgt3.type) >= 0 && tgt3.type !== 'buffer' && src3.type === 'buffer') {
+      if (supplierNeighbourSum[tgt3.id] === undefined) {
+        supplierNeighbourSum[tgt3.id] = 0;
+        supplierNeighbourCount[tgt3.id] = 0;
+      }
+      supplierNeighbourSum[tgt3.id] += src3.y;
+      supplierNeighbourCount[tgt3.id]++;
+    }
+  }
+  for (var sni = 0; sni < nodes.length; sni++) {
+    var sn = nodes[sni];
+    if (sn.type === 'buffer') continue;
+    if (pinnedTypes.indexOf(sn.type) < 0) continue;
+    if (supplierNeighbourCount[sn.id] > 0)
+      sn.y = supplierNeighbourSum[sn.id] / supplierNeighbourCount[sn.id];
+  }
+
+  // Step 2: group consumed buffers per consuming operation and center each
+  // group symmetrically around that operation's y position.
+  // For sub-operations, use the parent operation as the anchor.
+  var bufsByConsumerOp = {};
+  var bufAssigned = {};
+  for (var lc = 0; lc < links.length; lc++) {
+    var lcnk = links[lc];
+    if (lcnk.type !== 'flow') continue;
+    if (lcnk.source.type !== 'buffer') continue;
+    var cOp = lcnk.target;
+    var anchorOp = cOp;
+    if (cOp.parent >= 0 && nodes[cOp.parent])
+      anchorOp = nodes[cOp.parent];
+    var anchorId = anchorOp.id;
+    if (!bufsByConsumerOp[anchorId]) bufsByConsumerOp[anchorId] = [];
+    // Avoid adding the same buffer to the same consumer group twice
+    var alreadyIn = false;
+    for (var chk = 0; chk < bufsByConsumerOp[anchorId].length; chk++)
+      if (bufsByConsumerOp[anchorId][chk].id === lcnk.source.id) { alreadyIn = true; break; }
+    if (!alreadyIn)
+      bufsByConsumerOp[anchorId].push(lcnk.source);
+  }
+  for (var consId in bufsByConsumerOp) {
+    var bufs = bufsByConsumerOp[consId];
+    var anchorNode = nodes[parseInt(consId)];
+    var anchorY = anchorNode.y;
+    bufs.sort(function(a, b) { return a.y - b.y; });
+    var totalH = (bufs.length - 1) * minSpacing;
+    var startBufY = anchorY - totalH / 2;
+    for (var bi = 0; bi < bufs.length; bi++) {
+      bufs[bi].y = startBufY + bi * minSpacing;
+      bufAssigned[bufs[bi].id] = true;
+    }
+  }
+
+  // For buffers with no consumer (produced only), group by level and space evenly
+  var producedOnlyByLevel = {};
+  for (var ni2 = 0; ni2 < nodes.length; ni2++) {
+    var n2 = nodes[ni2];
+    if (n2.type !== 'buffer') continue;
+    if (bufAssigned[n2.id]) continue;
+    var lk = n2.level;
+    if (!producedOnlyByLevel[lk]) producedOnlyByLevel[lk] = [];
+    producedOnlyByLevel[lk].push(n2);
+  }
+  for (var lk2 in producedOnlyByLevel) {
+    var grp = producedOnlyByLevel[lk2];
+    grp.sort(function(a, b) { return a.y - b.y; });
+    var totalH2 = (grp.length - 1) * minSpacing;
+    var meanY2 = grp.reduce(function(s, nd) { return s + nd.y; }, 0) / grp.length;
+    var startY2 = meanY2 - totalH2 / 2;
+    for (var gi2 = 0; gi2 < grp.length; gi2++)
+      grp[gi2].y = startY2 + gi2 * minSpacing;
+  }
+
+  // Per-level spacing for buffers — deterministic scan
+  var bufsByLevel = {};
+  for (var ni3 = 0; ni3 < nodes.length; ni3++) {
+    var n3 = nodes[ni3];
+    if (n3.type !== 'buffer') continue;
+    var bk = n3.level;
+    if (!bufsByLevel[bk]) bufsByLevel[bk] = [];
+    bufsByLevel[bk].push(n3);
+  }
+  for (var bk2 in bufsByLevel) {
+    var bgrp = bufsByLevel[bk2];
+    if (bgrp.length < 2) continue;
+    bgrp.sort(function(a, b) { return a.y - b.y; });
+    var bOrigMean = 0;
+    for (var bm = 0; bm < bgrp.length; bm++) bOrigMean += bgrp[bm].y;
+    bOrigMean /= bgrp.length;
+    for (var bj = 1; bj < bgrp.length; bj++) {
+      var bMinY = bgrp[bj - 1].y + minSpacing;
+      if (bgrp[bj].y < bMinY)
+        bgrp[bj].y = bMinY;
+    }
+    var bNewMean = 0;
+    for (var bm2 = 0; bm2 < bgrp.length; bm2++) bNewMean += bgrp[bm2].y;
+    bNewMean /= bgrp.length;
+    var bDrift = bOrigMean - bNewMean;
+    for (var bm3 = 0; bm3 < bgrp.length; bm3++) bgrp[bm3].y += bDrift;
+  }
+
+  // Step 2 for producers feeding into buffers (itemsuppliers, operations, routings):
+  // Derive each producer's y from the final y of its produced buffer(s)
+  // so the vertical order matches the buffer order and arrows don't cross.
+  // Collect all top-level nodes that produce into at least one buffer.
+  var producerBufY = {};
+  var producerNodes = {};
+  for (var sl = 0; sl < links.length; sl++) {
+    var slnk = links[sl];
+    if (slnk.type !== 'flow') continue;
+    // producer -> buffer
+    if (slnk.target.type === 'buffer' && isOperationNode(slnk.source)) {
+      var prodNode = slnk.source;
+      // For sub-operations, use the parent as the producer
+      if (prodNode.parent >= 0 && nodes[prodNode.parent])
+        prodNode = nodes[prodNode.parent];
+      if (!producerBufY[prodNode.id]) producerBufY[prodNode.id] = [];
+      producerBufY[prodNode.id].push(slnk.target.y);
+      producerNodes[prodNode.id] = prodNode;
+    }
+    if (slnk.target.type === 'buffer' && pinnedTypes.indexOf(slnk.source.type) >= 0 && slnk.source.type !== 'buffer') {
+      if (!producerBufY[slnk.source.id]) producerBufY[slnk.source.id] = [];
+      producerBufY[slnk.source.id].push(slnk.target.y);
+      producerNodes[slnk.source.id] = slnk.source;
+    }
+  }
+
+  // Group producers by level, set y from their buffer average, then sort together
+  var producerByLevel = {};
+  for (var pid in producerNodes) {
+    var pn = producerNodes[pid];
+    if (pn.parent >= 0) continue; // skip sub-operations
+    var bys = producerBufY[pn.id];
+    if (bys && bys.length > 0)
+      pn.y = bys.reduce(function(a, b) { return a + b; }, 0) / bys.length;
+    var plk = pn.level;
+    if (!producerByLevel[plk]) producerByLevel[plk] = [];
+    producerByLevel[plk].push(pn);
+  }
+  // Per-level spacing for producers — deterministic scan
+  for (var plk2 in producerByLevel) {
+    var pgrp = producerByLevel[plk2];
+    if (pgrp.length < 2) continue;
+    pgrp.sort(function(a, b) { return a.y - b.y; });
+    var pOrigMean = 0;
+    for (var pm = 0; pm < pgrp.length; pm++) pOrigMean += pgrp[pm].y;
+    pOrigMean /= pgrp.length;
+    for (var pj = 1; pj < pgrp.length; pj++) {
+      var pMinY = pgrp[pj - 1].y + minSpacing;
+      if (pgrp[pj].y < pMinY)
+        pgrp[pj].y = pMinY;
+    }
+    var pNewMean = 0;
+    for (var pm2 = 0; pm2 < pgrp.length; pm2++) pNewMean += pgrp[pm2].y;
+    pNewMean /= pgrp.length;
+    var pDrift = pOrigMean - pNewMean;
+    for (var pm3 = 0; pm3 < pgrp.length; pm3++) pgrp[pm3].y += pDrift;
+  }
+
+  // Step 3: 2D bounding-box collision resolution — push apart any overlapping nodes vertically
+  function nodeHalfW(n) {
+    if (n.halfW) return n.halfW;
+    if (n.type === 'operation' || n.type === 'operation_alternate') return 52;
+    if (n.type === 'itemsupplier') return 52;
+    if (n.type === 'itemdistribution' || n.type === 'itemdistribution_alternate') return 52;
+    if (n.type === 'routing' || n.type === 'alternate' || n.type === 'split') return 57;
+    if (n.type === 'buffer') return 16;
+    if (n.type === 'resource') return 22;
+    return 52;
+  }
+  function nodeHalfH(n) {
+    if (n.halfH) return n.halfH;
+    if (n.type === 'resource') return 14;
+    if (n.type === 'buffer') return 14;
+    return 13;
+  }
+
+  // Step 2b: place resources near their operation(s).
+  // Single-op resource: prefer directly above, then above-right.
+  // Multi-op resource: prefer center of gravity of connected ops.
+  // Never overlap another element.
+  var padding = 6;
+  var resourceOps = {};
+  for (var rl = 0; rl < links.length; rl++) {
+    var rlink = links[rl];
+    if (rlink.type !== 'load') continue;
+    if (rlink.target.type !== 'resource') continue;
+    if (!resourceOps[rlink.target.id]) resourceOps[rlink.target.id] = [];
+    resourceOps[rlink.target.id].push(rlink.source);
+  }
+
+  var placedResources = {};
+
+  // Compute the collapse-controls y-boundary so resources aren't placed on top of them.
+  var controlsTopY = Infinity;
+  for (var cti = 0; cti < nodes.length; cti++) {
+    var ctn = nodes[cti];
+    if (ctn.type === 'resource') continue;
+    if (ctn.parent >= 0) continue;
+    if (visible_nodes[ctn.id] === false) continue;
+    var cny = ctn.y;
+    if ((ctn.type === 'routing' || ctn.type === 'alternate' || ctn.type === 'split') && ctn.numsuboperations) {
+      if (ctn.type === 'alternate' || ctn.type === 'split') cny = ctn.y - 13;
+      else if (ctn.rownb > 0) cny = ctn.y - 40;
+    }
+    if (cny < controlsTopY) controlsTopY = cny;
+  }
+  var resourceMinY = isFinite(controlsTopY) ? (controlsTopY - 40 - 12) : -Infinity;
+
+  function resourceOverlaps(resNode, xPos, yPos) {
+    // Returns true if the resource at (xPos, yPos) overlaps any placed node
+    var resHW = nodeHalfW(resNode);
+    var resHH = nodeHalfH(resNode);
+    for (var si = 0; si < nodes.length; si++) {
+      var other = nodes[si];
+      if (other.id === resNode.id || other.parent >= 0) continue;
+      if (other.type === 'resource' && !placedResources[other.id]) continue;
+      var hw = resHW + nodeHalfW(other) + padding;
+      var hh = resHH + nodeHalfH(other) + padding;
+      if (hw - Math.abs(xPos - other.x) > 0 && hh - Math.abs(yPos - other.y) > 0)
+        return true;
+      // Prevent two resources from sharing the same vertical line
+      if (other.type === 'resource' && placedResources[other.id]) {
+        var minXSep = resHW + nodeHalfW(other) + 40;
+        if (Math.abs(xPos - other.x) < minXSep)
+          return true;
+      }
+    }
+    // Check collapse controls boundary
+    if (isFinite(resourceMinY) && (yPos - resHH) < resourceMinY)
+      return true;
+    return false;
+  }
+
+  for (var rn = 0; rn < nodes.length; rn++) {
+    var resNode = nodes[rn];
+    if (resNode.type !== 'resource') continue;
+    var ops = resourceOps[resNode.id] || [];
+    if (!ops.length) continue;
+
+    // Compute center of gravity of connected operations
+    var anchorY = 0;
+    var anchorX = 0;
+    for (var oi = 0; oi < ops.length; oi++) {
+      var effOp = ops[oi];
+      if (effOp.parent >= 0 && nodes[effOp.parent])
+        effOp = nodes[effOp.parent];
+      anchorY += effOp.y;
+      anchorX += effOp.x;
+    }
+    anchorY /= ops.length;
+    anchorX /= ops.length;
+
+    // Build candidate positions, ordered by preference:
+    // For single-op: exhaust ALL above positions before trying below
+    // For multi-op: try above first at each step, then below
+    var candidates = [];
+    var ySteps = [152, 192, 232, 272, 320, 376, 440, 512, 600];
+    var xOffsets = [0];
+    // Add small x offsets toward the right (toward buffer column)
+    for (var xo = 1; xo <= 4; xo++) {
+      xOffsets.push(-xo * width_level * 0.1);  // right on screen (lower x = right)
+      xOffsets.push(xo * width_level * 0.1);   // left on screen
+    }
+
+    var isSingleOp = (ops.length === 1);
+    if (isSingleOp) {
+      // Try ALL above positions first (all x offsets, all y steps)
+      for (var xi = 0; xi < xOffsets.length; xi++) {
+        var cx = anchorX + xOffsets[xi];
+        for (var yi = 0; yi < ySteps.length; yi++)
+          candidates.push({ x: cx, y: anchorY - ySteps[yi] });
+      }
+      // Then ALL below positions as last resort
+      for (var xi2 = 0; xi2 < xOffsets.length; xi2++) {
+        var cx2 = anchorX + xOffsets[xi2];
+        for (var yi2 = 0; yi2 < ySteps.length; yi2++)
+          candidates.push({ x: cx2, y: anchorY + ySteps[yi2] });
+      }
+    } else {
+      // Multi-op: above first at each (x, y) step, then below
+      for (var xi3 = 0; xi3 < xOffsets.length; xi3++) {
+        var cx3 = anchorX + xOffsets[xi3];
+        for (var yi3 = 0; yi3 < ySteps.length; yi3++) {
+          candidates.push({ x: cx3, y: anchorY - ySteps[yi3] });
+          candidates.push({ x: cx3, y: anchorY + ySteps[yi3] });
+        }
+      }
+    }
+
+    // Pick the first candidate that doesn't overlap anything
+    var placed = false;
+    for (var ci = 0; ci < candidates.length; ci++) {
+      if (!resourceOverlaps(resNode, candidates[ci].x, candidates[ci].y)) {
+        resNode.x = candidates[ci].x;
+        resNode.y = candidates[ci].y;
+        placed = true;
+        break;
+      }
+    }
+    // Fallback: if all candidates overlap, pick the one with least overlap area
+    if (!placed) {
+      var bestScore = Number.POSITIVE_INFINITY;
+      var bestX = anchorX, bestY = anchorY - 28;
+      var resHW = nodeHalfW(resNode);
+      var resHH = nodeHalfH(resNode);
+      for (var ci2 = 0; ci2 < candidates.length; ci2++) {
+        var score = 0;
+        var cx2 = candidates[ci2].x, cy2 = candidates[ci2].y;
+        for (var si2 = 0; si2 < nodes.length; si2++) {
+          var other2 = nodes[si2];
+          if (other2.id === resNode.id || other2.parent >= 0) continue;
+          if (other2.type === 'resource' && !placedResources[other2.id]) continue;
+          var hw2 = resHW + nodeHalfW(other2) + padding;
+          var hh2 = resHH + nodeHalfH(other2) + padding;
+          var ovx2 = hw2 - Math.abs(cx2 - other2.x);
+          var ovy2 = hh2 - Math.abs(cy2 - other2.y);
+          if (ovx2 > 0 && ovy2 > 0)
+            score += ovx2 * ovy2;
+        }
+        // Add distance penalty to keep resources close
+        var dist = Math.abs(cx2 - anchorX) + Math.abs(cy2 - anchorY);
+        score += dist * 0.01;
+        if (score < bestScore) {
+          bestScore = score;
+          bestX = cx2;
+          bestY = cy2;
+        }
+      }
+      resNode.x = bestX;
+      resNode.y = bestY;
+    }
+    placedResources[resNode.id] = true;
+  }
+
+  var topNodes = [];
+  for (var ti = 0; ti < nodes.length; ti++)
+    if (nodes[ti].parent < 0) topNodes.push(nodes[ti]);
+
+  for (var pass2 = 0; pass2 < 100; pass2++) {
+    var anyOverlap = false;
+    for (var ai = 0; ai < topNodes.length; ai++) {
+      for (var bi2 = ai + 1; bi2 < topNodes.length; bi2++) {
+        var na = topNodes[ai];
+        var nb = topNodes[bi2];
+        var overlapX = (nodeHalfW(na) + nodeHalfW(nb) + padding) - Math.abs(na.x - nb.x);
+        var overlapY = (nodeHalfH(na) + nodeHalfH(nb) + padding) - Math.abs(na.y - nb.y);
+        if (overlapX > 0 && overlapY > 0) {
+          if (na.type === 'resource' && nb.type !== 'resource') {
+            na.y += (na.y <= nb.y) ? -overlapY : overlapY;
+          }
+          else if (nb.type === 'resource' && na.type !== 'resource') {
+            nb.y += (nb.y <= na.y) ? -overlapY : overlapY;
+          }
+          else if (na.y <= nb.y) {
+            na.y -= overlapY / 2;
+            nb.y += overlapY / 2;
+          }
+          else {
+            na.y += overlapY / 2;
+            nb.y -= overlapY / 2;
+          }
+          anyOverlap = true;
+        }
+      }
+    }
+    if (!anyOverlap) break;
+  }
+
+  // Post-pass: nudge resources that ended up on top of arrow paths
+  for (var rp = 0; rp < 50; rp++) {
+    var anyArrowHit = false;
+    for (var rni = 0; rni < topNodes.length; rni++) {
+      var rn2 = topNodes[rni];
+      if (rn2.type !== 'resource') continue;
+      var rHH = nodeHalfH(rn2);
+      var rHW = nodeHalfW(rn2);
+      var arrowClr = rHH + 8;
+      for (var ali2 = 0; ali2 < links.length; ali2++) {
+        var al2 = links[ali2];
+        if (al2.type !== 'flow' && al2.type !== 'depends') continue;
+        if (al2.source.id === rn2.id || al2.target.id === rn2.id) continue;
+        var asx2 = al2.source.x, asy2 = al2.source.y;
+        var atx2 = al2.target.x, aty2 = al2.target.y;
+        var aMinX2 = Math.min(asx2, atx2);
+        var aMaxX2 = Math.max(asx2, atx2);
+        if (rn2.x + rHW < aMinX2 - padding || rn2.x - rHW > aMaxX2 + padding) continue;
+        var adx2 = atx2 - asx2;
+        if (Math.abs(adx2) < 1) adx2 = (adx2 >= 0 ? 1 : -1);
+        var at2 = Math.max(0, Math.min(1, (rn2.x - asx2) / adx2));
+        var arrowY2 = asy2 + (aty2 - asy2) * at2;
+        var vd2 = arrowY2 - rn2.y;
+        if (Math.abs(vd2) < arrowClr) {
+          rn2.y += (vd2 >= 0) ? -(arrowClr - Math.abs(vd2)) : (arrowClr - Math.abs(vd2));
+          anyArrowHit = true;
+        }
+      }
+    }
+    if (!anyArrowHit) break;
+  }
+
+  // Recompute child suboperation positions after parent adjustments
+  for (var ci = 0; ci < nodes.length; ci++) {
+    var child = nodes[ci];
+    if (child.parent < 0) continue;
+    var pnode = nodes[child.parent];
+    if (!pnode) continue;
+    if (child.suboperindex >= 0) {
+      var pw = pnode.halfW ? (2 * pnode.halfW) : 105;
+      var hpw = pw / 2;
+      var sm = 8;
+      if (child.rownb > 0) {
+        child.y = pnode.y - 40 + sm + (child.rownb - 0.5) * (80 - 2*sm) / pnode.rownb;
+        child.x = pnode.x - hpw + sm + (child.colnb - 0.5) * (pw - 2*sm) / pnode.colnb;
+      } else {
+        child.y = pnode.y;
+        child.x = pnode.x - hpw + sm + (child.suboperindex - 0.5) * (pw - 2*sm) / pnode.numsuboperations;
+      }
+    } else {
+      child.x = pnode.x;
+      child.y = pnode.y + (child.suboperindex + pnode.numsuboperations + 1) * 30 - 5;
+    }
+  }
+
+  // Final pass: re-anchor each buffer to the average y of all its connected
+  // operations (consumers + producers), then propagate that position upstream
+  // to the producers feeding into the buffer.
+
+  // 1) Collect all connected operation y-values per buffer
+  var bufConnY = {};  // bufId -> array of operation y values
+  for (var fli = 0; fli < links.length; fli++) {
+    var flnk = links[fli];
+    if (flnk.type !== 'flow') continue;
+    var bufNode, opNode;
+    if (flnk.source.type === 'buffer') {
+      bufNode = flnk.source;
+      opNode = flnk.target;
+    } else if (flnk.target.type === 'buffer') {
+      bufNode = flnk.target;
+      opNode = flnk.source;
+    } else continue;
+    var opY = opNode.y;
+    if (opNode.parent >= 0 && nodes[opNode.parent])
+      opY = nodes[opNode.parent].y;
+    if (!bufConnY[bufNode.id]) bufConnY[bufNode.id] = [];
+    bufConnY[bufNode.id].push(opY);
+  }
+
+  // 2) Move each buffer to the average y of its connected operations
+  for (var bti = 0; bti < nodes.length; bti++) {
+    var btn = nodes[bti];
+    if (btn.type !== 'buffer') continue;
+    if (bufConnY[btn.id] && bufConnY[btn.id].length > 0) {
+      var yArr = bufConnY[btn.id];
+      btn.y = yArr.reduce(function(a, b) { return a + b; }, 0) / yArr.length;
+    }
+  }
+
+  // 3) Enforce minimum spacing between ALL top-level non-resource elements
+  //    on the same level. Uses deterministic placement: sort by y, then scan
+  //    and push each element down if it's too close to the previous one.
+  //    The group is then re-centered around its original mean y.
+  function enforcePerLevelSpacing() {
+    var elsByLevel = {};
+    for (var ei = 0; ei < nodes.length; ei++) {
+      var en = nodes[ei];
+      if (en.parent >= 0) continue;
+      if (en.type === 'resource') continue;
+      var elk = en.level;
+      if (!elsByLevel[elk]) elsByLevel[elk] = [];
+      elsByLevel[elk].push(en);
+    }
+    for (var elk2 in elsByLevel) {
+      var egrp = elsByLevel[elk2];
+      if (egrp.length < 2) continue;
+      egrp.sort(function(a, b) { return a.y - b.y; });
+      // Remember original center
+      var origMean = 0;
+      for (var em = 0; em < egrp.length; em++) origMean += egrp[em].y;
+      origMean /= egrp.length;
+      // Deterministic scan: ensure each element is at least minSpacing from previous
+      for (var ej = 1; ej < egrp.length; ej++) {
+        var minY = egrp[ej - 1].y + minSpacing;
+        if (egrp[ej].y < minY)
+          egrp[ej].y = minY;
+      }
+      // Re-center the group around the original mean
+      var newMean = 0;
+      for (var em2 = 0; em2 < egrp.length; em2++) newMean += egrp[em2].y;
+      newMean /= egrp.length;
+      var drift = origMean - newMean;
+      for (var em3 = 0; em3 < egrp.length; em3++) egrp[em3].y += drift;
+    }
+  }
+  enforcePerLevelSpacing();
+
+  // 4) Propagate buffer positions upstream: move each producer to match the
+  //    average y of the buffer(s) it produces into.
+  //    This covers itemsuppliers, itemdistributions, and operations/routings.
+  var prodBufYFinal = {};   // producerId -> [buffer y values]
+  var prodNodeFinal = {};   // producerId -> node reference
+  for (var pli = 0; pli < links.length; pli++) {
+    var plnk = links[pli];
+    if (plnk.type !== 'flow') continue;
+    if (plnk.target.type !== 'buffer') continue;
+    var prodOp = plnk.source;
+    // For sub-operations, adjust the parent
+    if (prodOp.parent >= 0 && nodes[prodOp.parent])
+      prodOp = nodes[prodOp.parent];
+    if (!prodBufYFinal[prodOp.id]) prodBufYFinal[prodOp.id] = [];
+    prodBufYFinal[prodOp.id].push(plnk.target.y);
+    prodNodeFinal[prodOp.id] = prodOp;
+  }
+  for (var ppid in prodNodeFinal) {
+    var ppn = prodNodeFinal[ppid];
+    if (ppn.parent >= 0) continue;  // skip sub-operations
+    var pbys = prodBufYFinal[ppn.id];
+    if (pbys && pbys.length > 0)
+      ppn.y = pbys.reduce(function(a, b) { return a + b; }, 0) / pbys.length;
+  }
+
+  // 5) Enforce minimum spacing among ALL top-level non-resource nodes per level
+  //    after producers have been repositioned.
+  enforcePerLevelSpacing();
+
+  // 6) Recompute child suboperation positions for any moved parent
+  for (var ci2 = 0; ci2 < nodes.length; ci2++) {
+    var child2 = nodes[ci2];
+    if (child2.parent < 0) continue;
+    var pnode2 = nodes[child2.parent];
+    if (!pnode2) continue;
+    if (child2.suboperindex >= 0) {
+      var pw2 = pnode2.halfW ? (2 * pnode2.halfW) : 105;
+      var hpw2 = pw2 / 2;
+      var sm2 = 8;
+      if (child2.rownb > 0) {
+        child2.y = pnode2.y - 40 + sm2 + (child2.rownb - 0.5) * (80 - 2*sm2) / pnode2.rownb;
+        child2.x = pnode2.x - hpw2 + sm2 + (child2.colnb - 0.5) * (pw2 - 2*sm2) / pnode2.colnb;
+      } else {
+        child2.y = pnode2.y;
+        child2.x = pnode2.x - hpw2 + sm2 + (child2.suboperindex - 0.5) * (pw2 - 2*sm2) / pnode2.numsuboperations;
+      }
+    } else {
+      child2.x = pnode2.x;
+      child2.y = pnode2.y + (child2.suboperindex + pnode2.numsuboperations + 1) * 30 - 5;
+    }
+  }
+
+  // 7) Full 2D bounding-box collision resolution to restore vertical margins
+  //    between all top-level elements after repositioning.
+  //    Use minSpacing/2 as the vertical half-gap so that the total distance
+  //    between node centers is at least minSpacing.
+  var halfGap = minSpacing / 2;
+  for (var pass3 = 0; pass3 < 100; pass3++) {
+    var anyOvlp3 = false;
+    for (var ai3 = 0; ai3 < topNodes.length; ai3++) {
+      for (var bi3 = ai3 + 1; bi3 < topNodes.length; bi3++) {
+        var na3 = topNodes[ai3];
+        var nb3 = topNodes[bi3];
+        var ovX3 = (nodeHalfW(na3) + nodeHalfW(nb3) + padding) - Math.abs(na3.x - nb3.x);
+        var ovY3 = (nodeHalfH(na3) + nodeHalfH(nb3) + halfGap) - Math.abs(na3.y - nb3.y);
+        if (ovX3 > 0 && ovY3 > 0) {
+          if (na3.type === 'resource' && nb3.type !== 'resource') {
+            na3.y += (na3.y <= nb3.y) ? -ovY3 : ovY3;
+          }
+          else if (nb3.type === 'resource' && na3.type !== 'resource') {
+            nb3.y += (nb3.y <= na3.y) ? -ovY3 : ovY3;
+          }
+          else if (na3.y <= nb3.y) {
+            na3.y -= ovY3 / 2;
+            nb3.y += ovY3 / 2;
+          }
+          else {
+            na3.y += ovY3 / 2;
+            nb3.y -= ovY3 / 2;
+          }
+          anyOvlp3 = true;
+        }
+      }
+    }
+    if (!anyOvlp3) break;
+  }
+
+  // 8) Recompute child suboperation positions once more after collision fixes
+  for (var ci3 = 0; ci3 < nodes.length; ci3++) {
+    var child3 = nodes[ci3];
+    if (child3.parent < 0) continue;
+    var pnode3 = nodes[child3.parent];
+    if (!pnode3) continue;
+    if (child3.suboperindex >= 0) {
+      var pw3 = pnode3.halfW ? (2 * pnode3.halfW) : 105;
+      var hpw3 = pw3 / 2;
+      var sm3 = 8;
+      if (child3.rownb > 0) {
+        child3.y = pnode3.y - 40 + sm3 + (child3.rownb - 0.5) * (80 - 2*sm3) / pnode3.rownb;
+        child3.x = pnode3.x - hpw3 + sm3 + (child3.colnb - 0.5) * (pw3 - 2*sm3) / pnode3.colnb;
+      } else {
+        child3.y = pnode3.y;
+        child3.x = pnode3.x - hpw3 + sm3 + (child3.suboperindex - 0.5) * (pw3 - 2*sm3) / pnode3.numsuboperations;
+      }
+    } else {
+      child3.x = pnode3.x;
+      child3.y = pnode3.y + (child3.suboperindex + pnode3.numsuboperations + 1) * 30 - 5;
+    }
+  }
+
+  // 9) Final resource re-placement: ensure every resource is above its
+  //    connected operation(s) and does not overlap any other element.
+  //    Post-processing passes may have pushed resources below.
+  for (var rfn = 0; rfn < nodes.length; rfn++) {
+    var rfRes = nodes[rfn];
+    if (rfRes.type !== 'resource') continue;
+    var rfOps = resourceOps[rfRes.id] || [];
+    if (!rfOps.length) continue;
+    // Compute anchor from connected operations
+    var rfAnchorY = 0, rfAnchorX = 0;
+    for (var rfoi = 0; rfoi < rfOps.length; rfoi++) {
+      var rfEff = rfOps[rfoi];
+      if (rfEff.parent >= 0 && nodes[rfEff.parent])
+        rfEff = nodes[rfEff.parent];
+      rfAnchorY += rfEff.y;
+      rfAnchorX += rfEff.x;
+    }
+    rfAnchorY /= rfOps.length;
+    rfAnchorX /= rfOps.length;
+    // If resource is at or below its operation, re-place it above
+    if (rfRes.y >= rfAnchorY - 80) {
+      var rfYSteps = [152, 192, 232, 272, 320, 376, 440, 512, 600];
+      var rfXOffsets = [0];
+      for (var rfxo = 1; rfxo <= 4; rfxo++) {
+        rfXOffsets.push(-rfxo * width_level * 0.1);
+        rfXOffsets.push(rfxo * width_level * 0.1);
+      }
+      var rfPlaced = false;
+      for (var rfxi = 0; rfxi < rfXOffsets.length; rfxi++) {
+        var rfCx = rfAnchorX + rfXOffsets[rfxi];
+        for (var rfyi = 0; rfyi < rfYSteps.length; rfyi++) {
+          var rfTryY = rfAnchorY - rfYSteps[rfyi];
+          if (!resourceOverlaps(rfRes, rfCx, rfTryY)) {
+            rfRes.x = rfCx;
+            rfRes.y = rfTryY;
+            rfPlaced = true;
+            break;
+          }
+        }
+        if (rfPlaced) break;
+      }
+      // If still can't place above without overlap, at least push above anchor
+      if (!rfPlaced)
+        rfRes.y = rfAnchorY - 152;
+    }
+  }
+
+  // Re-apply transforms now that y positions are corrected
+  // Must use nodeTransform to preserve routing sub-operation scale transforms
+  updateGraphGeometry();
+
+  applyVisibilityFilters();
+
+  // Auto-center: adjust viewBox to show all content centered
+  var yiMin = Infinity, yiMax = -Infinity;
+  for (var ci = 0; ci < nodes.length; ci++) {
+    if (nodes[ci].y < yiMin) yiMin = nodes[ci].y;
+    if (nodes[ci].y > yiMax) yiMax = nodes[ci].y;
+  }
+  if (isFinite(yiMin)) {
+    yiMin -= 70;
+    yiMax += 40;
+    var contentH = yiMax - yiMin;
+    var winH = $(window).height();
+    var maxH = Math.max(400, Math.min(800, winH - 40));
+    viewBoxH = Math.max(contentH, maxH);
+    viewBoxY = yiMin - (viewBoxH - contentH) / 2;
+    d3.select('#svggraph')
+      .attr('viewBox', '0 ' + viewBoxY + ' ' + width + ' ' + viewBoxH)
+      .attr('height', viewBoxH);
+    $("#graph").height(Math.min(viewBoxH, maxH));
+    $("#graph").scrollTop(0);
+  }
+}
+
+$(window).bind('resize', function() {
+  var width = $("#graph").width();
+  d3.select('#svggraph')
+  .attr('width', width)
+  .attr('viewBox','0 ' + viewBoxY + ' ' + width + ' ' + viewBoxH);
+});
+
+$(function(){
+  var winHeight = $(window).height();
+  $("#graph").height(Math.min(Math.max(400, winHeight - 60), 800));
+
+  $("#graph").resizable({
+    handleSelector: "#graph-resize-handle",
+    resizeWidth: false,
+    resizeHeight: true,
+    onDrag: function (e, $el, opt) {
+      var width = $("#graph").width();
+      var height = $("#graph").height();
+      d3.select('#svggraph').attr('width', width).attr('viewBox','0 0 ' + width +' '+ height );
+    }
+  });
+});
+
+$(window).resize(function() {
+  var winHeight = $(window).height();
+  if ($("#graph").height() > winHeight - 60) $("#graph").height(Math.min(winHeight - 60, 800));
+});
+
+</script>
+</head>
+<body style="overflow:hidden;max-width:100vw;">
+<div style="display:none"><table id="grid"></table><div id="gridpager"></div></div>
+<script>
+var reportkey = '{{reportkey|safe}}';
+var admin_escape = window.admin_escape || function(n){return n.replace(/_/g,"_5F").replace(/:/g,"_3A").replace(/\//g,"_2F").replace(/#/g,"_23").replace(/\?/g,"_3F").replace(/;/g,"_3B").replace(/@/g,"_40").replace(/&/g,"_26").replace(/=/g,"_3D").replace(/\+/g,"_2B").replace(/\$/g,"_24").replace(/,/g,"_2C").replace(/"/g,"_22").replace(/</g,"_3C").replace(/>/g,"_3E").replace(/%/g,"_25").replace(/\\/g,"_5C").replace(/\t/g,"%09");};
+$(function(){
+  jQuery("#grid").jqGrid({
+    url: location.href + (location.search.length > 0 ? "&format=json" : "?format=json"),
+    datatype: "json",
+    jsonReader: {repeatitems: false},
+    colModel: [{{colmodel|safe}}],
+    rowNum: {{request.pagesize}},
+    iconSet: "fontAwesome",
+    guiStyle: "bootstrap5Primary",
+    loadError: function(xhr,st,err) {
+      if (xhr.status == 401) location.reload();
+      else console.error(xhr.statusText);
+    },
+    loadComplete: drawGraph,
+    treeGrid: true,
+    treeGridModel: 'adjacency',
+    ExpandColumn: 'depth',
+    treeIcons: {
+      plus:'fa-caret-right',
+      minus:'fa-caret-down',
+      leaf:'fa-genderless'
+    },
+    tree_root_level: 0,
+    treeReader: {
+      level_field: 'depth',
+      parent_id_field: 'parent',
+      leaf_field: 'leaf',
+      expanded_field: 'expanded'
+    },
+    ExpandColClick: true,
+  });
+});
+</script>
+
+<div id="buffer-tooltip"></div>
+<div class="row" id="graphrow" style="min-height: 100px; text-align: center;">
+<div id="graph" class="col-md-12" style="min-height: 100px; clear: both; height: 345px; overflow: hidden;">
+<svg id="svggraph" width="100%" preserveAspectRatio="xMidYMid meet" style="cursor: move;">
+<defs>
+  <!-- Drop shadow filter -->
+  <filter id="dropshadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#00000028"/>
+  </filter>
+  <!-- Subtle glow for resources -->
+  <filter id="glowfilter" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#ff8c3a55"/>
+  </filter>
+
+  <!-- Arrow markers — slightly softer -->
+  <marker id="arrow" viewBox="0 -5 10 10" refX="6" markerWidth="5" markerHeight="5" orient="auto">
+    <polygon points="0,-4 10,0 0,4" style="fill: #475569;">
+    </polygon>
+  </marker>
+  <marker id="dependsmarker" viewBox="0 -5 10 10" refX="6" markerWidth="5" markerHeight="5" orient="auto">
+    <polygon points="0,-4 10,0 0,4 5,0" style="fill: #475569;">
+    </polygon>
+  </marker>
+
+  <!-- Icon-only defs (no background) for overlay on resizable pill nodes -->
+  <g id="icon-itemsupplier">
+    <path d="M-44,-5 h2 l2.5,7 h7 l2,-5 h-9.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;"></path>
+    <line x1="-40" y1="-3" x2="-40" y2="2" style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="-3" x2="-36.5" y2="2" style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <line x1="-43" y1="3.5" x2="-32" y2="3.5" style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <circle cx="-40.5" cy="6.5" r="1.8" style="fill: #ffffff;"></circle>
+    <circle cx="-34" cy="6.5" r="1.8" style="fill: #ffffff;"></circle>
+    <line x1="-28" y1="-8" x2="-28" y2="8" style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+  <g id="icon-itemdistribution">
+    <path d="M-47,-2.5 h12 v-3.5 h5.5 l4,4 v6 h-2.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;"></path>
+    <line x1="-47" y1="-2.5" x2="-47" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-47" y1="4.5" x2="-44.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="4.5" x2="-33.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-27.5" y1="4.5" x2="-24.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-30.5" y1="-5.5" x2="-27.5" y2="-2.5" style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <circle cx="-40.5" cy="5" r="2.1" style="fill: #ffffff;"></circle>
+    <circle cx="-30.5" cy="5" r="2.1" style="fill: #ffffff;"></circle>
+    <line x1="-20" y1="-8" x2="-20" y2="8" style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+  <g id="icon-itemdistribution_alternate">
+    <path d="M-47,-2.5 h12 v-3.5 h5.5 l4,4 v6 h-2.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;"></path>
+    <line x1="-47" y1="-2.5" x2="-47" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-47" y1="4.5" x2="-44.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="4.5" x2="-33.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-27.5" y1="4.5" x2="-24.5" y2="4.5" style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-30.5" y1="-5.5" x2="-27.5" y2="-2.5" style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <circle cx="-40.5" cy="5" r="2.1" style="fill: #ffffff;"></circle>
+    <circle cx="-30.5" cy="5" r="2.1" style="fill: #ffffff;"></circle>
+    <line x1="-20" y1="-8" x2="-20" y2="8" style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+
+  <!-- Operation: pill-shaped, rich blue with shadow -->
+  <rect id="operation" class="operation" width="104" height="26" x="-52" y="-13" rx="13" ry="13"
+    style="cursor: pointer; fill: #2563eb; filter: url(#dropshadow);">
+  </rect>
+
+  <!-- itemsupplier: pill rect with shopping cart icon on the left -->
+  <g id="itemsupplier" class="itemsupplier" style="cursor: pointer;">
+    <rect width="104" height="26" x="-52" y="-13" rx="13" ry="13"
+      style="fill: #0d9488; filter: url(#dropshadow);">
+    </rect>
+    <!-- cart body -->
+    <path d="M-44,-5 h2 l2.5,7 h7 l2,-5 h-9.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
+    </path>
+    <!-- cart dividers -->
+    <line x1="-40" y1="-3" x2="-40" y2="2"
+      style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="-3" x2="-36.5" y2="2"
+      style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <!-- cart base line -->
+    <line x1="-43" y1="3.5" x2="-32" y2="3.5"
+      style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <!-- wheels -->
+    <circle cx="-40.5" cy="6.5" r="1.8" style="fill: #ffffff;"></circle>
+    <circle cx="-34" cy="6.5" r="1.8" style="fill: #ffffff;"></circle>
+    <!-- vertical separator -->
+    <line x1="-28" y1="-8" x2="-28" y2="8"
+      style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+
+  <!-- itemdistribution: pill rect with truck icon on the left -->
+  <g id="itemdistribution" class="itemdistribution" style="cursor: pointer;">
+    <rect width="104" height="26" x="-52" y="-13" rx="13" ry="13"
+      style="fill: #7c3aed; filter: url(#dropshadow);">
+    </rect>
+    <!-- truck outline -->
+    <path d="M-47,-2.5 h12 v-3.5 h5.5 l4,4 v6 h-2.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;">
+    </path>
+    <line x1="-47" y1="-2.5" x2="-47" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <!-- undercarriage -->
+    <line x1="-47" y1="4.5" x2="-44.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="4.5" x2="-33.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-27.5" y1="4.5" x2="-24.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <!-- windshield -->
+    <line x1="-30.5" y1="-5.5" x2="-27.5" y2="-2.5"
+      style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <!-- wheels -->
+    <circle cx="-40.5" cy="5" r="2.1"
+      style="fill: #ffffff;"></circle>
+    <circle cx="-30.5" cy="5" r="2.1"
+      style="fill: #ffffff;"></circle>
+    <!-- vertical separator -->
+    <line x1="-20" y1="-8" x2="-20" y2="8"
+      style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+
+  <!-- operation_alternate: pill-shaped, mid blue (distinct from routing #93c5fd) -->
+  <rect id="operation_alternate" class="operation_alternate" width="104" height="26" x="-52" y="-13" rx="13" ry="13"
+    style="cursor: pointer; fill: #60a5fa; filter: url(#dropshadow);">
+  </rect>
+
+  <!-- itemdistribution_alternate: same pill + truck, lighter purple -->
+  <g id="itemdistribution_alternate" class="itemdistribution_alternate" style="cursor: pointer;">
+    <rect width="104" height="26" x="-52" y="-13" rx="13" ry="13"
+      style="fill: #a78bfa; filter: url(#dropshadow);">
+    </rect>
+    <!-- truck outline -->
+    <path d="M-47,-2.5 h12 v-3.5 h5.5 l4,4 v6 h-2.5"
+      style="fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;">
+    </path>
+    <line x1="-47" y1="-2.5" x2="-47" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <!-- undercarriage -->
+    <line x1="-47" y1="4.5" x2="-44.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-36.5" y1="4.5" x2="-33.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <line x1="-27.5" y1="4.5" x2="-24.5" y2="4.5"
+      style="stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round;"></line>
+    <!-- windshield -->
+    <line x1="-30.5" y1="-5.5" x2="-27.5" y2="-2.5"
+      style="stroke: #ffffff; stroke-width: 1.1; stroke-linecap: round;"></line>
+    <!-- wheels -->
+    <circle cx="-40.5" cy="5" r="2.1"
+      style="fill: #ffffff;"></circle>
+    <circle cx="-30.5" cy="5" r="2.1"
+      style="fill: #ffffff;"></circle>
+    <!-- vertical separator -->
+    <line x1="-20" y1="-8" x2="-20" y2="8"
+      style="stroke: #ffffff; stroke-width: 1; stroke-opacity: 0.45; stroke-linecap: round;"></line>
+  </g>
+
+  <!-- routing: rounded rect, light blue with subtle border -->
+  <rect id="routing" class="routing" width="114" height="26" x="-57" y="-13" rx="13" ry="13"
+    style="cursor: pointer; fill: #93c5fd; stroke: #60a5fa; stroke-width: 1.5; filter: url(#dropshadow); vector-effect: non-scaling-stroke;">
+  </rect>
+
+  <!-- alternate: rounded rect, dark -->
+  <rect id="alternate" class="alternate" width="114" height="26" x="-57" y="-13" rx="13" ry="13"
+    style="cursor: pointer; fill: #0f172a; stroke: #475569; stroke-width: 1.5; filter: url(#dropshadow); vector-effect: non-scaling-stroke;">
+  </rect>
+
+  <!-- split: rounded rect, dark -->
+  <rect id="split" class="split" width="114" height="26" x="-57" y="-13" rx="13" ry="13"
+    style="cursor: pointer; fill: #0f172a; stroke: #475569; stroke-width: 1.5; filter: url(#dropshadow); vector-effect: non-scaling-stroke;">
+  </rect>
+
+  <!-- buffer: diamond shape — standard supply chain inventory symbol -->
+  <polygon id="buffer" class="buffer" points="0,-14 16,0 0,14 -16,0"
+    style="cursor: pointer; fill: #059669; filter: url(#dropshadow);">
+  </polygon>
+
+  <!-- resource: oval fallback symbol -->
+  <ellipse id="resource" class="resource" cx="0" cy="0" rx="22" ry="14"
+    style="cursor: pointer; fill: #f97316; filter: url(#glowfilter);">
+  </ellipse>
+</defs>
+</svg>
+</div><span id="graph-resize-handle" class="fa fa-bars handle"></span>
+</div>
+</body>
+</html>

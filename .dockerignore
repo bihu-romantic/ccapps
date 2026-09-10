@@ -1,0 +1,48 @@
+# 版本控制 / IDE / 工具
+.git
+.gitignore
+.agents
+.claude
+.codex
+.devcontainer
+.history
+.idea
+.vscode
+build*
+
+# 本地运行/缓存目录
+logs
+log
+pgdata
+venv
+.venv
+node_modules
+__pycache__
+*.pyc
+*.egg-info
+
+# 临时 / IDE 残留
+tmp*.json
+long_text_*.txt
+CMakeSettings.json
+pnpm-lock.yaml
+
+# 大数据 / 压缩包（运行不需要）
+**/*.zip
+*.xlsx
+data/
+
+# 场景数据文件（数据在 db，不打包）
+battary_factory.json
+battary_factory_data.json
+battary_factory_standard.json
+ccpl_result.json
+ccpl_battary_result.json
+flow_line.json
+fas_response_scenario5.json
+ccAPPSdb/input/fixtures/data_final_scenario2.json
+ccAPPSdb/input/fixtures/uploads/
+ccAPPSdb/input/fixtures/export_scenario6/
+
+# 文档（运行不需要）
+doc/

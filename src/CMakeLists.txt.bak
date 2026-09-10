@@ -1,0 +1,139 @@
+# Uncomment the next line to see the compiler commands
+# set(CMAKE_VERBOSE_MAKEFILE ON)
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/ccPAAS.ico"
+  "${CMAKE_CURRENT_BINARY_DIR}/ccPAAS.ico"
+  COPYONLY
+)
+
+# Auxilary static libraries
+add_library(utils STATIC
+  "utils/actions.cpp"
+  "utils/date.cpp"
+  "utils/library.cpp"
+  "utils/python.cpp"
+  "utils/xml.cpp"
+  "utils/cache.cpp"
+  "utils/database.cpp"
+  "utils/json.cpp"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/utils.h"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/cache.h"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/database.h"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/xml.h"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/json.h"
+  "${CMAKE_BINARY_DIR}/include/config.h"
+)
+add_dependencies(utils venv)
+
+add_library(model STATIC
+  "model/actions.cpp"
+  "model/buffer.cpp"
+  "model/calendar.cpp"
+  "model/customer.cpp"
+  "model/demand.cpp"
+  "model/flow.cpp"
+  "model/flowplan.cpp"
+  "model/item.cpp"
+  "model/itemdistribution.cpp"
+  "model/itemsupplier.cpp"
+  "model/leveled.cpp"
+  "model/library.cpp"
+  "model/load.cpp"
+  "model/loadplan.cpp"
+  "model/location.cpp"
+  "model/operation.cpp"
+  "model/operationdependency.cpp"
+  "model/operationplan.cpp"
+  "model/pegging.cpp"
+  "model/plan.cpp"
+  "model/problem.cpp"
+  "model/problems_buffer.cpp"
+  "model/problems_operationplan.cpp"
+  "model/problems_resource.cpp"
+  "model/resource.cpp"
+  "model/resourceskill.cpp"
+  "model/setupmatrix.cpp"
+  "model/skill.cpp"
+  "model/solver.cpp"
+  "model/suboperation.cpp"
+  "model/supplier.cpp"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/model.h"
+)
+add_dependencies(model utils)
+
+add_library(solver STATIC
+  "solver/operatordelete.cpp"
+  "solver/solverbuffer.cpp"
+  "solver/solverdemand.cpp"
+  "solver/solverflow.cpp"
+  "solver/solverload.cpp"
+  "solver/solveroperation.cpp"
+  "solver/solverplan.cpp"
+  "solver/solverresource.cpp"
+  "${CMAKE_SOURCE_DIR}/include/ccPAAS/solver.h"
+)
+add_dependencies(solver model)
+
+add_library(forecast STATIC
+  "forecast/exprtk.h"
+  "forecast/forecast.cpp"
+  "forecast/forecast.h"
+  "forecast/forecastsolver.cpp"
+  "forecast/measure.cpp"
+  "forecast/measure_compute.cpp"
+  "forecast/timeseries.cpp"
+)
+
+if(MSVC)
+  set_target_properties(forecast PROPERTIES
+    COMPILE_FLAGS "/bigobj"
+  )
+endif()
+
+add_dependencies(forecast solver)
+
+# Main shared library
+add_library(ccPAAS SHARED
+  dllmain.cpp
+  tags.cpp
+)
+target_link_libraries(ccPAAS PUBLIC utils)
+target_link_libraries(ccPAAS PUBLIC model)
+target_link_libraries(ccPAAS PUBLIC solver)
+target_link_libraries(ccPAAS PUBLIC xerces-c)
+target_link_libraries(ccPAAS PUBLIC forecast)
+
+target_link_libraries(ccPAAS PRIVATE pq)
+target_link_libraries(ccPAAS PRIVATE ${Python3_LIBRARIES})
+
+install(
+  TARGETS ccPAAS
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+)
+
+# Main executable
+add_executable(ccPAAS-main
+  main.cpp
+  "${CMAKE_SOURCE_DIR}/include/ccPAASinterface.h"
+)
+target_link_libraries(ccPAAS-main LINK_PUBLIC ccPAAS)
+set_target_properties(ccPAAS-main PROPERTIES
+  OUTPUT_NAME "ccPAAS"
+  PDB_NAME_DEBUG "ccPAAS-main"
+)
+install(
+  TARGETS ccPAAS-main
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
+# Put the compiled binaries in the source folder.
+# This violates the out-of-source build principle, and mixes up multi-configuration builds.
+# Only excuse is that it's convenient.
+add_custom_command(
+  TARGET ccPAAS POST_BUILD VERBATIM
+  COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:ccPAAS>" "${CMAKE_SOURCE_DIR}/bin"
+)
+add_custom_command(
+  TARGET ccPAAS-main POST_BUILD VERBATIM
+  COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:ccPAAS-main>" "${CMAKE_SOURCE_DIR}/bin"
+)

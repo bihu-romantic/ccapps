@@ -1,0 +1,12 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=${prefix}
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: absl_vlog_config_internal
+Description: Abseil vlog_config_internal library
+URL: https://abseil.io/
+Version: 20250814
+Requires: absl_base = 20250814, absl_config = 20250814, absl_core_headers = 20250814, absl_log_internal_fnmatch = 20250814, absl_memory = 20250814, absl_no_destructor = 20250814, absl_nullability = 20250814, absl_strings = 20250814, absl_synchronization = 20250814, absl_optional = 20250814
+Libs: -L${libdir}  -labsl_vlog_config_internal 
+Cflags: -I${includedir} -DNOMINMAX

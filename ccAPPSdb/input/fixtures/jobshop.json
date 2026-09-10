@@ -1,0 +1,4941 @@
+[
+  {
+    "model": "input.calendar",
+    "fields": {
+      "name": "Standard Week",
+      "defaultvalue": 100
+    }
+  },
+  {
+    "model": "input.calendar",
+    "fields": {
+      "name": "Working Hours",
+      "defaultvalue": 100
+    }
+  },
+  {
+    "model": "input.calendar",
+    "fields": {
+      "name": "Heat Treat Calendar",
+      "defaultvalue": 100
+    }
+  },
+  {
+    "model": "input.calendarbucket",
+    "fields": {
+      "startdate": "2024-01-01 00:00:00",
+      "enddate": "2030-12-31 00:00:00",
+      "value": 100,
+      "priority": 0,
+      "monday": true,
+      "tuesday": true,
+      "wednesday": true,
+      "thursday": true,
+      "friday": true,
+      "saturday": false,
+      "sunday": false,
+      "starttime": "00:00:00",
+      "calendar_id": "Standard Week"
+    }
+  },
+  {
+    "model": "input.calendarbucket",
+    "fields": {
+      "startdate": "2024-01-01 00:00:00",
+      "enddate": "2030-12-31 00:00:00",
+      "value": 100,
+      "priority": 1,
+      "monday": true,
+      "tuesday": true,
+      "wednesday": true,
+      "thursday": true,
+      "friday": true,
+      "saturday": false,
+      "sunday": false,
+      "starttime": "08:00:00",
+      "endtime": "17:00:00",
+      "calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.calendarbucket",
+    "fields": {
+      "startdate": "2024-01-01 00:00:00",
+      "enddate": "2030-12-31 00:00:00",
+      "value": 100,
+      "priority": 0,
+      "monday": true,
+      "tuesday": true,
+      "wednesday": true,
+      "thursday": true,
+      "friday": true,
+      "saturday": true,
+      "sunday": true,
+      "starttime": "00:00:00",
+      "calendar_id": "Heat Treat Calendar"
+    }
+  },
+  {
+    "model": "input.location",
+    "fields": {
+      "name": "All locations"
+    }
+  },
+  {
+    "model": "input.location",
+    "fields": {
+      "name": "Factory",
+      "available_id": "Standard Week",
+      "owner_id": "All locations"
+    }
+  },
+  {
+    "model": "input.location",
+    "fields": {
+      "name": "Customer A",
+      "available_id": "Standard Week",
+      "owner_id": "All locations"
+    }
+  },
+  {
+    "model": "input.location",
+    "fields": {
+      "name": "Customer B",
+      "available_id": "Standard Week",
+      "owner_id": "All locations"
+    }
+  },
+  {
+    "model": "input.customer",
+    "fields": {
+      "name": "Customer A Industries",
+      "category": "industrial"
+    }
+  },
+  {
+    "model": "input.customer",
+    "fields": {
+      "name": "Customer B Manufacturing",
+      "category": "industrial"
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Steel Rod Ø50mm",
+      "category": "raw material",
+      "subcategory": "steel",
+      "cost": 120
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Steel Plate 10mm",
+      "category": "raw material",
+      "subcategory": "steel",
+      "cost": 80
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Steel Block 100mm",
+      "category": "raw material",
+      "subcategory": "steel",
+      "cost": 200
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Turned Shaft",
+      "category": "WIP",
+      "subcategory": "shaft",
+      "cost": 150
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Milled Shaft",
+      "category": "WIP",
+      "subcategory": "shaft",
+      "cost": 180
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Turned Gear",
+      "category": "WIP",
+      "subcategory": "gear",
+      "cost": 240
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Drilled Gear",
+      "category": "WIP",
+      "subcategory": "gear",
+      "cost": 260
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Milled Gear Teeth",
+      "category": "WIP",
+      "subcategory": "gear",
+      "cost": 320
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Hardened Gear",
+      "category": "WIP",
+      "subcategory": "gear",
+      "cost": 350
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Ground Gear",
+      "category": "WIP",
+      "subcategory": "gear",
+      "cost": 400
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Milled Bracket",
+      "category": "WIP",
+      "subcategory": "bracket",
+      "cost": 100
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Drilled Bracket",
+      "category": "WIP",
+      "subcategory": "bracket",
+      "cost": 120
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Turned Housing",
+      "category": "WIP",
+      "subcategory": "housing",
+      "cost": 220
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Milled Housing",
+      "category": "WIP",
+      "subcategory": "housing",
+      "cost": 250
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Drilled Housing",
+      "category": "WIP",
+      "subcategory": "housing",
+      "cost": 270
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Drive Shaft",
+      "category": "finished good",
+      "subcategory": "shaft",
+      "cost": 220
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Gear Blank",
+      "category": "finished good",
+      "subcategory": "gear",
+      "cost": 450
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Mounting Bracket",
+      "category": "finished good",
+      "subcategory": "bracket",
+      "cost": 150
+    }
+  },
+  {
+    "model": "input.item",
+    "fields": {
+      "name": "Bearing Housing",
+      "category": "finished good",
+      "subcategory": "housing",
+      "cost": 300
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Lathe",
+      "category": "machining",
+      "subcategory": "turning",
+      "maximum": 2,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Milling Machine",
+      "category": "machining",
+      "subcategory": "milling",
+      "maximum": 2,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Drill Press",
+      "category": "machining",
+      "subcategory": "drilling",
+      "maximum": 1,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Grinder",
+      "category": "machining",
+      "subcategory": "grinding",
+      "maximum": 1,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Heat Treat Furnace",
+      "category": "thermal",
+      "subcategory": "hardening",
+      "maximum": 1,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Heat Treat Calendar"
+    }
+  },
+  {
+    "model": "input.resource",
+    "fields": {
+      "name": "Inspection",
+      "category": "quality",
+      "subcategory": "inspection",
+      "maximum": 1,
+      "location_id": "Factory",
+      "maximum_calendar_id": "Working Hours"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Turn Shaft",
+      "type": "time_per",
+      "category": "turning",
+      "duration_per": "00:30:00",
+      "sizeminimum": 1,
+      "item_id": "Turned Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Mill Shaft Keyway",
+      "type": "time_per",
+      "category": "milling",
+      "duration_per": "00:20:00",
+      "sizeminimum": 1,
+      "item_id": "Milled Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Grind Shaft",
+      "type": "time_per",
+      "category": "grinding",
+      "duration_per": "00:25:00",
+      "sizeminimum": 1,
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Inspect Shaft",
+      "type": "time_per",
+      "category": "inspection",
+      "duration_per": "00:10:00",
+      "sizeminimum": 1,
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Turn Gear Blank",
+      "type": "time_per",
+      "category": "turning",
+      "duration_per": "00:40:00",
+      "sizeminimum": 1,
+      "item_id": "Turned Gear",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Drill Gear Center",
+      "type": "time_per",
+      "category": "drilling",
+      "duration_per": "00:15:00",
+      "sizeminimum": 1,
+      "item_id": "Drilled Gear",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Mill Gear Teeth",
+      "type": "time_per",
+      "category": "milling",
+      "duration_per": "00:45:00",
+      "sizeminimum": 1,
+      "item_id": "Milled Gear Teeth",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Heat Treat Gear",
+      "type": "fixed_time",
+      "category": "thermal",
+      "duration": "02:00:00",
+      "duration_per": "00:10:00",
+      "sizeminimum": 1,
+      "item_id": "Hardened Gear",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Grind Gear",
+      "type": "time_per",
+      "category": "grinding",
+      "duration_per": "00:35:00",
+      "sizeminimum": 1,
+      "item_id": "Ground Gear",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Inspect Gear",
+      "type": "time_per",
+      "category": "inspection",
+      "duration_per": "00:15:00",
+      "sizeminimum": 1,
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Mill Bracket",
+      "type": "time_per",
+      "category": "milling",
+      "duration_per": "00:15:00",
+      "sizeminimum": 1,
+      "item_id": "Milled Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Drill Bracket Holes",
+      "type": "time_per",
+      "category": "drilling",
+      "duration_per": "00:10:00",
+      "sizeminimum": 1,
+      "item_id": "Drilled Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Inspect Bracket",
+      "type": "time_per",
+      "category": "inspection",
+      "duration_per": "00:08:00",
+      "sizeminimum": 1,
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Turn Housing",
+      "type": "time_per",
+      "category": "turning",
+      "duration_per": "00:25:00",
+      "sizeminimum": 1,
+      "item_id": "Turned Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Mill Housing Face",
+      "type": "time_per",
+      "category": "milling",
+      "duration_per": "00:20:00",
+      "sizeminimum": 1,
+      "item_id": "Milled Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Drill Housing Bolt Holes",
+      "type": "time_per",
+      "category": "drilling",
+      "duration_per": "00:12:00",
+      "sizeminimum": 1,
+      "item_id": "Drilled Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operation",
+    "fields": {
+      "name": "Inspect Housing",
+      "type": "time_per",
+      "category": "inspection",
+      "duration_per": "00:10:00",
+      "sizeminimum": 1,
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Shaft",
+      "operation_id": "Turn Shaft",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Steel Rod Ø50mm",
+      "operation_id": "Turn Shaft",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Shaft",
+      "operation_id": "Mill Shaft Keyway",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Shaft",
+      "operation_id": "Mill Shaft Keyway",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drive Shaft",
+      "operation_id": "Grind Shaft",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Shaft",
+      "operation_id": "Grind Shaft",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drive Shaft",
+      "operation_id": "Inspect Shaft",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drive Shaft",
+      "operation_id": "Inspect Shaft",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Gear",
+      "operation_id": "Turn Gear Blank",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Steel Block 100mm",
+      "operation_id": "Turn Gear Blank",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Gear",
+      "operation_id": "Drill Gear Center",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Gear",
+      "operation_id": "Drill Gear Center",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Gear Teeth",
+      "operation_id": "Mill Gear Teeth",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Gear",
+      "operation_id": "Mill Gear Teeth",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Hardened Gear",
+      "operation_id": "Heat Treat Gear",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Gear Teeth",
+      "operation_id": "Heat Treat Gear",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Ground Gear",
+      "operation_id": "Grind Gear",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Hardened Gear",
+      "operation_id": "Grind Gear",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Gear Blank",
+      "operation_id": "Inspect Gear",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Ground Gear",
+      "operation_id": "Inspect Gear",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Bracket",
+      "operation_id": "Mill Bracket",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Steel Plate 10mm",
+      "operation_id": "Mill Bracket",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Bracket",
+      "operation_id": "Drill Bracket Holes",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Bracket",
+      "operation_id": "Drill Bracket Holes",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Mounting Bracket",
+      "operation_id": "Inspect Bracket",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Bracket",
+      "operation_id": "Inspect Bracket",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Housing",
+      "operation_id": "Turn Housing",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Steel Block 100mm",
+      "operation_id": "Turn Housing",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Housing",
+      "operation_id": "Mill Housing Face",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Turned Housing",
+      "operation_id": "Mill Housing Face",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Housing",
+      "operation_id": "Drill Housing Bolt Holes",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Milled Housing",
+      "operation_id": "Drill Housing Bolt Holes",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Bearing Housing",
+      "operation_id": "Inspect Housing",
+      "quantity": 1.0,
+      "type": "end",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationmaterial",
+    "fields": {
+      "item_id": "Drilled Housing",
+      "operation_id": "Inspect Housing",
+      "quantity": -1.0,
+      "type": "start",
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Turn Shaft",
+      "resource_id": "Lathe",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Mill Shaft Keyway",
+      "resource_id": "Milling Machine",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Grind Shaft",
+      "resource_id": "Grinder",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Inspect Shaft",
+      "resource_id": "Inspection",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Turn Gear Blank",
+      "resource_id": "Lathe",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Drill Gear Center",
+      "resource_id": "Drill Press",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Mill Gear Teeth",
+      "resource_id": "Milling Machine",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Heat Treat Gear",
+      "resource_id": "Heat Treat Furnace",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Grind Gear",
+      "resource_id": "Grinder",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Inspect Gear",
+      "resource_id": "Inspection",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Mill Bracket",
+      "resource_id": "Milling Machine",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Drill Bracket Holes",
+      "resource_id": "Drill Press",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Inspect Bracket",
+      "resource_id": "Inspection",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Turn Housing",
+      "resource_id": "Lathe",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Mill Housing Face",
+      "resource_id": "Milling Machine",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Drill Housing Bolt Holes",
+      "resource_id": "Drill Press",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.operationresource",
+    "fields": {
+      "operation_id": "Inspect Housing",
+      "resource_id": "Inspection",
+      "quantity": 1,
+      "priority": 1
+    }
+  },
+  {
+    "model": "input.supplier",
+    "fields": {
+      "name": "Steel Supplier"
+    }
+  },
+  {
+    "model": "input.itemsupplier",
+    "fields": {
+      "item_id": "Steel Rod Ø50mm",
+      "location_id": "Factory",
+      "supplier_id": "Steel Supplier",
+      "leadtime": "168:00:00",
+      "sizeminimum": 10,
+      "priority": 1,
+      "resource_qty": 1
+    }
+  },
+  {
+    "model": "input.itemsupplier",
+    "fields": {
+      "item_id": "Steel Plate 10mm",
+      "location_id": "Factory",
+      "supplier_id": "Steel Supplier",
+      "leadtime": "120:00:00",
+      "sizeminimum": 5,
+      "priority": 1,
+      "resource_qty": 1
+    }
+  },
+  {
+    "model": "input.itemsupplier",
+    "fields": {
+      "item_id": "Steel Block 100mm",
+      "location_id": "Factory",
+      "supplier_id": "Steel Supplier",
+      "leadtime": "144:00:00",
+      "sizeminimum": 5,
+      "priority": 1,
+      "resource_qty": 1
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Steel Rod Ø50mm",
+      "location_id": "Factory",
+      "onhand": 50,
+      "minimum": 10
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Steel Plate 10mm",
+      "location_id": "Factory",
+      "onhand": 30,
+      "minimum": 5
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Steel Block 100mm",
+      "location_id": "Factory",
+      "onhand": 20,
+      "minimum": 5
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Drive Shaft",
+      "location_id": "Factory",
+      "onhand": 5,
+      "minimum": 2
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Gear Blank",
+      "location_id": "Factory",
+      "onhand": 3,
+      "minimum": 2
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory",
+      "onhand": 10,
+      "minimum": 3
+    }
+  },
+  {
+    "model": "input.buffer",
+    "fields": {
+      "item_id": "Bearing Housing",
+      "location_id": "Factory",
+      "onhand": 4,
+      "minimum": 2
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 1",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 2",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 3",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 4",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 5",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 58,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 6",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 7",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 8",
+      "due": "2024-05-11 00:00:00",
+      "status": "closed",
+      "quantity": 13,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 9",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 37,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 10",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 11",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 12",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 13",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 69,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 14",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 36,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 15",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 16",
+      "due": "2024-06-10 00:00:00",
+      "status": "closed",
+      "quantity": 10,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 17",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 42,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 18",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 19",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 20",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 21",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 67,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 22",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 23",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 24",
+      "due": "2024-07-10 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 25",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 50,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 26",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 27",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 28",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 29",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 71,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 30",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 31",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 32",
+      "due": "2024-08-09 00:00:00",
+      "status": "closed",
+      "quantity": 8,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 33",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 8,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 34",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 35",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 36",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 37",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 69,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 38",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 39",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 40",
+      "due": "2024-09-08 00:00:00",
+      "status": "closed",
+      "quantity": 10,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 41",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 42",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 43",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 44",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 45",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 69,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 46",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 47",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 48",
+      "due": "2024-10-08 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 49",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 50",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 51",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 52",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 53",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 56,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 54",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 59,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 55",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 56",
+      "due": "2024-11-07 00:00:00",
+      "status": "closed",
+      "quantity": 10,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 57",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 49,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 58",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 59",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 60",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 61",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 81,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 62",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 34,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 63",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 64",
+      "due": "2024-12-07 00:00:00",
+      "status": "closed",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 65",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 51,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 66",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 15,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 67",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 68",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 69",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 55,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 70",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 42,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 71",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 72",
+      "due": "2025-01-06 00:00:00",
+      "status": "closed",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 73",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 47,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 74",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 75",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 76",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 77",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 74,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 78",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 79",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 80",
+      "due": "2025-02-05 00:00:00",
+      "status": "closed",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 81",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 82",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 83",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 84",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 85",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 51,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 86",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 39,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 87",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 88",
+      "due": "2025-03-07 00:00:00",
+      "status": "closed",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 89",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 43,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 90",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 91",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 36,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 92",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 93",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 64,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 94",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 95",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 96",
+      "due": "2025-04-06 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 97",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 54,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 98",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 99",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 41,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 100",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 101",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 83,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 102",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 36,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 103",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 104",
+      "due": "2025-05-06 00:00:00",
+      "status": "closed",
+      "quantity": 9,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 105",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 106",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 107",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 34,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 108",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 109",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 110",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 42,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 111",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 112",
+      "due": "2025-06-05 00:00:00",
+      "status": "closed",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 113",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 114",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 115",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 40,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 116",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 117",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 53,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 118",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 49,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 119",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 120",
+      "due": "2025-07-05 00:00:00",
+      "status": "closed",
+      "quantity": 13,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 121",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 41,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 122",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 123",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 124",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 11,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 125",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 73,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 126",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 35,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 127",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 128",
+      "due": "2025-08-04 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 129",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 56,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 130",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 131",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 132",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 133",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 86,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 134",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 135",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 136",
+      "due": "2025-09-03 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 137",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 58,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 138",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 139",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 140",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 141",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 41,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 142",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 37,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 143",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 144",
+      "due": "2025-10-03 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 145",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 146",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 147",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 148",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 149",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 63,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 150",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 43,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 151",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 152",
+      "due": "2025-11-02 00:00:00",
+      "status": "closed",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 153",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 154",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 155",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 156",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 157",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 49,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 158",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 46,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 159",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 160",
+      "due": "2025-12-02 00:00:00",
+      "status": "closed",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 161",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 55,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 162",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 163",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 164",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 35,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 165",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 63,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 166",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 167",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 168",
+      "due": "2026-01-01 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 169",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 41,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 170",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 171",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 37,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 172",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 173",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 34,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 174",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 175",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 176",
+      "due": "2026-01-31 00:00:00",
+      "status": "closed",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 177",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 50,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 178",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 179",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 180",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 181",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 57,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 182",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 183",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 184",
+      "due": "2026-03-02 00:00:00",
+      "status": "closed",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 185",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 186",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 187",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 188",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 15,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 189",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 66,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 190",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 45,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 191",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "History 192",
+      "due": "2026-04-01 00:00:00",
+      "status": "closed",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 193",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 40,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 194",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 39,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 195",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 196",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 197",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 55,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 198",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 199",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 200",
+      "due": "2026-05-01 00:00:00",
+      "status": "open",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 201",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 66,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 202",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 203",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 204",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 205",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 49,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 206",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 35,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 207",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 208",
+      "due": "2026-05-31 00:00:00",
+      "status": "open",
+      "quantity": 15,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 209",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 210",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 37,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 211",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 212",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 213",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 44,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 214",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 215",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 216",
+      "due": "2026-06-30 00:00:00",
+      "status": "open",
+      "quantity": 11,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 217",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 218",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 219",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 220",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 24,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 221",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 79,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 222",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 32,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 223",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 13,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 224",
+      "due": "2026-07-30 00:00:00",
+      "status": "open",
+      "quantity": 13,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 225",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 54,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 226",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 227",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 228",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 229",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 80,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 230",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 57,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 231",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 232",
+      "due": "2026-08-29 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 233",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 234",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 235",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 236",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 23,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 237",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 68,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 238",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 239",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 15,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 240",
+      "due": "2026-09-28 00:00:00",
+      "status": "open",
+      "quantity": 11,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 241",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 242",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 29,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 243",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 244",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 17,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 245",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 66,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 246",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 50,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 247",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 248",
+      "due": "2026-10-28 00:00:00",
+      "status": "open",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 249",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 35,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 250",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 251",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 252",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 30,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 253",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 74,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 254",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 40,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 255",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 256",
+      "due": "2026-11-27 00:00:00",
+      "status": "open",
+      "quantity": 14,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 257",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 47,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 258",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 259",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 28,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 260",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 36,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 261",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 82,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 262",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 263",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 18,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 264",
+      "due": "2026-12-27 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 265",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 49,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 266",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 267",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 16,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 268",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 6,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 269",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 58,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 270",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 33,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 271",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 272",
+      "due": "2027-01-26 00:00:00",
+      "status": "open",
+      "quantity": 11,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 273",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 25,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 274",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 12,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 275",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 31,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 276",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 22,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 277",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 74,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 278",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 43,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 279",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 19,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 280",
+      "due": "2027-02-25 00:00:00",
+      "status": "open",
+      "quantity": 21,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 281",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 38,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 282",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Drive Shaft",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 283",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 26,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 284",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 15,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Gear Blank",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 285",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 27,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 286",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 36,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Mounting Bracket",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 287",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 20,
+      "priority": 1,
+      "customer_id": "Customer A Industries",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "input.demand",
+    "fields": {
+      "name": "Forecast 288",
+      "due": "2027-03-27 00:00:00",
+      "status": "open",
+      "quantity": 13,
+      "priority": 1,
+      "customer_id": "Customer B Manufacturing",
+      "item_id": "Bearing Housing",
+      "location_id": "Factory"
+    }
+  },
+  {
+    "model": "common.parameter",
+    "fields": {
+      "name": "currentdate",
+      "value": "2026-05-09 00:00:00"
+    }
+  },
+  {
+    "model": "common.parameter",
+    "fields": {
+      "name": "plan.webservice",
+      "value": "true"
+    }
+  },
+  {
+    "model": "common.parameter",
+    "fields": {
+      "name": "plan.iterationmax",
+      "value": "500"
+    }
+  },
+  {
+    "model": "common.parameter",
+    "fields": {
+      "name": "lazydelay",
+      "value": "86400"
+    }
+  },
+  {
+    "model": "common.parameter",
+    "fields": {
+      "name": "plan.minimumdelay",
+      "value": "3600"
+    }
+  }
+]

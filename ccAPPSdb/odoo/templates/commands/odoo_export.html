@@ -1,0 +1,12 @@
+{% load i18n %}
+<form role="form" method="post" action="{{request.prefix}}/execute/launch/odoo_export/">{% csrf_token %}
+<table>
+    <tr>
+    <td style="vertical-align:top; padding: 15px">
+        <button  class="btn btn-primary"  type="submit" value="{% trans "launch"|capfirst %}">{% trans "launch"|capfirst %}</button>
+    </td>
+    <td  style="padding: 0px 15px;">将 ccAPPS 排程数据导出到 Odoo。
+    </td>
+    </tr>
+</table>
+</form>

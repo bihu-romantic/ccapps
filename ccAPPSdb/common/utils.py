@@ -1,0 +1,216 @@
+from email.mime.image import MIMEImage
+from importlib.util import find_spec
+from io import StringIO
+import math
+import os
+from pathlib import Path
+import tokenize
+
+
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
+from django.db import connections, DEFAULT_DB_ALIAS
+from django.template import Template, Context
+
+
+def getPostgresVersion():
+    """
+    Find a PostgreSQL client that matches your database instance version.
+    If an exact match isn't found, try higher numbers.
+    """
+    server = math.floor(connections[DEFAULT_DB_ALIAS].pg_version / 10000)
+    clients = set()
+    for v in range(14, 23):
+        if os.path.isdir(f"/usr/lib/postgresql/{v}/bin"):
+            if v >= server:
+                return v
+            clients.add(str(v))
+    raise Exception(
+        f"You are using postgres version {server}. ccAPPS only supports versions {', '.join(clients)}"
+    )
+
+
+def forceWsgiReload():
+    wsgi = os.path.join(settings.CCAPPS_CONFIGDIR, "wsgi.py")
+    if os.access(wsgi, os.W_OK):
+        Path(wsgi).touch()
+    else:
+        wsgi = os.path.join(os.path.split(find_spec("ccAPPSdb").origin)[0], "wsgi.py")
+        if os.access(wsgi, os.W_OK):
+            Path(wsgi).touch()
+
+
+def getStorageUsage():
+    """
+    The storage counts:
+    - All files in the LOGDIR folder.
+      This includes input data files, engine log files, database dump files, plan export files.
+    - Postgres database storage.
+    """
+    from ccAPPSdb.common.models import Scenario
+
+    total_size = 0
+
+    # Add the size of all log files and data files
+    for dirpath, dirnames, filenames in os.walk(settings.CCAPPS_LOGDIR):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+
+    # Add the size of all scenarios in use
+    for db in [
+        sc.name
+        for sc in Scenario.objects.using(DEFAULT_DB_ALIAS)
+        .filter(status="In use")
+        .only("name")
+    ]:
+        with connections[DEFAULT_DB_ALIAS].cursor() as cursor:
+            cursor.execute("select pg_database_size(current_database())")
+            dbsizevalue = cursor.fetchone()
+            if len(dbsizevalue) > 0:
+                total_size += dbsizevalue[0]
+    return total_size
+
+
+def update_variable_in_file(file_path, var_name, new_value_code):
+    with open(file_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    code = "".join(lines)
+    tokens = list(tokenize.generate_tokens(StringIO(code).readline))
+
+    new_lines = []
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token.type == tokenize.NAME and token.string == var_name:
+            # Peek ahead to find '='
+            j = i + 1
+            while j < len(tokens) and tokens[j].string != "=":
+                j += 1
+            if j >= len(tokens):
+                break
+
+            # Find the start of the assignment
+            start_line = tokens[i].start[0] - 1
+
+            # Now find the end of the assignment
+            bracket_stack = []
+            end_line = start_line
+            k = j + 1
+            while k < len(tokens):
+                tok = tokens[k]
+                if tok.string in "([{":
+                    bracket_stack.append(tok.string)
+                elif tok.string in ")]}":
+                    if bracket_stack:
+                        bracket_stack.pop()
+                if not bracket_stack and tok.type in {tokenize.NEWLINE, tokenize.NL}:
+                    end_line = tok.end[0] - 1
+                    break
+                end_line = tok.end[0] - 1
+                k += 1
+
+            # Replace lines from start_line to end_line with new assignment
+            indent = lines[start_line][
+                : len(lines[start_line]) - len(lines[start_line].lstrip())
+            ]
+            new_assignment = f"{indent}{var_name} = {new_value_code}\n"
+
+            new_lines.extend(lines[:start_line])
+            new_lines.append(new_assignment)
+            new_lines.extend(lines[end_line + 1 :])
+            break
+        i += 1
+    else:
+        # Variable not found, append it at the end
+        new_assignment = f"{var_name} = {new_value_code}\n"
+        new_lines = lines + [new_assignment]
+
+    # Write the updated lines back to the file
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+
+def get_databases(includeReporting=False):
+    if not includeReporting:
+        return {
+            k: v
+            for k, v in settings.DATABASES.items()
+            if not v.get("IS_REPORTING_DATABASE", False)
+        }
+    else:
+        return settings.DATABASES
+
+
+def sendEmail(to, subject, body, body_html=None, send=True, **context):
+    # Base message
+    ctx = Context(context)
+    if getattr(settings, "EMAIL_URL_PREFIX", None) and "url" not in context:
+        ctx.push(url=settings.EMAIL_URL_PREFIX)
+    msg = EmailMultiAlternatives(
+        subject=Template(subject).render(ctx),
+        body=Template(body).render(ctx),
+        to=to if isinstance(to, (list, tuple)) else (str(to),),
+    )
+
+    # Attach logo
+    logo_file = os.path.join(settings.CCAPPS_LOGDIR, "ccAPPS.png")
+    if not os.access(logo_file, os.R_OK):
+        logo_file = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "static",
+            "img",
+            "ccAPPS.png",
+        )
+    with open(logo_file, "rb") as f:
+        logo = MIMEImage(f.read())
+        logo.add_header("Content-ID", "<logo>")
+        logo.add_header("Content-Disposition", "inline", filename="logo.png")
+        msg.attach(logo)
+
+    # Add mail in HTML format
+    if "url" in ctx:
+        logo_html = (
+            f'<a href="{ctx["url"]}" target="_blank">'
+            '<img height="40" style="display:block; width:auto; height:40px" '
+            'src="cid:logo" alt="ccAPPS logo">'
+            "</a>"
+        )
+    else:
+        logo_html = (
+            '<img height="40" style="display:block; width:auto; height:40px" '
+            'src="cid:logo" alt="ccAPPS logo">'
+        )
+    msg.attach_alternative(
+        "<html>"
+        "<body>"
+        '<div><table width="100%" cellpadding="0" cellspacing="0" border="0">'
+        '<tr><td align="center">'
+        f"{logo_html}"
+        "</td></tr>"
+        "</table></div><div>"
+        f"{Template(body_html or body).render(ctx)}"
+        "</div></body>"
+        "</html>",
+        "text/html",
+    )
+    if send:
+        msg.send()
+    else:
+        return msg
+
+
+def vacuumAnalyze(cursor):
+    """
+    This method runs vacuum analyze on all tables in the public schema.
+    """
+    cursor.execute(
+        """
+        select schemaname || '.' || tablename
+        from pg_tables
+        where schemaname = 'public'
+        """
+    )
+    cursor.execute(f"vacuum analyze {", ".join(t[0] for t in cursor)}")

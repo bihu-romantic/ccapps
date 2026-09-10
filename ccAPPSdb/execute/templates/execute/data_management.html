@@ -1,0 +1,49 @@
+{% extends "admin/base_site_nav.html" %}
+{% load i18n %}
+
+{% block content_title %}
+<div class="row mt-3">
+  <div class="col">
+    <h1>{% trans "数据导入导出" %}</h1>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-2" id="commandlist">
+  {% if perms.auth.auth.generate_plan or perms.auth.copy_scenario or perms.auth.release_scenario or perms.auth.promote_scenario or perms.auth.run_db %}
+  <div class="col-lg-6 col-12 widget-list" data-widget="column1">
+    {% for cmd in commandlist1 %}
+    <div class="card mb-2 widget" data-widget="{{cmd.command.name}}">
+      <div class="card-header d-flex align-items-center" id="Heading1-{{ forloop.counter }}" data-bs-toggle="collapse" data-bs-target="#Accord1-{{ forloop.counter }}" aria-expanded="true" aria-controls="Accord1-{{ forloop.counter }}">
+        <h5 class="fs-5 me-auto card-title">{{ cmd.command.title|capfirst }}</h5>
+        {% if cmd.command.help_url %}
+        <span class='fa fa-question align-middle w-auto me-2' onclick="window.open('{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/{{ cmd.command.help_url }}')"></span>
+        {% endif %}
+      </div>
+      <div id="Accord1-{{ forloop.counter }}" data-task="#{{ cmd.command.name }}" data-bs-parent="#commandlist" class="card-body collapse{% if not cmd.options.collapsed %} show{% endif %}" aria-labelledby="Heading1-{{ forloop.counter }}">
+        {{ cmd.html }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="col-lg-6 col-12 widget-list" data-widget="column2">
+    {% for cmd in commandlist2 %}
+    <div class="card mb-2 widget" data-widget="{{cmd.command.name}}">
+      <div class="card-header d-flex align-items-center" id="Heading2-{{ forloop.counter }}" data-bs-toggle="collapse" data-bs-target="#Accord2-{{ forloop.counter }}" aria-expanded="true" aria-controls="Accord2-{{ forloop.counter }}">
+        <h5 class="fs-5 me-auto card-title">{{ cmd.command.title|capfirst }}</h5>
+        {% if cmd.command.help_url %}
+        <span class='fa fa-question align-middle w-auto me-2' onclick="window.open('{% setting "DOCUMENTATION_URL" %}/docs/{% version_short %}/{{ cmd.command.help_url }}')"></span>
+        {% endif %}
+      </div>
+      <div id="Accord2-{{ forloop.counter }}" data-task="#{{ cmd.command.name }}" data-bs-parent="#commandlist" class="card-body collapse{% if not cmd.options.collapsed %} show{% endif %}" aria-labelledby="Heading2-{{ forloop.counter }}">
+        {{ cmd.html }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="col-12">{% trans "Sorry, You don't have any execute permissions..." %}</div>
+  {% endif %}
+</div>
+{% endblock %}

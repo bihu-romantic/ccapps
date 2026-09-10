@@ -1,0 +1,74 @@
+[
+    {
+        "pk": "odoo.user",
+        "model": "common.parameter",
+        "fields": {
+            "value": "admin",
+            "description": "Odoo 连接器：连接用户名。"
+        }
+    },
+    {
+        "pk": "odoo.password",
+        "model": "common.parameter",
+        "fields": {
+            "value": "admin",
+            "description": "Odoo 连接器：连接密码。为安全起见，建议在 djangosettings.py 中配置此密码。"
+        }
+    },
+    {
+        "pk": "odoo.db",
+        "model": "common.parameter",
+        "fields": {
+            "value": "odoo",
+            "description": "Odoo 连接器：要连接的数据库名称。"
+        }
+    },
+    {
+        "pk": "odoo.url",
+        "model": "common.parameter",
+        "fields": {
+            "value": "http://localhost:8069/",
+            "description": "Odoo 连接器：XML-RPC 服务器 URL。"
+        }
+    },
+    {
+        "pk": "odoo.loglevel",
+        "model": "common.parameter",
+        "fields": {
+            "value": "0",
+            "description": "Odoo 连接器：设为非零值获得详细日志。默认：0。"
+        }
+    },
+    {
+        "pk": "odoo.company",
+        "model": "common.parameter",
+        "fields": {
+            "value": "My Company (San Francisco)",
+            "description": "Odoo 连接器：为其创建 PO、MO 和 WO 的公司名称。"
+        }
+    },
+    {
+        "pk": "odoo.singlecompany",
+        "model": "common.parameter",
+        "fields": {
+            "value": "false",
+            "description": "Odoo 连接器：设为 false（默认）时下载所有允许的公司；设为 true 时仅下载配置的公司数据。"
+        }
+    },
+    {
+        "pk": "odoo.allowSharedOwnership",
+        "model": "common.parameter",
+        "fields": {
+            "value": "false",
+            "description": "Odoo 连接器：默认从 Odoo 读取的记录在 ccAPPS 中不可编辑。设为 true 时，清空 source 字段后可覆盖数据。"
+        }
+    },
+    {
+        "pk": "odoo.calendar",
+        "model": "common.parameter",
+        "fields": {
+            "value": "",
+            "description": "Odoo 连接器：应用于所有地点的日历。"
+        }
+    }
+]

@@ -1,0 +1,11 @@
+prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+exec_prefix=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755
+bindir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/bin
+libdir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/lib
+includedir=/root/or-tools/or-tools_x86_64_Ubuntu-24.04_cpp_v9.15.6755/include
+
+Name: bzip2
+Description: Lossless, block-sorting data compression
+Version: 1.1.0
+Libs: -L${libdir} -lbz2
+Cflags: -I${includedir}

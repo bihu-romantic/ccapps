@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<plan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <current>2020-01-01T00:00:00</current>
+  <operations>
+    <!-- MRP's MINCOST rule prefers A. FAS must compare the completed
+         forward trial networks and choose the earlier B instead. -->
+    <operation name="make A" xsi:type="operation_fixed_time"><duration>P2D</duration><cost>1</cost></operation>
+    <operation name="make B" xsi:type="operation_fixed_time"><duration>P1D</duration><cost>20</cost></operation>
+    <operation name="alternate" xsi:type="operation_alternate" search="MINCOST"><suboperations>
+      <suboperation><operation name="make A"><flows><flow xsi:type="flow_end"><buffer name="finished"/><quantity>1</quantity></flow></flows></operation><priority>1</priority></suboperation>
+      <suboperation><operation name="make B"><flows><flow xsi:type="flow_end"><buffer name="finished"/><quantity>1</quantity></flow></flows></operation><priority>2</priority></suboperation>
+    </suboperations></operation>
+    <operation name="deliver" xsi:type="operation_fixed_time"><duration>PT0S</duration></operation>
+  </operations>
+  <buffers><buffer name="finished"><item name="finished item"/><producing name="alternate"/></buffer></buffers>
+  <flows><flow xsi:type="flow_start"><operation name="deliver"/><buffer name="finished"/><quantity>-1</quantity></flow></flows>
+  <demands><demand name="order"><quantity>5</quantity><due>2020-01-10T00:00:00</due><item name="finished item"/><operation name="deliver"/></demand></demands>
+</plan>
