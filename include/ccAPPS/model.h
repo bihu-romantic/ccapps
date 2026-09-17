@@ -9531,6 +9531,16 @@ class CommandCreateOperationPlan : public Command {
 
   OperationPlan* getOperationPlan() const { return opplan; }
 
+  /* Hand the created operationplan over to the caller. The command stops
+   * owning it: it no longer initializes it on commit and no longer deletes it
+   * on rollback. Used to discard a trial operationplan that isn't registered
+   * with the command manager because its owner is responsible for it. */
+  OperationPlan* releaseOperationPlan() {
+    OperationPlan* tmp = opplan;
+    opplan = nullptr;
+    return tmp;
+  }
+
   short getType() const override { return 5; }
 
  private:

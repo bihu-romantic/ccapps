@@ -11,7 +11,9 @@
 
 #include "ccAPPS/solver.h"
 
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace ccAPPS {
 
@@ -100,7 +102,16 @@ class SolverFAS : public Solver {
   };
   std::unordered_set<OperationPlan*> collectNetwork(
       const std::vector<OperationPlan*>& roots) const;
-  std::vector<OperationPlan*> orderNetwork(
+  /* Executable supply network of the selected orders: the movable leaf plans
+   * plus the sequence relations between them. The forward pass consumes the
+   * edges directly instead of a precomputed order, so it can dispatch each
+   * plan the moment its own prerequisites are ready. */
+  struct ExecutionGraph {
+    std::vector<OperationPlan*> work;
+    std::unordered_map<OperationPlan*, std::vector<OperationPlan*>> downstream;
+    std::unordered_map<OperationPlan*, size_t> indegree;
+  };
+  ExecutionGraph buildExecutionGraph(
       const std::unordered_set<OperationPlan*>& network,
       const std::unordered_set<OperationPlan*>& fixedPlans) const;
   void reserveFixedNetwork(
@@ -108,9 +119,41 @@ class SolverFAS : public Solver {
       std::unordered_map<const Resource*, std::vector<Reservation>>& plans,
       std::unordered_map<const Resource*, Date>& serialReady) const;
   Date finishOf(const std::vector<OperationPlan*>& roots) const;
-  static bool demandFirst(const OperationPlan* left,
-                          const OperationPlan* right);
+  /* Ranking key for a candidate alternate: *lower is better*. The shared MRP
+   * kernel selects alternates by cost and priority, which is load blind, so
+   * with equal costs every order of a pool picks the same machine. This probe
+   * supplies a capacity- and load-aware ranking without running a complete
+   * forward schedule per candidate.
+   *
+   * The key is not a physical completion date: it weighs the candidate's own
+   * processing time against the load it would add to the machines it occupies.
+   * See the definition for why the weighting is necessary. */
+  Date probeAlternateCompletion(OperationPlan* root);
+  /* Structural contention of one concrete resource: how much *other* work can
+   * still be routed to it, estimated from the number of load definitions that
+   * consume it. Memoised for the duration of a single solve(). Needed because
+   * a pool that hasn't been planned yet looks completely idle, which makes an
+   * unrelated single-step order pick it on processing time alone. */
+  Duration contentionOf(const Resource* resource);
+  /* Earliest date at which `resource` can host a `duration` interval of
+   * `required` capacity starting from `start`, ignoring the candidate's own
+   * plans. Returns Date::infiniteFuture when the window fits. */
+  Date probeResourceConflict(
+      const Resource* resource, Date start, Duration duration, double required,
+      const std::unordered_set<const OperationPlan*>& own) const;
   bool isMovable(const OperationPlan* op) const;
+  /* Re-run the forward pass over the network that is already in the model,
+   * giving priority to the operations that feed a machine with no slack. A
+   * round is kept only when it shortens the plan, so this can improve on the
+   * greedy pass but never worsen it. Each round costs one forward pass and no
+   * supply expansion. */
+  /* Derive the next round's dispatch bonuses from the pass that just ran.
+   * Called at the end of every forward pass, trial rounds included, because
+   * only there is the successor relation still available. */
+  void collectRoundSlack(const ExecutionGraph& graph);
+  void refineForwardSchedule(
+      const std::vector<OperationPlan*>& roots,
+      const std::unordered_set<OperationPlan*>& fixed);
   bool moveApproved = false;
   Duration lazyDelay = Duration(86400L);
   Duration minimumDelay = Duration(3600L);
@@ -131,6 +174,32 @@ class SolverFAS : public Solver {
   std::vector<OperationPlan*> trialRoots;
   Date trialCompletion = Date::infiniteFuture;
   CommandManager* trialTransaction = nullptr;
+  // Number of alternate-probe calls during the last supply expansion. Reported
+  // at the end of a run so the cost of capacity-aware alternate selection
+  // stays visible.
+  unsigned long alternateProbes = 0;
+  // Memoised contentionOf() results, keyed by resource. Cleared per solve().
+  std::unordered_map<const Resource*, Duration> contentionCache;
+  // Dispatch bonus per operation for the round in progress (see pushReady).
+  // Empty for the first, greedy round.
+  std::unordered_map<OperationPlan*, Duration> dispatchBonus;
+  // Operations the round in progress placed, and the last end each machine
+  // reached. Together with the network's successor relation these give the
+  // slack of the machine an operation hands over to, which is what tells a
+  // round which operations the makespan is actually waiting for.
+  std::unordered_set<OperationPlan*> placedOps;
+  std::unordered_map<const Resource*, Date> machineCompletion;
+  // Tightest slack of the machine each operation hands over to, measured by
+  // the round in progress. Kept raw rather than as a bonus because the round
+  // that follows chooses how aggressively to translate slack into priority.
+  std::unordered_map<OperationPlan*, Duration> roundSlack;
+  // Plans the refinement round must hold fixed. It does not run the safety
+  // stock pass that normally produces that set, so it inherits it.
+  std::unordered_set<OperationPlan*> trialFixedPlans;
+  // Latest end the forward pass placed, i.e. the completion of the scheduled
+  // network. Rounds are compared on this rather than on the plan's own dates:
+  // a routing parent carries the delivery promise, not the schedule.
+  Date forwardCompletion = Date::infinitePast;
 };
 
 PyObject* run_fas(PyObject*, PyObject*);

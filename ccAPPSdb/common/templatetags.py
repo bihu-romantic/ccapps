@@ -518,7 +518,6 @@ class MenuNode(Node):
                   inner join pg_namespace n on n.oid = c.relnamespace
                   where n.nspname = 'public'
                     and c.relkind = 'r' -- only ordinary tables
-                    and pg_get_userbyid(c.relowner) = current_user
                   ) s
                 where xml_count is document;
                 """

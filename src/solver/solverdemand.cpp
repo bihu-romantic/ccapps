@@ -61,12 +61,13 @@ void SolverCreate::planSelectedDemands(const vector<Demand*>& selected,
   // demand boundary only in autocommit mode. These are model-level planning
   // commands (not a database commit); matching this boundary is essential
   // for identical lot/batch creation semantics.
+  const bool previousAutocommit = getAutocommit();
   setAutocommit(true);
   update_user_exits();
   SolverData data(this, selectedCluster, &queue);
   data.setCommandManager(&mgr);
   data.commit();
-  setAutocommit(false);
+  setAutocommit(previousAutocommit);
 }
 
 void SolverCreate::planSafetyStock(int selectedCluster) {
@@ -75,7 +76,7 @@ void SolverCreate::planSafetyStock(int selectedCluster) {
   // demand creation, consolidated purchasing, then a final safety-stock pass.
   // It is intentionally a separate entry point so solver_fas doesn't invoke
   // MRP's global order loop merely to replenish inventory targets.
-  setAutocommit(true);
+  const bool previousAutocommit = getAutocommit();
   update_user_exits();
   SolverData data(this, selectedCluster, nullptr);
   data.setCommandManager(&mgr);
@@ -114,7 +115,7 @@ void SolverCreate::planSafetyStock(int selectedCluster) {
   data.buffer_solve_shortages_only = false;
   data.solveSafetyStock(this, false);
   data.safety_stock_planning = false;
-  setAutocommit(false);
+  setAutocommit(previousAutocommit);
 }
 
 void SolverCreate::beginPlannedDemands() {

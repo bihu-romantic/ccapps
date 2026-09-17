@@ -606,9 +606,9 @@ var _peResourceDirty = false;
 var _peLoadplansBaseline = null;
 var _peLocalProblems = [];
 var _peAutoFixScopeRefs = [];
-var _peGanttLimit = 400;
-var _peDemandRenderLimit = 30;
-var _peDemandRenderStep = 30;
+var _peGanttLimit = 10000;
+var _peDemandRenderLimit = 5000;
+var _peDemandRenderStep = 500;
 
 function _cloneEditState(opplan) {
     return {
@@ -1742,7 +1742,7 @@ function _renderDemandPegging(demandGroups, sharedTimeParams, pegParentId, deman
 	    var demandKeys = Object.keys(demandGroups).sort();
 	    if (demandKeys.length === 0) return { labels: [], time: [] };
 	    var totalDemandKeys = demandTotal || demandKeys.length;
-	    var renderLimit = _peDemandRenderLimit || 30;
+	    var renderLimit = _peDemandRenderLimit || 5000;
 	    var omitted = Math.max(0, totalDemandKeys - renderLimit);
 	    demandKeys = demandKeys.slice(0, renderLimit);
 
@@ -2042,18 +2042,18 @@ function _buildGanttUrl(board, compact, itemGroup) {
     var url = new URL(base, window.location.origin);
     url.searchParams.set("format", "gantt");
     url.searchParams.set("board", board);
-    url.searchParams.set("ganttlimit", String(_peGanttLimit || 400));
+    url.searchParams.set("ganttlimit", String(_peGanttLimit || 10000));
     if (compact) {
         url.searchParams.set("compact", "1");
-        url.searchParams.set("demandlimit", String(_peDemandRenderLimit || 30));
+        url.searchParams.set("demandlimit", String(_peDemandRenderLimit || 5000));
         if (itemGroup) url.searchParams.set("itemgroup", itemGroup);
     }
     return url.toString();
 }
 
 function loadMoreCombinedGantt() {
-    _peGanttLimit = Math.min((_peGanttLimit || 400) + 400, 10000);
-    _peDemandRenderLimit = Math.min((_peDemandRenderLimit || 30) + (_peDemandRenderStep || 30), 5000);
+    _peGanttLimit = Math.min((_peGanttLimit || 10000) + 400, 10000);
+    _peDemandRenderLimit = Math.min((_peDemandRenderLimit || 5000) + (_peDemandRenderStep || 500), 5000);
     renderCombinedGantt();
 }
 

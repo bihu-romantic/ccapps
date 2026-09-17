@@ -1,0 +1,9 @@
+# 锁死 2.14.7：本 server 依赖 FastMCP 2.14 的 add_tool(Tool) 语义
+# （2.3~2.6 时代 add_tool 收的是 callable，写法和这里不兼容）。
+fastmcp[server]==2.14.7
+# ccapps_client.py 里的 BearerMiddleware 用到
+httpx>=0.27
+# spec.py 解析 *.tool.yaml
+PyYAML>=6.0
+# tools/import_data.py 用
+requests>=2.31

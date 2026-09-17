@@ -1,0 +1,18 @@
+name: read_xlsx
+description: >-
+  通用 xlsx 读取:列出工作簿里所有工作表名、每张表的行数,并打印每张表前 8 行。
+  用来快速看一眼数据结构、确认表名和表头。
+
+  参数 xlsx_base64 必须是 .xlsx 文件**二进制内容的 base64**,不是路径、不是 URL。
+  要校验数据质量请用 fjsp_data_check,要做排程分析请用 analyze_schedule。
+script: read_xlsx.py
+timeout_sec: 120
+params:
+  - name: xlsx_base64
+    type: string
+    required: true
+    description: .xlsx 文件内容的 base64
+    file:
+      as: input.xlsx
+argv:
+  - "${file:xlsx_base64}"

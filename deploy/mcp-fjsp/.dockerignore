@@ -1,0 +1,12 @@
+# 本目录作为构建上下文时，仓库根那份 .dockerignore 不生效（docker 只看上下文根目录
+# 的 .dockerignore），所以这里单独放一份。重点是别让测试数据被烤进镜像。
+__pycache__
+*.pyc
+*.pyo
+*.bak
+*.xlsx
+*.xls
+*.zip
+*.tar.gz
+.pytest_cache
+tests/

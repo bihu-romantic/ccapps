@@ -4,9 +4,8 @@
 # 之类的代理拦截导致「假超时」；并用无缓冲输出，日志实时可见。
 set -euo pipefail
 
-APP_DIR="/home/c/ccAPPS"
-CONDA_INIT="/home/c/miniconda3/etc/profile.d/conda.sh"
-CONDA_ENV="pple_cc"
+APP_DIR="/home/c/ccapps"
+VENV_DIR="${APP_DIR}/venv"
 PORT="8001"
 LOG_FILE="/tmp/ccapps-runserver-${PORT}.log"
 PID_FILE="/tmp/ccapps-runserver-${PORT}.pid"
@@ -87,11 +86,22 @@ start() {
       eval "$(
         grep -E '^export (ANTHROPIC_API_KEY|ANTHROPIC_BASE_URL|ANTHROPIC_DEFAULT_HAIKU_MODEL|ANTHROPIC_DEFAULT_SONNET_MODEL)=' "$HOME/.bashrc" 2>/dev/null || true
       )"
-      source "$CONDA_INIT"
-      conda activate "$CONDA_ENV"
+      source "$VENV_DIR/bin/activate"
       cd "$APP_DIR"
       export DJANGO_SETTINGS_MODULE=ccAPPSdb.settings
       export PYTHONUNBUFFERED=1          # 日志实时刷出，不再「日志为空」
+      # 本地 PostgreSQL 18.6（系统包，端口 5432）：库名沿用线上的命名规则(前缀 ccapps)。
+      # 连接身份固定为 ccapps（与 175 一致，来源见 db-backup/ccapps-175-20260911/MANIFEST.md）。
+      # 注意：必须走 TCP 127.0.0.1，不能用 unix socket —— pg_hba 里 local 那条是 peer
+      # 认证，要求 OS 用户名 == 角色名，而本机 OS 用户是 c，用 ccapps 走 socket 会
+      # 直接 FATAL: Peer authentication failed。走 TCP 则命中 scram-sha-256，
+      # 口令取自 settings 默认的 frepple。
+      export POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
+      export POSTGRES_USER="${POSTGRES_USER:-ccapps}"
+      export POSTGRES_DBNAME="${POSTGRES_DBNAME:-ccapps}"
+      # libccAPPS.so 需要 libxerces-c-3.2.so + ICU 74（Ubuntu 26.04 源里没有，
+      # 已从 175 的 ccapps-app 容器拷到该目录，见 db-backup 的 MANIFEST）。
+      export LD_LIBRARY_PATH="/home/c/.local/lib/ccapps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       nohup setsid python -u ccAPPSctl.py $RUN_ARGS >>"$LOG_FILE" 2>&1 < /dev/null &
       echo $! > "$PID_FILE"
     } >>"$LOG_FILE" 2>&1

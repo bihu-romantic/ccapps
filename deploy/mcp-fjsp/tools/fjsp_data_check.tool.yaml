@@ -1,0 +1,31 @@
+name: fjsp_data_check
+description: >-
+  校验 FJSP 排产基础数据工作簿(13 张表:地点/日历/日历-排班表/客户/对象/库存/技能/资源/
+  资源技能/操作/操作-物料/操作-资源/销售订单)。检查:表完整性、13 条外键引用完整性、
+  必填字段、交期日期范围与排产可行性、数据类型合法性。
+
+  参数 xlsx_base64 必须是 .xlsx 文件**二进制内容的 base64**,不是文件路径、不是 URL、
+  不要加任何说明前缀。
+
+  退出码 0=全部通过、1=检出数据错误。**退出码 1 是本工具的正常业务结论(数据有问题),
+  不是工具执行失败,不要重试。**
+script: fjsp_data_check.py
+timeout_sec: 180
+ok_exit_codes: [0, 1]
+output: json
+params:
+  - name: xlsx_base64
+    type: string
+    required: true
+    description: 待校验 .xlsx 文件内容的 base64
+    file:
+      as: input.xlsx
+  - name: verbose
+    type: boolean
+    default: false
+    description: 在检查明细里附带错误样例
+argv:
+  - "${file:xlsx_base64}"
+  - "--json"
+  - bool: verbose
+    flag: "--verbose"

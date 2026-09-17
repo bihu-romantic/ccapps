@@ -1,0 +1,23 @@
+name: check_resource_calendar
+description: >-
+  在 FJSP 数据工作簿里查指定设备的日历/维修(停机)信息:资源行的字段、绑定的[可用]日历、
+  该日历的排班表记录(日期范围/可用值/每日时段/生效星期),并判断设备是否全程不可用。
+
+  参数 xlsx_base64 必须是 .xlsx 文件**二进制内容的 base64**,不是路径、不是 URL。
+
+  device 留空则列出所有设置了自定义日历的设备。
+script: check_resource_calendar.py
+timeout_sec: 120
+params:
+  - name: xlsx_base64
+    type: string
+    required: true
+    description: .xlsx 文件内容的 base64
+    file:
+      as: input.xlsx
+  - name: device
+    type: string
+    description: 设备名(如 M058)。留空则列出所有有自定义日历的设备
+argv:
+  - "${file:xlsx_base64}"
+  - "${device?}"

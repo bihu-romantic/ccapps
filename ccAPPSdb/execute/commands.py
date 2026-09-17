@@ -370,10 +370,11 @@ class SupplyPlanning(PlanTask):
 
             thread = Thread(target=solve_with_optional_unlock)
             thread.start()
-            thread.join(timeout=300)
-            if thread.is_alive():
+            thread.join(timeout=1800)
+            solver_timed_out = thread.is_alive()
+            if solver_timed_out:
                 logger.warning(
-                    "Skipping solver.solve(): call timed out after 300 seconds"
+                    "Skipping solver.solve(): call timed out after 1800 seconds"
                 )
             elif solver_error:
                 # Never export or commit a partial FAS command stream after a

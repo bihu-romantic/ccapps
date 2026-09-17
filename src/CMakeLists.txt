@@ -152,6 +152,11 @@ target_link_libraries(ccAPPS-main PRIVATE ${Python3_LIBRARIES})
 set_target_properties(ccAPPS-main PROPERTIES
   OUTPUT_NAME "ccAPPS"
   PDB_NAME_DEBUG "ccAPPS-main"
+  # The development executable and libccAPPS.so are copied together to bin/.
+  # Resolve the library relative to the executable so it runs without an
+  # LD_LIBRARY_PATH override.
+  BUILD_RPATH "\$ORIGIN"
+  INSTALL_RPATH "\$ORIGIN"
 )
 install(
   TARGETS ccAPPS-main

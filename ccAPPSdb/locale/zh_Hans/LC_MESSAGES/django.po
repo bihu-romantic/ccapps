@@ -4693,6 +4693,10 @@ msgstr "计划短缺数量"
 msgid "demand quantity"
 msgstr "需要量"
 
+#: input/views/sales.py:200
+msgid "order number"
+msgstr "订单编号"
+
 #: input/views/sales.py:957
 #, python-format
 msgid "delivered from %(loc)s between %(date1)s and %(date2)s"

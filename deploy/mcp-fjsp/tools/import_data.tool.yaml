@@ -1,0 +1,25 @@
+name: import_data
+description: >-
+  把一份 13 表工作簿导入到远端场景(importworkbook),随后统计该场景的
+  demand/operation/resource 条数作为导入结果验证。
+
+  **这是写操作,会新增/覆盖远端业务数据。** 建议先用 fjsp_data_check 确认数据没问题,
+  并且只在用户明确要求时调用。
+
+  注意:该脚本的目标地址、场景号、以及待导入文件的路径**全部写死在脚本里**
+  (https://omni-oss.czy3d.com:18370 的 scenario2)。本工具没有参数可以改它们 ——
+  你上传的文件内容会被落到脚本写死的那个路径上再执行。
+script: import_data.py
+write: true
+timeout_sec: 300
+params:
+  - name: xlsx_base64
+    type: string
+    required: true
+    description: 要导入的 13 表工作簿内容的 base64
+    file:
+      as: import.xlsx
+argv: []
+stage:
+  - param: xlsx_base64
+    path: /aidt2/aidt_data/workspaces/1784454581596815d42/media/c0d9011da22648c7973aa4542adbf51e_default_data_13tables.xlsx

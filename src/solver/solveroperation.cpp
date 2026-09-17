@@ -24,7 +24,41 @@
  ***************************************************************************/
 
 #include "ccAPPS/solver.h"
+#include <random>
 namespace ccAPPS {
+
+namespace {
+
+// Used only to break exact ties between equally good alternate machines.
+// Keeping the generator local avoids coupling alternate choice to unrelated
+// solver random streams while still preventing every empty pool from choosing
+// its first (usually lowest-numbered) member. The seed is fixed rather than
+// taken from std::random_device: FAS results are compared run over run, and an
+// unpredictable tie break made two runs over identical data produce different
+// plans, which hides the effect of an algorithm change behind seed noise.
+std::mt19937& alternateTieRng() {
+  static std::mt19937 rng(20260915u);
+  return rng;
+}
+
+/* Discard a trial operationplan that was created under an owner. Such a plan
+ * is deliberately not registered with the command manager: its owner is
+ * expected to clean it up. Rolling the evaluation bookmark back therefore
+ * leaves it in the model, duplicating the supply network once for every
+ * evaluated alternate - an alternate search that evaluates candidates (rather
+ * than planning on the first one) turns every trial into a permanent plan.
+ * The plan must be detached from its owner first: deleting an owned
+ * operationplan deletes the owner as well. Its sub-operationplans were created
+ * under this plan, aren't registered either, and are removed with it. */
+void discardTrialOperationPlan(CommandCreateOperationPlan* command) {
+  if (!command) return;
+  OperationPlan* trial = command->releaseOperationPlan();
+  if (!trial) return;
+  trial->setOwner(nullptr);
+  delete trial;
+}
+
+}  // namespace
 
 void SolverCreate::checkOperationCapacity(OperationPlan* opplan,
                                           SolverCreate::SolverData& data) {
@@ -1332,7 +1366,11 @@ void SolverCreate::solve(const OperationAlternate* oper, void* v) {
     explicit AlternateDepthGuard(unsigned int& d) : depth(d) { ++depth; }
     ~AlternateDepthGuard() { --depth; }
   } depthGuard(alternateDepth);
-  const bool useForwardTrial = forwardTrial && alternateDepth == 1;
+  // The machine alternate is commonly nested below a routing step.  The FAS
+  // callback is a read-only, lightweight resource probe, so it is safe and
+  // necessary at every alternate depth; restricting it to depth 1 leaves the
+  // actual machine pool on the legacy "first candidate" behavior.
+  const bool useForwardTrial = forwardTrial != nullptr;
   {
     Operation* curAlt = nullptr;
     for (auto& altIter : oper->getSubOperations()) {
@@ -1686,8 +1724,10 @@ void SolverCreate::solve(const OperationAlternate* oper, void* v) {
       // Process the result
       if (search == SearchMode::PRIORITY && !useForwardTrial) {
         // Undo the operationplans of this alternate
-        if (data->state->a_qty < ROUNDING_ERROR)
+        if (data->state->a_qty < ROUNDING_ERROR) {
+          discardTrialOperationPlan(a);
           data->getCommandManager()->rollback(topcommand);
+        }
 
         // Prepare for the next loop
         a_qty -= data->state->a_qty;
@@ -1724,16 +1764,29 @@ void SolverCreate::solve(const OperationAlternate* oper, void* v) {
             LogicException("Unsupported search mode for alternate operation '" +
                            oper->getName() + "'");
         }
+        // FAS treats alternate machine candidates as an equal pool by
+        // default.  The priority values on generated alternate children are
+        // structural ordering (often 1,2,3...) rather than a user preference
+        // and must not force every job onto the first machine.  Explicit
+        // preference handling remains available to non-FAS searches.
+        if (useForwardTrial) val = 0.0;
         const bool earlier = useForwardTrial &&
                              forwardCompletion < bestForwardCompletion;
         const bool sameCompletion =
-            !useForwardTrial || forwardCompletion == bestForwardCompletion;
+                             !useForwardTrial || forwardCompletion == bestForwardCompletion;
+        // Ties are drawn from a fixed-seed generator, so the plan is
+        // reproducible without systematically favouring the lowest-numbered
+        // member of a pool.
+        const bool randomTie = useForwardTrial &&
+                               fabs(val - bestAlternateValue) < ROUNDING_ERROR &&
+                               data->state->a_qty <= bestAlternateQuantity &&
+                               std::uniform_int_distribution<int>(0, 1)(alternateTieRng());
         if (data->state->a_qty > ROUNDING_ERROR &&
             (earlier ||
              (sameCompletion &&
               (val + ROUNDING_ERROR < bestAlternateValue ||
                (fabs(val - bestAlternateValue) < ROUNDING_ERROR &&
-                data->state->a_qty > bestAlternateQuantity))))) {
+                (data->state->a_qty > bestAlternateQuantity || randomTie)))))) {
           // Found a better alternate
           bestAlternateValue = val;
           bestAlternateSelection = (*altIter)->getOperation();
@@ -1745,6 +1798,7 @@ void SolverCreate::solve(const OperationAlternate* oper, void* v) {
         }
         // This was only an evaluation
         data->state->q_qty = origQqty;
+        discardTrialOperationPlan(a);
         data->getCommandManager()->rollback(topcommand);
       }
 
@@ -1811,7 +1865,7 @@ void SolverCreate::solve(const OperationAlternate* oper, void* v) {
       // reply to return
       if (data->state->a_qty < ROUNDING_ERROR)
         data->state->a_qty = 0.0;
-      else
+      else if (bestFlow)
         data->state->a_qty = bestFlow->getQuantityFixed() +
                              data->state->a_qty * bestFlow->getQuantity();
 
@@ -2119,6 +2173,7 @@ void SolverCreate::solve(const OperationSplit* oper, void* v) {
         // The a_date is used below as reply from the top operation.
         loop_qty = 0.0;
         // Undo all plans done on any of the previous alternates
+        discardTrialOperationPlan(top_cmd);
         data->getCommandManager()->rollback(topcommand);
         top_cmd = nullptr;
         break;
@@ -2128,6 +2183,7 @@ void SolverCreate::solve(const OperationSplit* oper, void* v) {
         recheck = true;
         loop_qty *= data->state->a_qty / asked;
         // Undo all plans done on any of the previous alternates
+        discardTrialOperationPlan(top_cmd);
         data->getCommandManager()->rollback(topcommand);
         top_cmd = nullptr;
         break;

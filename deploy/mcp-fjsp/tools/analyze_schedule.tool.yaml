@@ -1,0 +1,41 @@
+name: analyze_schedule
+description: >-
+  分析排程结果工作簿,输出三块:overview(工单数/类型分布/状态分布/延迟统计/最晚完工)、
+  equipment(设备占用/加班/重叠)、material(物料流)。
+
+  数据来源二选一:
+  - file_base64:上传结果 .xlsx 的**二进制内容 base64**(推荐,也是本环境下唯一可靠的方式)
+  - scenario:由服务端从远端拉取该场景的结果文件。注意:该下载地址在服务器上可能不可达
+    (实测容器里连不上),不可达时会明确报错,此时请改用 file_base64。
+
+  device 传设备名(如 M058)可做专项核查 —— 该设备工单数为 0 说明停机日历生效。
+  输出用 --json,结果是结构化 JSON。
+script: analyze_schedule.py
+timeout_sec: 180
+output: json
+params:
+  - name: file_base64
+    type: string
+    description: 结果 .xlsx 文件内容的 base64(与 scenario 二选一)
+    file:
+      as: results.xlsx
+  - name: scenario
+    type: string
+    description: 场景号,由服务端从远端拉取结果文件(与 file_base64 二选一)
+    enum: ["2", "5", "6"]
+  - name: device
+    type: string
+    description: 专项检查的设备名,如 M058
+  - name: brief
+    type: boolean
+    default: false
+    description: 只输出简要摘要
+argv:
+  - "${file:file_base64?}"
+  - value: scenario
+    flag: "--scenario"
+  - value: device
+    flag: "--device"
+  - bool: brief
+    flag: "--brief"
+  - "--json"

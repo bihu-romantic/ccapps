@@ -1,0 +1,16 @@
+name: fast_rolling_sim
+description: >-
+  滚动排产模拟:读取当前工单状态 → 触发一次远端 Direct GA 重排
+  (runplan, constraint=capa,mfg_lt,po_lt, plantype=1, env=supply=1,CCAPPS_OPTIMIZER=ga)
+  → 对比重排前后的锁定工单是否被动、proposed 工单的时间/设备变化、最晚完工时间。
+
+  **这是写操作,会真实改动远端排产结果。** 只有用户明确要求时调用。
+  典型耗时 30-90 秒。
+
+  注意:该脚本的目标地址和场景号**写死在脚本里**(https://omni-oss.czy3d.com:18370/
+  ccapps/scenario5),本工具没有参数可以改它。
+script: fast_rolling_sim.py
+write: true
+timeout_sec: 300
+params: []
+argv: []

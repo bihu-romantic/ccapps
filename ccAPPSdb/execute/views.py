@@ -1914,14 +1914,14 @@ class PlanEdit(GridReport):
         compact = request.GET.get("compact", "0").lower() in ("1", "true", "yes")
         itemgroup = request.GET.get("itemgroup")
         try:
-            limit = int(request.GET.get("ganttlimit", 400))
+            limit = int(request.GET.get("ganttlimit", 10000))
         except (TypeError, ValueError):
-            limit = 400
+            limit = 10000
         limit = min(max(limit, 1), 10000)
         try:
-            demand_limit = int(request.GET.get("demandlimit", 30))
+            demand_limit = int(request.GET.get("demandlimit", 5000))
         except (TypeError, ValueError):
-            demand_limit = 30
+            demand_limit = 5000
         demand_limit = min(max(demand_limit, 1), 5000)
 
         if callable(cls.basequeryset):
@@ -2536,6 +2536,79 @@ class PlanEdit(GridReport):
                                 opplan.supplier.name
                                 if opplan.supplier
                                 else None
+                            ),
+                            "operation_name": opplan.operation_id or "",
+                        }
+                    )
+
+            unassigned_qs = (
+                OperationPlan.objects.using(request.database)
+                .filter(
+                    type__in=("MO", "WO"),
+                    startdate__isnull=False,
+                    enddate__isnull=False,
+                    startdate__year__gte=2000,
+                )
+                .exclude(status="closed")
+                .filter(resources__isnull=True)
+                .select_related(
+                    "item", "location", "supplier", "demand", "operation"
+                )
+                .order_by("startdate", "reference")
+            )
+            unassigned_total = unassigned_qs.count()
+            records_total = (records_total or 0) + unassigned_total
+            remaining = max(limit - len(all_oprs), 0)
+            unassigned_label = "未分配资源"
+            for opplan in unassigned_qs[:remaining]:
+                records.append(
+                    {
+                        "operationplan__reference": opplan.reference,
+                        "resource": "",
+                        "hierarchy": [unassigned_label],
+                        "resource_display": unassigned_label,
+                        "workorder_display": display_workorder(opplan),
+                        "operation_display": display_operation(opplan.operation),
+                        "type": opplan.type,
+                        "status": opplan.status or "",
+                        "operation_category": (
+                            opplan.operation.category if opplan.operation else ""
+                        ),
+                        "delay": (
+                            opplan.delay.total_seconds() if opplan.delay else None
+                        ),
+                        "criticality": (
+                            float(opplan.criticality)
+                            if opplan.criticality is not None
+                            else None
+                        ),
+                        "quantity": (
+                            float(opplan.quantity)
+                            if opplan.quantity is not None
+                            else None
+                        ),
+                        "startdate": isoformat(opplan.startdate),
+                        "enddate": isoformat(opplan.enddate),
+                    }
+                )
+                if not compact:
+                    records[-1].update(
+                        {
+                            "resource_parent": None,
+                            "demand": opplan.demand_id,
+                            "name": opplan.name or "",
+                            "item": opplan.item_id,
+                            "item_name": (
+                                opplan.item.description or opplan.item.name
+                                if opplan.item
+                                else None
+                            ),
+                            "location": opplan.location_id or "",
+                            "location_name": (
+                                opplan.location.name if opplan.location else None
+                            ),
+                            "supplier_name": (
+                                opplan.supplier.name if opplan.supplier else None
                             ),
                             "operation_name": opplan.operation_id or "",
                         }

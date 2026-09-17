@@ -363,7 +363,15 @@ class Command(BaseCommand):
             ):
                 child_env["ODOO_FOLDER"] = options["odoo_folder"]
             if os.path.isfile(os.path.join(settings.CCAPPS_HOME, "libccAPPS.so")):
-                child_env["LD_LIBRARY_PATH"] = settings.CCAPPS_HOME
+                # Prepend the engine directory instead of replacing the whole
+                # search path: locally installed engine dependencies (e.g.
+                # libxerces/ICU under ~/.local/lib/ccapps) must stay reachable.
+                existing_ld_path = child_env.get("LD_LIBRARY_PATH")
+                child_env["LD_LIBRARY_PATH"] = (
+                    settings.CCAPPS_HOME + os.pathsep + existing_ld_path
+                    if existing_ld_path
+                    else settings.CCAPPS_HOME
+                )
             if "DJANGO_SETTINGS_MODULE" not in child_env:
                 child_env["DJANGO_SETTINGS_MODULE"] = "ccAPPSdb.settings"
             child_env["PYTHONPATH"] = os.path.normpath(settings.CCAPPS_APP)
