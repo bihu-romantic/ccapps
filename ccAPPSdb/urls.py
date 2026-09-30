@@ -6,8 +6,13 @@ from django.views.generic.base import RedirectView
 from django.views.i18n import JavaScriptCatalog
 
 from ccAPPSdb.admin import data_site
+from ccAPPSdb.webservice.proxy import webservice_proxy
 
 urlpatterns = [
+    re_path(
+        r"^svc/(?P<scenario>[^/]+)/(?P<path>.*)$",
+        webservice_proxy,
+    ),
     # Redirect admin index page /data/ to /
     re_path(r"^data/$", RedirectView.as_view(url="/")),
     # Handle browser icon and robots.txt

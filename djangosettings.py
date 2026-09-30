@@ -13,6 +13,12 @@ except Exception:
     DEBUG = False
 DEBUG_JS = False  # Vite dev server not available
 
+# Allow large CCPL JSON imports (13-table datasets are multi-MB).
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(
+    os.environ.get("CCAPPS_DATA_UPLOAD_MAX_MEMORY_SIZE", 50 * 1024 * 1024)
+)
+FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
+
 ADMINS = (
     # ('Your Name', 'your_email@domain.com'),
 )
@@ -70,7 +76,8 @@ DATABASES = {
         "SQL_ROLE": "report_role",
         "SECRET_WEBTOKEN_KEY": SECRET_KEY,
         # Port for the ccAPPS web service
-        "CCAPPS_PORT": "0.0.0.0:8000" if i == 5 else f"0.0.0.0:{i+8000}",
+        # scenario1 uses 8101: the app process already binds 8001.
+        "CCAPPS_PORT": "0.0.0.0:8101" if i == 1 else ("0.0.0.0:8000" if i == 5 else f"0.0.0.0:{i+8000}"),
     }
     # Adjust the range to include extra scenarios in the list.
     # When changing this, your apache configuration file also needs a matching adjustment.

@@ -81,9 +81,12 @@ struct CandidateOp {
 struct AntSolution {
   // Per-resource ordered sequences
   unordered_map<const Resource*, vector<OperationPlan*>> sequences;
-  // Per-resource start/end dates
+  // Per-resource start/end dates. startDates is the processing start.
   unordered_map<const Resource*, vector<Date>> startDates;
   unordered_map<const Resource*, vector<Date>> endDates;
+  // Changeover start for a GA operation. Absent or equal to the processing
+  // start when the setup matrix adds no time.
+  unordered_map<const OperationPlan*, Date> setupStarts;
   // Actual resources selected for each operation in joint mode
   unordered_map<const OperationPlan*, vector<const Resource*>> selectedResources;
   // Exact load-to-resource mapping selected for each operation

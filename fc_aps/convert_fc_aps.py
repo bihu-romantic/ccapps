@@ -16,11 +16,26 @@ ccAPPS mapping
 * Every time_per leaf loads 设备 (only from 物料机台对照表) + 人员 (by 工段)
   + 模具. No neighbor/mold machine inference. 工段 comes from the loaded
   machines, else from 未入库.生产车间 when present.
-* 制造部5工段 has no night shift (12h day). time_per operations there get
-  ``sizemaximum`` so one MO is about one hour of work and must split.
-* Routings are built only for open 报警表 order items that are 自制.
-  BOM-descendant 自制 items are treated as stock-sufficient (buffer only,
-  large onhand, no routing) for this planning cut.
+* Alternate parents must not consume/produce material (ccAPPS deprecation).
+  End-item and BOM start flows go on each time_per child; the parent only
+  selects among children.
+* Personnel calendars follow 人数.xlsx dates only (here 9/10 08:00 →
+  9/13 08:00). Outside those windows headcount is 0. Night headcount 0
+  means that window is not used. ``sizemaximum`` = floor(batch seconds / CT):
+  制造部5工段 is 1 hour, every other 工段 is 2 hours. If an operation
+  touches 5工段, the 1-hour cap wins. Economic lot is NOT ``sizemultiple``
+  — remainders must still schedule later.
+* 未入库.未入库数量 = still unfinished qty that must be re-planned (open
+  demand, priority 1; due = 计划结束日期 + 1 day at 00:00). It is NOT
+  onhand. Workshop hint still comes from 生产车间.
+* Order-delivery products keep only real warehouse ATP from 库存.xlsx:
+  max(0, 即时库存 + 已完工未入库 - 未发货). 未发货 is reserved for ship
+  orders and is not free stock. BOM components that are NOT order items
+  still get large assumed onhand (原材料 / 自制中间料充足). Pure BOM-make
+  items that are not order items stay buffer-only (no routing).
+* 物料模具对照表: ``1*N`` same-cavity multi-shot uses 单个CT as duration_per;
+  ``1+1`` / same 模具+分组编号 co-produce on one operation (equal qty);
+  same 配套编号 also co-produce (molds may differ, all required).
 * 产品外购 / 外购 items are supply only (buffer, no routing).
 """
 from __future__ import annotations
@@ -28,7 +43,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -50,6 +65,7 @@ ASSEMBLY_LINES = {
 }
 # Only ``/`` and commas are alternatives. ``&`` stays one group token.
 MACHINE_SPLIT = re.compile(r"[,，/]+")
+OP_SAFE = re.compile(r"[^0-9A-Za-z_.+-]+")
 
 
 def rows(name):
@@ -72,6 +88,33 @@ def text(x):
     return str(x).strip()
 
 
+def parse_cavity(raw):
+    """Return (kind, pieces) where kind is 'same' (*), 'diff' (+), or 'one'."""
+    s = text(raw)
+    if not s:
+        return "one", 1
+    if "*" in s:
+        parts = [p.strip() for p in s.split("*") if p.strip()]
+        try:
+            pieces = 1
+            for p in parts:
+                pieces *= max(int(float(p)), 1)
+            return "same", pieces
+        except (TypeError, ValueError):
+            return "same", 1
+    if "+" in s:
+        parts = [p.strip() for p in s.split("+") if p.strip()]
+        try:
+            return "diff", sum(max(int(float(p)), 1) for p in parts)
+        except (TypeError, ValueError):
+            return "diff", 2
+    return "one", 1
+
+
+def op_safe(token):
+    return OP_SAFE.sub("_", token).strip("_") or "X"
+
+
 def iso_datetime(x):
     if not x:
         return None
@@ -84,6 +127,28 @@ def iso_datetime(x):
         except ValueError:
             continue
     return raw
+
+
+def iso_date_only(x, days_offset=0):
+    """Plan due as calendar date at 00:00:00 (drop time-of-day)."""
+    if not x:
+        return None
+    if isinstance(x, datetime):
+        d = x.date()
+    else:
+        raw = str(x).strip()
+        d = None
+        for fmt in ("%Y/%m/%d %H:%M:%S", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                d = datetime.strptime(raw, fmt).date()
+                break
+            except ValueError:
+                continue
+        if d is None:
+            return None
+    if days_offset:
+        d = d + timedelta(days=days_offset)
+    return d.isoformat() + "T00:00:00"
 
 
 def split_machines(raw):
@@ -106,31 +171,57 @@ def trailing_num(code):
     return int(digits) if digits else 0
 
 
-def overnight_windows(start, end):
-    """Split a shift that crosses midnight into ccAPPS calendar windows."""
-    start = str(start or "00:00")
-    end = str(end or "23:59")
-    if len(start) == 5:
-        start += ":00"
-    if len(end) == 5:
-        end += ":00"
+def parse_day(value):
+    """Normalize 人数.xlsx dates like 2026/9/10 → date."""
+    if isinstance(value, datetime):
+        return value.date()
+    text_v = str(value or "").strip().split()[0]
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text_v, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError("bad 人数 date: %r" % (value,))
+
+
+def clock_seconds(t):
+    parts = str(t or "00:00").strip().split(":")
+    h = int(float(parts[0]))
+    m = int(float(parts[1])) if len(parts) > 1 else 0
+    s = int(float(parts[2])) if len(parts) > 2 else 0
+    return h * 3600 + m * 60 + s
+
+
+def normalize_clock(t, default="00:00:00"):
+    text_v = str(t or default).strip()
+    if len(text_v) == 5:
+        text_v += ":00"
+    return text_v
+
+
+def overnight_windows(day, start, end):
+    """Split a shift into dated ccAPPS windows (overnight ends next morning)."""
+    start = normalize_clock(start, "00:00:00")
+    end = normalize_clock(end, "23:59:59")
     if start < end:
-        return [(start, end)]
-    return [(start, "23:59:59"), ("00:00:00", end)]
+        return [(day, start, end)]
+    nxt = day + timedelta(days=1)
+    return [(day, start, "23:59:59"), (nxt, "00:00:00", end)]
 
 
-def add_bucket(buckets, calendar, value, start, end):
+def add_bucket(buckets, calendar, value, day, start, end):
     # Unique key is (calendar, startdate, enddate, priority). Day/night and
     # overnight splits must not share priority 0.
     used = {b["priority"] for b in buckets if b["calendar"] == calendar}
     priority = (max(used) + 1) if used else 0
-    for starttime, endtime in overnight_windows(start, end):
+    for when, starttime, endtime in overnight_windows(day, start, end):
+        day_s = when.isoformat()
         buckets.append(
             {
                 "calendar": calendar,
                 "value": value,
-                "startdate": "2026-09-10",
-                "enddate": "2035-12-31",
+                "startdate": day_s,
+                "enddate": day_s,
                 "starttime": starttime,
                 "endtime": endtime,
                 "priority": priority,
@@ -163,7 +254,6 @@ def build():
     item_name = {}
     item_category = {}
     make_codes = set()
-    lot_size = {}
     for code, org, name, lifecycle, attr, econ, *_ in rows("物料.xlsx"):
         code = text(code)
         if not code:
@@ -175,11 +265,8 @@ def build():
             item_category[code] = "自制"
         else:
             item_category.setdefault(code, attr or "外购")
-        qty = num(econ, 0)
-        if qty > 1:
-            lot_size[code] = max(lot_size.get(code, 0), qty)
 
-    machines = {}
+machines = {}
     for name, model, workshop in rows("机台.xlsx"):
         name = text(name)
         if name:
@@ -187,30 +274,46 @@ def build():
     for line, workshop in ASSEMBLY_LINES.items():
         machines.setdefault(line, (workshop, line))
 
-    molds = {}
+molds = {}
     for mold, name, cavities, quantity in rows("模具.xlsx"):
         mold = text(mold)
         if mold:
             molds[mold] = (text(name) or mold, max(num(quantity, 1), 1))
 
-    # (workshop, shift) -> (start, end, headcount)
-    shifts = {}
+    # Exact 人数 rows: plan only inside these dated windows (9/10 08:00→9/13 08:00).
+    shift_rows = []
     for day, workshop, shift, start, end, count in rows("人数.xlsx"):
         workshop = text(workshop)
         shift = text(shift) or "白班"
         if not workshop:
             continue
-        key = (workshop, shift)
-        shifts[key] = (start or "08:00", end or "20:00", num(count, 0))
+        shift_rows.append(
+            (
+                parse_day(day),
+                workshop,
+                shift,
+                start or "08:00",
+                end or "20:00",
+                num(count, 0),
+            )
+        )
 
-    workshops = sorted({ws for ws, _ in shifts})
+    workshops = sorted({ws for _, ws, *_ in shift_rows})
+
+    # One MO is at most 1h on 5工段, 2h everywhere else.
+    BATCH_SEC = {
+        "制造部5工段": 3600,
+    }
+    DEFAULT_BATCH_SEC = 7200
+    # Filled after mold_info so 1*N can scale shot CT → piece CT.
     duration_per = {}
-    staffing = {}
-    for code, ct, output, people, *_ in rows("标准工时.xlsx"):
+staffing = {}
+    std_hours = {}
+    for code, ct, output, people, cavities, single_ct, *_ in rows("标准工时.xlsx"):
         code = text(code)
         if not code:
             continue
-        duration_per[code] = num(ct, 0)
+        std_hours[code] = (num(ct, 0), num(single_ct, 0), num(output, 0), num(people, 1))
         staffing[code] = num(people, 1)
 
     machine_priority = {}
@@ -234,29 +337,82 @@ def build():
             if not covered:
                 ranked[token] = min(ranked.get(token, 1), 1)
 
-    mold_map = {}
-    for code, mold, *_ in rows("物料模具对照表.xlsx"):
+    # code -> {mold, cavity, group, kit, kind, pieces}
+    mold_info = {}
+mold_map = {}
+    for code, mold, cavity, group, kit, *_ in rows("物料模具对照表.xlsx"):
         code, mold = text(code), text(mold)
-        if code and mold:
-            mold_map.setdefault(code, [])
-            if mold not in mold_map[code]:
-                mold_map[code].append(mold)
-            molds.setdefault(mold, (mold, 1))
+        if not code or not mold:
+            continue
+        kind, pieces = parse_cavity(cavity)
+        mold_info[code] = {
+            "mold": mold,
+            "cavity": text(cavity),
+            "group": text(group),
+            "kit": text(kit),
+            "kind": kind,
+            "pieces": pieces,
+        }
+        mold_map.setdefault(code, [])
+        if mold not in mold_map[code]:
+            mold_map[code].append(mold)
+        molds.setdefault(mold, (mold, 1))
+
+    for code, (shot_ct, piece_ct, out, _people) in std_hours.items():
+        pieces = 1
+        info = mold_info.get(code)
+        if info and info["kind"] == "same":
+            pieces = max(info["pieces"], 1)
+        if piece_ct > 0:
+            duration_per[code] = piece_ct
+        elif shot_ct > 0 and pieces > 1:
+            duration_per[code] = shot_ct / pieces
+        elif out > 0:
+            duration_per[code] = 3600.0 / out
+        else:
+            duration_per[code] = shot_ct
 
     # Explicit 工段 hint when 机台对照 is missing (人员按工段挂，不靠邻项推机台).
+    # 未入库数量 = unfinished qty to re-plan (not onhand).
     item_workshop_votes = defaultdict(Counter)
-    stock = {}
+    unin_rows = []
+stock = {}
+    stock_imm = defaultdict(float)
+    stock_fin = defaultdict(float)
+    stock_uns = defaultdict(float)
     for code, org, immediate, finished, unshipped in rows("库存.xlsx"):
         code = text(code)
-        if code:
-            stock[code] = stock.get(code, 0) + num(immediate) + num(finished)
-    for code, name, qty, _org, _plan_qty, _start, _end, workshop, *_ in rows("未入库.xlsx"):
+        if not code:
+            continue
+        stock_imm[code] += num(immediate)
+        stock_fin[code] += num(finished)
+        stock_uns[code] += num(unshipped)
+    for code in set(stock_imm) | set(stock_fin) | set(stock_uns):
+        # ATP: on-hand + finished-not-receipted, minus reserved-to-ship.
+        stock[code] = max(stock_imm[code] + stock_fin[code] - stock_uns[code], 0.0)
+    for row in rows("未入库.xlsx"):
+        code, name, qty, org, plan_qty, start, end, workshop, machine, order, *_ = list(row) + [None] * 10
         code = text(code)
-        if code:
-            stock[code] = stock.get(code, 0) + num(qty)
+        qty = num(qty)
         workshop = text(workshop)
         if code and workshop:
             item_workshop_votes[code][workshop] += 1
+        if code and qty > 0:
+            unin_rows.append(
+                {
+                    "code": code,
+                    "name": text(name) or code,
+                    "qty": qty,
+                    "org": text(org),
+                    "plan_qty": num(plan_qty),
+                    "start": start,
+                    "end": end,
+                    "workshop": workshop,
+                    "machine": text(machine),
+                    "order": text(order),
+                }
+            )
+            item_name.setdefault(code, text(name) or code)
     item_workshop = {
         code: votes.most_common(1)[0][0]
         for code, votes in item_workshop_votes.items()
@@ -285,35 +441,116 @@ def build():
             return True
         return item_category.get(code) in MAKE_ATTRS or item_category.get(code) == "自制"
 
-    # Open alarm 自制 → build routing. BOM-descendant 自制 → assume stock covers.
+    # Open alarm + unfinished 未入库 自制 → build routing. BOM-descendant 自制 → assume stock covers.
     order_items = set()
     for code, org, ship, qty in rows("报警表.xlsx"):
         code = text(code)
         if code and num(qty) > 0:
             order_items.add(code)
             item_name.setdefault(code, code)
+    for row in unin_rows:
+        code = row["code"]
+        order_items.add(code)
+        item_name.setdefault(code, row["name"])
 
     produce = {code for code in order_items if is_make(code)}
 
+    # Walk full BOM under produce. Pure BOM-make (not order items) → no routing.
+    # Assume raw / intermediate supply is sufficient, but order-delivery products
+    # keep only real warehouse stock (do not inflate).
     bom_make = set()
+    bom_components = set()
     stack = list(produce)
-    seen = set(produce)
+    visited = set()
     while stack:
         code = stack.pop()
+        if code in visited:
+            continue
+        visited.add(code)
         for child in bom_children.get(code, []):
-            if child in seen:
-                continue
-            seen.add(child)
-            if is_make(child):
-                bom_make.add(child)
+            bom_components.add(child)
+            if child not in visited:
                 stack.append(child)
+            if is_make(child) and child not in produce:
+                bom_make.add(child)
 
     for code in bom_make:
         item_name.setdefault(code, code)
         item_category.setdefault(code, "自制")
+
+    for code in bom_components:
+        if code in order_items:
+            continue
         stock[code] = max(stock.get(code, 0), ASSUMED_MAKE_STOCK)
 
+    # Sync groups: same 模具+分组编号, or same 配套编号 (molds may differ).
+    group_members = defaultdict(list)
+    kit_members = defaultdict(list)
+    for code, info in mold_info.items():
+        if info["group"]:
+            group_members[(info["mold"], info["group"])].append(code)
+        if info["kit"]:
+            kit_members[info["kit"]].append(code)
+
+    sync_groups = []  # list of {id, members, molds, primary}
+    seen_sync = set()
+    for (mold, group), members in sorted(group_members.items()):
+        members = sorted(set(members))
+        if len(members) < 2:
+            continue
+        if not (set(members) & produce):
+            continue
+        gid = "G_%s_%s" % (op_safe(mold), op_safe(group))
+        if gid in seen_sync:
+            continue
+        seen_sync.add(gid)
+        sync_groups.append(
+            {
+                "id": gid,
+                "members": members,
+                "molds": [mold],
+                "primary": sorted(set(members) & produce)[0],
+            }
+        )
+    for kit, members in sorted(kit_members.items()):
+        members = sorted(set(members))
+        if len(members) < 2:
+            continue
+        if not (set(members) & produce):
+            continue
+        gid = "K_%s" % op_safe(kit)
+        if gid in seen_sync:
+            continue
+        seen_sync.add(gid)
+        molds_in = []
+        for code in members:
+            m = mold_info[code]["mold"]
+            if m not in molds_in:
+                molds_in.append(m)
+        sync_groups.append(
+            {
+                "id": gid,
+                "members": members,
+                "molds": molds_in,
+                "primary": sorted(set(members) & produce)[0],
+            }
+        )
+
+    sync_of = {}
+    for grp in sync_groups:
+        for code in grp["members"]:
+            sync_of[code] = grp
+            item_name.setdefault(code, code)
+            item_category.setdefault(code, "自制")
+            # Co-product partners need to exist even if not open orders.
+            if code not in produce and is_make(code):
+                # Keep as buffer consumer/producer via shared op; do not add
+                # independent routing. Ensure item/buffer exist.
+                pass
+
     item_codes = set(item_name) | set(stock) | {p for p, *_ in bom_rows} | {c for _, c, *_ in bom_rows} | produce | order_items | bom_make
+    for grp in sync_groups:
+        item_codes.update(grp["members"])
     for code in produce:
         item_name.setdefault(code, code)
         item_category.setdefault(code, "自制")
@@ -337,13 +574,12 @@ def build():
         shift_cal = "CAL_SHIFT_" + workshop
         calendars.append({"name": person_cal, "description": workshop + "出勤人数", "defaultvalue": 0, "source": SOURCE})
         calendars.append({"name": shift_cal, "description": workshop + "班次", "defaultvalue": 0, "source": SOURCE})
-        for shift in ("白班", "夜班"):
-            if (workshop, shift) not in shifts:
+        for day, ws, _shift, start, end, count in shift_rows:
+            if ws != workshop:
                 continue
-            start, end, count = shifts[(workshop, shift)]
-            add_bucket(buckets, person_cal, count, start, end)
+            add_bucket(buckets, person_cal, count, day, start, end)
             if count > 0:
-                add_bucket(buckets, shift_cal, 100, start, end)
+                add_bucket(buckets, shift_cal, 100, day, start, end)
 
     resources = []
     for machine, (workshop, model) in machines.items():
@@ -381,7 +617,7 @@ def build():
             }
         )
     for workshop in workshops:
-        peak = max(count for (ws, shift), (_, _, count) in shifts.items() if ws == workshop)
+        peak = max(count for _day, ws, _shift, _s, _e, count in shift_rows if ws == workshop)
         resources.append(
             {
                 "name": "PERSON_" + workshop,
@@ -403,8 +639,22 @@ def build():
     operation_materials = []
 
     def attach_molds(op_name, code):
-        for mold in mold_map.get(code, []):
-            operation_resources.append(op_resource(op_name, "MOLD_" + mold, 1, "模具", 1))
+        molds_for = mold_map.get(code, [])
+        if len(molds_for) <= 1:
+            for mold in molds_for:
+                operation_resources.append(op_resource(op_name, "MOLD_" + mold, 1, "模具", 1))
+            return
+        for mold in molds_for:
+            operation_resources.append(op_resource(op_name, "MOLD_" + mold, 1, "模具_" + op_safe(mold), 1))
+
+    def attach_molds_list(op_name, mold_list):
+        mold_list = [m for m in mold_list if m]
+        if len(mold_list) <= 1:
+            for mold in mold_list:
+                operation_resources.append(op_resource(op_name, "MOLD_" + mold, 1, "模具", 1))
+            return
+        for mold in mold_list:
+            operation_resources.append(op_resource(op_name, "MOLD_" + mold, 1, "模具_" + op_safe(mold), 1))
 
     def known_members(token):
         return [m for m in machine_members(token) if m in machines]
@@ -448,14 +698,15 @@ def build():
     def time_fields(code, workshops_used=None):
         ct = duration_per.get(code)
         row = {"duration": None, "duration_per": ct if ct and ct > 0 else None}
-        if code in lot_size:
-            row["sizemultiple"] = lot_size[code]
-        # 5工段夜班为 0；工单按约 1 小时产量拆批，便于白班窗口内排入。
-        if workshops_used and "制造部5工段" in workshops_used and ct and ct > 0:
-            sizemax = max(1, int(3600 // ct))
-            row["sizemaximum"] = sizemax
-            if row.get("sizemultiple") and row["sizemultiple"] > sizemax:
-                row.pop("sizemultiple")
+        # Do not set sizemultiple from 经济批量: leftover qty smaller than the
+        # multiple cannot form an MO and stays unmet even when capacity later.
+        # 5工段: one MO ≤ 1 hour. Other 工段: one MO ≤ 2 hours.
+        if ct and ct > 0:
+            if workshops_used:
+                batch_sec = min(BATCH_SEC.get(w, DEFAULT_BATCH_SEC) for w in workshops_used)
+            else:
+                batch_sec = DEFAULT_BATCH_SEC
+            row["sizemaximum"] = max(1, int(batch_sec // ct))
         return row
 
     def attach_people_for_code(op_name, code, workshops_used=None):
@@ -467,27 +718,50 @@ def build():
         if hint:
             attach_people(op_name, code, hint)
 
-    no_equipment = []
-    for code in sorted(produce):
-        name = item_name.get(code, code)
-        ranked = machine_priority.get(code, {})
+    def add_end_materials(op_name, codes):
+        for code in codes:
+            operation_materials.append(
+                {
+                    "operation": op_name,
+                    "item": code,
+                    "location": LOCATION,
+                    "quantity": 1,
+                    "type": "end",
+                    "priority": 1,
+                    "source": SOURCE,
+                }
+            )
+
+    def build_routing_for(codes, op_base, description, mold_list, primary):
+        """Build time_per / alternate routing producing all codes as co-products.
+
+        Returns leaf time_per names that carry end/BOM material flows.
+        Alternate parents only select among children and must not hold materials.
+        """
+        ranked = machine_priority.get(primary, {})
+        # Prefer a member that actually has machine map.
+        for code in codes:
+            if machine_priority.get(code):
+                ranked = machine_priority[code]
+                primary = code
+                break
         candidates = [m for m in ranked if known_members(m)]
         candidates.sort(key=lambda m: (ranked[m], m))
-        parent = "FC_OP_" + code
+        staff_code = max(codes, key=lambda c: staffing.get(c, 1))
+        # Shot/piece time: use max duration among members (conservative).
+        cts = [duration_per[c] for c in codes if duration_per.get(c)]
+        if cts:
+            duration_per[primary] = max(cts)
+
         if not candidates:
-            no_equipment.append(code)
-        if len(candidates) <= 1:
-            token = candidates[0] if candidates else None
-            workshops_used = workshops_for_token(token) if token else set()
-            if not workshops_used and item_workshop.get(code):
-                workshops_used = {item_workshop[code]}
-            extras = time_fields(code, workshops_used)
+            no_equipment.append(primary)
+            extras = time_fields(primary, {item_workshop[primary]} if item_workshop.get(primary) else set())
             operations.append(
                 {
-                    "name": parent,
+                    "name": op_base,
                     "type": "time_per",
-                    "description": name,
-                    "item": code,
+                    "description": description,
+                    "item": primary,
                     "location": LOCATION,
                     "priority": 1,
                     "sizeminimum": 1,
@@ -495,22 +769,39 @@ def build():
                     **extras,
                 }
             )
-            if token:
-                attach_equipment(parent, code, token)
-            else:
-                attach_people_for_code(parent, code, workshops_used)
-            attach_molds(parent, code)
-            operation_materials.append(
-                {"operation": parent, "item": code, "location": LOCATION, "quantity": 1, "type": "end", "priority": 1, "source": SOURCE}
+            attach_people_for_code(op_base, staff_code)
+            attach_molds_list(op_base, mold_list)
+            add_end_materials(op_base, codes)
+            return [op_base]
+
+        if len(candidates) <= 1:
+            token = candidates[0]
+            workshops_used = workshops_for_token(token)
+            extras = time_fields(primary, workshops_used)
+            operations.append(
+                {
+                    "name": op_base,
+                    "type": "time_per",
+                    "description": description,
+                    "item": primary,
+                    "location": LOCATION,
+                    "priority": 1,
+                    "sizeminimum": 1,
+                    "source": SOURCE,
+                    **extras,
+                }
             )
-            continue
+            attach_equipment(op_base, staff_code, token)
+            attach_molds_list(op_base, mold_list)
+            add_end_materials(op_base, codes)
+            return [op_base]
 
         operations.append(
             {
-                "name": parent,
+                "name": op_base,
                 "type": "alternate",
-                "description": name,
-                "item": code,
+                "description": description,
+                "item": primary,
                 "location": LOCATION,
                 "priority": 1,
                 "search": "PRIORITY",
@@ -518,44 +809,75 @@ def build():
                 "source": SOURCE,
             }
         )
-        operation_materials.append(
-            {"operation": parent, "item": code, "location": LOCATION, "quantity": 1, "type": "end", "priority": 1, "source": SOURCE}
-        )
+        leaves = []
         for token in candidates:
-            child = parent + "__" + op_suffix(token)
-            extras = time_fields(code, workshops_for_token(token))
+            child = op_base + "__" + op_suffix(token)
+            extras = time_fields(primary, workshops_for_token(token))
             operations.append(
                 {
                     "name": child,
                     "type": "time_per",
-                    "description": "%s @ %s" % (name, token),
+                    "description": "%s @ %s" % (description, token),
                     "item": None,
                     "location": LOCATION,
-                    "owner": parent,
+                    "owner": op_base,
                     "priority": ranked[token],
                     "sizeminimum": 1,
                     "source": SOURCE,
                     **extras,
                 }
             )
-            attach_equipment(child, code, token)
-            attach_molds(child, code)
+            attach_equipment(child, staff_code, token)
+            attach_molds_list(child, mold_list)
+            add_end_materials(child, codes)
+            leaves.append(child)
+        return leaves
 
-    producing_ops = {code: "FC_OP_" + code for code in produce}
-    for parent, child, numerator, denominator, *_ in bom_rows:
-        if parent not in producing_ops:
+    no_equipment = []
+    producing_ops = {}
+    producing_leaves = {}
+    handled = set()
+
+    # 1) Co-produce sync groups (分组 / 配套).
+    for grp in sync_groups:
+        members = grp["members"]
+        primary = grp["primary"]
+        op_base = "FC_OP_SYNC_" + grp["id"]
+        desc = "联产:" + "+".join(item_name.get(c, c) for c in members[:4])
+        if len(members) > 4:
+            desc += "…"
+        leaves = build_routing_for(members, op_base, desc, grp["molds"], primary)
+        for code in members:
+            producing_ops[code] = op_base
+            producing_leaves[code] = leaves
+            handled.add(code)
+
+    # 2) Remaining open-order make items (solo routings).
+    for code in sorted(produce):
+        if code in handled:
             continue
-        operation_materials.append(
-            {
-                "operation": producing_ops[parent],
-                "item": child,
-                "location": LOCATION,
-                "quantity": -numerator / denominator,
-                "type": "start",
-                "priority": 1,
-                "source": SOURCE,
-            }
-        )
+        name = item_name.get(code, code)
+        op_base = "FC_OP_" + code
+        leaves = build_routing_for([code], op_base, name, mold_map.get(code, []), code)
+        producing_ops[code] = op_base
+        producing_leaves[code] = leaves
+
+    for parent, child, numerator, denominator, *_ in bom_rows:
+        if parent not in producing_leaves:
+            continue
+        qty = -numerator / denominator
+        for leaf in producing_leaves[parent]:
+            operation_materials.append(
+                {
+                    "operation": leaf,
+                    "item": child,
+                    "location": LOCATION,
+                    "quantity": qty,
+                    "type": "start",
+                    "priority": 1,
+                    "source": SOURCE,
+                }
+            )
 
     buffers = []
     for code in sorted(item_codes):
@@ -584,6 +906,26 @@ def build():
                 "status": "open",
                 "quantity": num(qty),
                 "priority": 10,
+                "source": SOURCE,
+            }
+        )
+    for rownum, row in enumerate(unin_rows, 2):
+        code = row["code"]
+        if code not in item_codes or row["qty"] <= 0:
+            continue
+        order = row["order"] or "NA"
+        due = iso_date_only(row["end"], days_offset=1) or "2026-09-18T00:00:00"
+        demands.append(
+            {
+                "name": "FC_UNIN_%s_%s_%s_R%05d" % (row["org"] or "NA", code, order, rownum),
+                "description": "未入库待排 %s %s" % (order, row["machine"] or row["workshop"] or ""),
+                "customer": "FC_CUSTOMER",
+                "item": code,
+                "location": LOCATION,
+                "due": due,
+                "status": "open",
+                "quantity": row["qty"],
+                "priority": 1,
                 "source": SOURCE,
             }
         )
@@ -633,6 +975,10 @@ def build():
         },
         "_meta": {
             "bom_make_stocked": len(bom_make),
+            "bom_components_stocked": len(bom_components),
+            "sync_groups": len(sync_groups),
+            "unin_rows": len(unin_rows),
+            "unin_qty": sum(r["qty"] for r in unin_rows),
             "no_equipment": [
                 {"code": code, "name": item_name.get(code, code), "workshop": item_workshop.get(code), "has_mold": bool(mold_map.get(code)), "has_ct": code in duration_per}
                 for code in no_equipment
@@ -656,6 +1002,10 @@ def main():
         "demands", len(data["demands"]),
         "calendars", len(data["calendars"]),
         "bom_make_stocked", meta.get("bom_make_stocked", 0),
+        "bom_components_stocked", meta.get("bom_components_stocked", 0),
+        "sync_groups", meta.get("sync_groups", 0),
+        "unin_rows", meta.get("unin_rows", 0),
+        "unin_qty", meta.get("unin_qty", 0),
     )
     missing = meta.get("no_equipment", [])
     print("no_equipment_on_order_items", len(missing))

@@ -649,12 +649,15 @@ def _parseData(
                                 if x.cache is not None and obj.pk not in x.cache:
                                     x.cache[obj.pk] = obj
                         if not skip_audit_log and user:
+                            repr_text = force_str(obj)
+                            if len(repr_text) > 200:
+                                repr_text = repr_text[:197] + "..."
                             if it:
                                 Comment(
                                     user_id=user.id,
                                     content_type_id=content_type_id,
                                     object_pk=obj.pk,
-                                    object_repr=force_str(obj),
+                                    object_repr=repr_text,
                                     type="change",
                                     comment="Changed %s."
                                     % get_text_list(form.changed_data, "and"),
@@ -664,7 +667,7 @@ def _parseData(
                                     user_id=user.id,
                                     content_type_id=content_type_id,
                                     object_pk=obj.pk,
-                                    object_repr=force_str(obj),
+                                    object_repr=repr_text,
                                     type="add",
                                     comment="Added",
                                 ).save(using=database)

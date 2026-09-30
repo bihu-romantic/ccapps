@@ -5,6 +5,7 @@ Single shared client used by all MCP tools. Pure HTTP — no DB, no engine.
 import os
 import time
 import json
+import base64
 import httpx
 
 
@@ -19,11 +20,21 @@ class CcappsError(Exception):
 
 
 class CcappsClient:
-    def __init__(self, base_url, token, default_scenario="scenario0", timeout=60.0):
+    def __init__(
+        self,
+        base_url,
+        token,
+        default_scenario="scenario0",
+        timeout=60.0,
+        username="admin",
+        password="admin",
+    ):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.default_scenario = default_scenario
         self.timeout = timeout
+        self.username = username or ""
+        self.password = password or ""
 
     @classmethod
     def from_env(cls):
@@ -32,20 +43,29 @@ class CcappsClient:
             token=os.environ.get("CCAPPS_API_TOKEN", ""),
             default_scenario=os.environ.get("DEFAULT_SCENARIO", "scenario0"),
             timeout=float(os.environ.get("CCAPPS_TIMEOUT", "60")),
+            username=os.environ.get("CCAPPS_USER", "admin"),
+            password=os.environ.get("CCAPPS_PASSWORD", "admin"),
         )
 
     def scen(self, scenario, suffix):
         s = scenario or self.default_scenario
         return f"{s}/{suffix.lstrip('/')}"
 
+    def _headers(self):
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        elif self.username and self.password:
+            raw = f"{self.username}:{self.password}".encode("utf-8")
+            headers["Authorization"] = "Basic " + base64.b64encode(raw).decode("ascii")
+        return headers
+
     def request(self, method, path, *, params=None, body=None, raw=False, form=False):
         """Single HTTP chokepoint. Returns parsed JSON, or text if raw/non-json."""
         url = f"{self.base_url}/{path.lstrip('/')}"
         # The internal ccAPPS deployment may not require a token. httpx rejects
         # an empty Bearer header, so only send authentication when configured.
-        headers = {"Accept": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        headers = self._headers()
         kwargs = {"headers": headers, "timeout": self.timeout, "params": params}
         if form:
             kwargs["data"] = body
@@ -67,6 +87,30 @@ class CcappsClient:
             except ValueError:
                 return r.text
         return r.text
+
+    def request_csrf(self, method, path, *, body=None, params=None):
+        """Write helper: fetch CSRF cookie then POST/PATCH/PUT/DELETE JSON."""
+        url = f"{self.base_url}/{path.lstrip('/')}"
+        scenario = path.split("/", 1)[0]
+        csrf_url = f"{self.base_url}/{scenario}/api/input/demand/"
+        with httpx.Client(headers=self._headers(), timeout=self.timeout) as session:
+            session.get(csrf_url, params={"format": "json", "rows": 1})
+            write_headers = {
+                **self._headers(),
+                "X-CSRFToken": session.cookies.get("csrftoken") or "",
+                "Referer": f"{self.base_url}/",
+            }
+            r = session.request(method, url, json=body, params=params, headers=write_headers)
+        if r.status_code >= 400:
+            raise CcappsError(r.status_code, r.text)
+        if not r.content:
+            return {"status_code": r.status_code}
+        if "json" in r.headers.get("content-type", "").lower():
+            try:
+                return r.json()
+            except ValueError:
+                return {"status_code": r.status_code, "text": r.text}
+        return {"status_code": r.status_code, "text": r.text}
 
     def launch_runplan(self, scenario, constraint, plantype, env):
         """POST /<s>/execute/api/runplan/ (form-encoded). Returns dict (may have no taskid)."""

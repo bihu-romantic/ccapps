@@ -97,7 +97,7 @@ logger = logging.getLogger(__name__)
 EXCLUDE_FROM_BULK_OPERATIONS = (Group, User, Comment, APIKey)
 
 
-separatorpattern = re.compile(r"[\s\-_]+")
+separatorpattern = re.compile(r"[\s\-_:：]+")
 
 
 @CharField.register_lookup

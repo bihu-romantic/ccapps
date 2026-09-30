@@ -21,7 +21,7 @@
         "processInput": "parameter",
         "equipmentType": "卷绕机-01",
         "coreProcess": "[]",
-        "equipmentCount": 8,
+        "equipmentCount": 1,
         "skill": "",
         "nodeOutput": "裸卷芯",
         "processOutput": "parameter",

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>融合版 · 单订单报价卡</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 30px 40px;
+    min-height: 100vh;
+  }
+
+  .page-title { text-align: center; color: #ff6b35; font-size: 22px; font-weight: bold; margin-bottom: 6px; }
+  .page-subtitle { text-align: center; color: #aaa; font-size: 13px; margin-bottom: 24px; }
+  .data-source {
+    text-align: center; color: #4caf50; font-size: 12px; margin-bottom: 20px;
+    padding: 6px 16px; background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3);
+    border-radius: 6px; display: inline-block; margin-left: 50%; transform: translateX(-50%);
+  }
+  .data-source.error { color: #ef5350; background: rgba(239,83,80,0.1); border-color: rgba(239,83,80,0.4); }
+
+  .mcp-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 0 auto 18px; max-width: 1100px; justify-content: center;
+  }
+  .mcp-bar .select-label { color: #aaa; font-size: 13px; }
+  .mcp-bar .select-hint { color: #888; font-size: 12px; }
+  .mcp-bar input, .mcp-bar select {
+    background: #232340; border: 1px solid #444; color: #ddd;
+    padding: 6px 12px; border-radius: 8px; font-size: 12px;
+  }
+  .mcp-bar input { min-width: 360px; }
+  .mcp-bar select { min-width: 320px; }
+  .mcp-bar button {
+    background: transparent; border: 1px solid #4caf50; color: #4caf50;
+    padding: 6px 14px; border-radius: 16px; font-size: 12px; cursor: pointer;
+  }
+  .mcp-bar button:hover { background: rgba(76,175,80,0.12); }
+  .mcp-bar a {
+    color: #42a5f5; font-size: 12px; text-decoration: none; border: 1px solid #2196f3;
+    padding: 6px 14px; border-radius: 16px;
+  }
+
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .top-bar-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .order-label { color: #ff6b35; font-size: 16px; font-weight: bold; }
+  .badge { padding: 4px 18px; border-radius: 20px; font-size: 13px; background: transparent; }
+  .badge-confirmed { border: 1.5px solid #4caf50; color: #4caf50; }
+  .badge-draft { border: 1.5px solid #ff9800; color: #ff9800; }
+  .badge-incomplete { border: 1.5px solid #ff4444; color: #ff4444; }
+  .top-bar-right { color: #888; font-size: 13px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 12px; }
+  .kpi-card { background: #232340; border: 1px solid #333; border-radius: 10px; padding: 16px 20px; }
+  .kpi-label { color: #999; font-size: 12px; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: bold; }
+  .kpi-value.orange { color: #ff6b35; }
+  .kpi-value.green { color: #4caf50; }
+  .kpi-value.white { color: #fff; }
+
+  .delivery-info { color: #888; font-size: 12px; margin-bottom: 24px; }
+  .delivery-info .delay { color: #ff4444; font-weight: bold; }
+
+  .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 24px; }
+  .section-title { font-size: 15px; font-weight: bold; color: #ddd; margin-bottom: 16px; }
+  .cost-bar-row { display: flex; align-items: center; margin-bottom: 14px; gap: 12px; }
+  .cost-bar-label { width: 110px; font-size: 13px; color: #ccc; text-align: right; flex-shrink: 0; }
+  .cost-bar-track { flex: 1; height: 22px; background: #2a2a45; border-radius: 4px; overflow: hidden; }
+  .cost-bar-fill { height: 100%; border-radius: 4px; }
+  .cost-bar-fill.blue { background: linear-gradient(90deg, #2196f3, #42a5f5); }
+  .cost-bar-fill.teal { background: linear-gradient(90deg, #26a69a, #4db6ac); }
+  .cost-bar-fill.gray { background: #555; }
+  .cost-bar-fill.light-gray { background: #444; }
+  .cost-bar-fill.purple { background: linear-gradient(90deg, #7e57c2, #9575cd); }
+  .cost-bar-fill.green { background: linear-gradient(90deg, #66bb6a, #81c784); }
+  .cost-bar-fill.red { background: linear-gradient(90deg, #ef5350, #e57373); }
+  .cost-bar-value { font-size: 13px; color: #fff; font-weight: bold; white-space: nowrap; min-width: 70px; }
+  .cost-bar-pct { font-size: 12px; color: #888; min-width: 40px; text-align: right; }
+  .cost-bar-empty { font-size: 12px; color: #666; }
+
+  .cost-summary { margin-top: 20px; border-top: 1px solid #333; padding-top: 14px; }
+  .cost-summary-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+  .cost-summary-row .label { color: #ccc; }
+  .cost-summary-row .value { color: #fff; font-weight: bold; }
+  .cost-summary-row .value.orange { color: #ff6b35; }
+  .cost-summary-row .value.green { color: #66bb6a; }
+  .cost-summary-row .value.red { color: #ef5350; }
+
+  .unit-price-box {
+    background: #2a2a45; border: 1.5px solid #ff6b35; border-radius: 10px;
+    padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px;
+  }
+  .unit-price-box .label { color: #ff6b35; font-size: 15px; font-weight: bold; }
+  .unit-price-box .value { color: #ff6b35; font-size: 26px; font-weight: bold; }
+
+  .process-table-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .badge-warn {
+    background: transparent; border: 1.5px solid #ff9800; color: #ff9800;
+    padding: 4px 14px; border-radius: 20px; font-size: 12px;
+  }
+  .process-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .process-table th {
+    color: #888; font-weight: normal; text-align: left; padding: 6px 8px;
+    border-bottom: 1px solid #333; font-size: 12px;
+  }
+  .process-table td { padding: 8px 8px; border-bottom: 1px solid #2a2a40; color: #ddd; }
+  .process-table td.bold { font-weight: bold; color: #fff; }
+  .mini-bar { height: 14px; border-radius: 3px; display: inline-block; }
+  .mini-bar.teal { background: #26a69a; }
+  .mini-bar.orange { background: #ff9800; }
+  .warn-tag { font-size: 11px; color: #ff9800; margin-left: 6px; }
+  .process-total { margin-top: 10px; font-size: 13px; color: #4caf50; font-weight: bold; }
+  .process-note { font-size: 11px; color: #666; margin-top: 4px; }
+
+  .waterfall-section { margin-bottom: 20px; }
+  .waterfall-title { font-size: 14px; color: #ccc; margin-bottom: 12px; }
+  .waterfall-bar { display: flex; height: 32px; border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
+  .waterfall-segment {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: bold; color: #fff; white-space: nowrap; padding: 0 8px;
+  }
+  .waterfall-segment.mat { background: #2196f3; }
+  .waterfall-segment.labor { background: #26a69a; }
+  .waterfall-segment.overhead { background: #7e57c2; }
+  .waterfall-segment.profit { background: #66bb6a; }
+  .waterfall-segment.tax { background: #ef5350; }
+  .waterfall-sub { font-size: 11px; color: #888; text-align: right; margin-bottom: 12px; }
+
+  .total-price-box {
+    background: #2a2a45; border: 1.5px solid #ff6b35; border-radius: 10px;
+    padding: 14px 20px; font-size: 15px; color: #ff6b35; font-weight: bold; margin-bottom: 24px;
+  }
+
+  .bridge-section { margin-bottom: 20px; }
+  .bridge-label { font-size: 13px; color: #888; margin-bottom: 10px; }
+  .bridge-row { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .bridge-item { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: bold; white-space: nowrap; }
+  .bridge-item.mat { background: #1a3a5c; color: #42a5f5; border: 1px solid #2196f3; }
+  .bridge-item.labor { background: #1a3a3a; color: #4db6ac; border: 1px solid #26a69a; }
+  .bridge-item.mgmt { background: #2a2a40; color: #aaa; border: 1px solid #555; }
+  .bridge-item.scrap { background: #2a2a40; color: #aaa; border: 1px solid #555; }
+  .bridge-item.unit-cost { background: #1a3a2a; color: #66bb6a; border: 1.5px solid #4caf50; }
+  .bridge-item.profit { background: #2a2a40; color: #aaa; border: 1px solid #555; }
+  .bridge-item.tax { background: #2a2a40; color: #aaa; border: 1px solid #555; }
+  .bridge-item.final { background: #3a2a1a; color: #ff6b35; border: 1.5px solid #ff6b35; }
+  .bridge-arrow { color: #555; font-size: 16px; margin: 0 4px; }
+
+  .warnings-section {
+    margin-bottom: 20px; padding: 12px 16px;
+    background: rgba(255,152,0,0.08); border: 1px solid rgba(255,152,0,0.3); border-radius: 8px;
+  }
+  .warnings-title { color: #ff9800; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+  .warnings-list { list-style: none; padding: 0; }
+  .warnings-list li { color: #ccc; font-size: 12px; padding: 2px 0; }
+  .warnings-list li::before { content: "⚠ "; color: #ff9800; }
+
+  .history-section {
+    margin-bottom: 20px; padding: 12px 16px;
+    background: rgba(33,150,243,0.08); border: 1px solid rgba(33,150,243,0.3); border-radius: 8px;
+  }
+  .history-title { color: #42a5f5; font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+  .history-detail { color: #aaa; font-size: 12px; }
+
+  .sales-tip { font-size: 12px; color: #666; margin-top: 10px; margin-bottom: 24px; }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,10,20,0.72);
+    z-index: 50; align-items: center; justify-content: center; color: #fff;
+    font-size: 16px; text-align: center; padding: 24px;
+  }
+  .overlay.show { display: flex; }
+  .toast {
+    display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #2a2a45; border: 1px solid #ff6b35; color: #fff; padding: 10px 18px;
+    border-radius: 10px; z-index: 60; font-size: 13px; max-width: 70vw;
+  }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+<div class="page-title">融合版 · 单订单报价卡</div>
+<div class="page-subtitle" id="pageSubtitle">加载中…</div>
+<div class="mcp-bar">
+  <span class="select-label">选择询价单</span>
+  <select id="orderSelect" title="切换询价单"></select>
+  <span class="select-hint" id="orderCountHint"></span>
+</div>
+
+<div class="top-bar">
+  <div class="top-bar-left">
+    <span class="order-label" id="orderLabel">—</span>
+    <span class="badge" id="badgeStatus">—</span>
+  </div>
+  <div class="top-bar-right" id="topRight">状态 — · 计算方式 —</div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card"><div class="kpi-label">单件报价（含税）</div><div class="kpi-value orange" id="kpiUnit">¥—</div></div>
+  <div class="kpi-card"><div class="kpi-label">含税总额</div><div class="kpi-value orange" id="kpiTaxed">¥—</div></div>
+  <div class="kpi-card"><div class="kpi-label">单位成本</div><div class="kpi-value white" id="kpiUnitCost">¥—</div></div>
+  <div class="kpi-card"><div class="kpi-label">毛利率</div><div class="kpi-value green" id="kpiMargin">—</div></div>
+</div>
+<div class="delivery-info" id="deliveryInfo">交期 —</div>
+
+<div class="main-content">
+  <div>
+    <div class="section-title">成本构成（单价表法 · 元/件）</div>
+    <div id="costBars"></div>
+    <div class="cost-summary">
+      <div class="cost-summary-row"><span class="label">总成本（不含税）</span><span class="value" id="sumCost">¥—</span></div>
+      <div class="cost-summary-row"><span class="label" style="color:#66bb6a;">利润</span><span class="value green" id="sumProfit">¥—</span></div>
+      <div class="cost-summary-row"><span class="label" style="color:#ef5350;">税</span><span class="value red" id="sumTax">¥—</span></div>
+    </div>
+    <div class="unit-price-box">
+      <span class="label">单件报价（含税）</span>
+      <span class="value" id="unitBox">¥—</span>
+    </div>
+  </div>
+  <div>
+    <div class="process-table-header">
+      <div class="section-title" id="processTitle">工艺/警告</div>
+      <span class="badge-warn" id="processBadge" style="display:none"></span>
+    </div>
+    <table class="process-table">
+      <thead><tr><th>项</th><th>说明</th><th></th></tr></thead>
+      <tbody id="processBody"></tbody>
+    </table>
+    <div class="process-total" id="processTotal"></div>
+    <div class="process-note" id="processNote"></div>
+  </div>
+</div>
+
+<div class="waterfall-section">
+  <div class="waterfall-title">成本瀑布</div>
+  <div class="waterfall-bar" id="waterfall"></div>
+  <div class="waterfall-sub" id="waterfallSub"></div>
+</div>
+<div class="total-price-box" id="totalBox">含税报价 —</div>
+
+<div class="bridge-section">
+  <div class="bridge-label">单价桥（元/件）</div>
+  <div class="bridge-row" id="bridge"></div>
+</div>
+
+<div class="warnings-section" id="warningsSection" style="display:none">
+  <div class="warnings-title">报价警告（quote_warnings）</div>
+  <ul class="warnings-list" id="warningsList"></ul>
+</div>
+<div class="history-section" id="historySection">
+  <div class="history-title">历史校准</div>
+  <div class="history-detail" id="historyDetail">加载中…</div>
+</div>
+<div class="sales-tip" id="salesTip"></div>
+
+<div class="overlay" id="overlay">处理中…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_MCP = "https://175.27.132.107/cc-apps-mcp/mcp";
+const EMBEDDED = /*EMBEDDED_JSON*/ null /*END_EMBEDDED*/;
+
+function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function money(v, d) {
+  d = d == null ? 2 : d;
+  return num(v).toLocaleString("zh-CN", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function qty(v) { return num(v).toLocaleString("zh-CN", { maximumFractionDigits: 0 }); }
+function dueShort(v) {
+  const m = String(v || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[2] + "-" + m[3] : (v || "—");
+}
+function pct(part, whole) { return whole ? Math.round(part / whole * 1000) / 10 : 0; }
+
+class McpClient {
+  constructor(url) {
+    this.url = url;
+    this.session = null;
+    this.id = 0;
+    this.ready = false;
+  }
+  headers() {
+    const h = {
+      Accept: "application/json, text/event-stream",
+      "Content-Type": "application/json",
+    };
+    if (this.session) h["mcp-session-id"] = this.session;
+    return h;
+  }
+  parse(text, res) {
+    const sid = res.headers.get("mcp-session-id") || res.headers.get("Mcp-Session-Id");
+    if (sid) this.session = sid;
+    const trimmed = (text || "").trim();
+    if (trimmed.startsWith("event:") || trimmed.includes("\ndata:")) {
+      const lines = trimmed.split(/\r?\n/).filter(function (l) { return l.startsWith("data:"); });
+      const last = lines[lines.length - 1].replace(/^data:\s?/, "");
+      return JSON.parse(last);
+    }
+    return JSON.parse(trimmed);
+  }
+  async rpc(method, params, withId) {
+    const body = { jsonrpc: "2.0", method: method };
+    if (params !== undefined) body.params = params;
+    if (withId !== false) body.id = ++this.id;
+    const res = await fetch(this.url, { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
+    if (method === "notifications/initialized") return {};
+    const text = await res.text();
+    let msg;
+    try { msg = this.parse(text, res); }
+    catch (e) { throw new Error("MCP 响应无法解析: " + String(text).slice(0, 180)); }
+    if (msg.error) throw new Error(msg.error.message || JSON.stringify(msg.error));
+    return msg.result;
+  }
+  async init() {
+    await this.rpc("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "quote-card-html", version: "1.0" },
+    });
+    try { await this.rpc("notifications/initialized", {}, false); } catch (e) {}
+    this.ready = true;
+  }
+  async call(name, args) {
+    if (!this.ready) await this.init();
+    const result = await this.rpc("tools/call", { name: name, arguments: args || {} });
+    if (result && result.isError) {
+      const t = result.content && result.content[0] && result.content[0].text;
+      throw new Error(t || "MCP tool error");
+    }
+    if (result && result.structuredContent) return result.structuredContent;
+    const t = result && result.content && result.content[0] && result.content[0].text;
+    if (t) { try { return JSON.parse(t); } catch (e) { return { text: t }; } }
+    return result;
+  }
+}
+
+let mcp = null;
+let STATE = { orders: [], orderList: [], order: null, hist: null, delay: 0, scenario: "scenario2" };
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { el.classList.remove("show"); }, 4200);
+}
+function overlay(on, msg) {
+  const el = document.getElementById("overlay");
+  el.textContent = msg || "处理中…";
+  el.classList.toggle("show", !!on);
+}
+function mcpUrl() {
+  const q = new URLSearchParams(location.search).get("mcp");
+  return (q || (EMBEDDED && EMBEDDED.mcp_url) || DEFAULT_MCP).trim();
+}
+function currentOrder() {
+  return document.getElementById("orderSelect").value;
+}
+
+function barRow(label, value, total, color, emptyText) {
+  const p = pct(value, total);
+  const empty = !value;
+  return '<div class="cost-bar-row">'
+    + '<div class="cost-bar-label">' + label + '</div>'
+    + '<div class="cost-bar-track"><div class="cost-bar-fill ' + color + '" style="width:' + Math.min(p, 100) + '%"></div></div>'
+    + (empty
+      ? '<div class="cost-bar-empty">' + (emptyText || "¥0.00") + '</div>'
+      : '<div class="cost-bar-value">¥' + money(value, value < 1 && value > 0 ? 3 : 2) + '</div><div class="cost-bar-pct">' + p.toFixed(1) + '%</div>')
+    + '</div>';
+}
+
+function render() {
+  const o = STATE.order;
+  if (!o) return;
+  const q = num(o.quantity) || 1;
+  const material = num(o.material_cost);
+  const resource = num(o.resource_cost);
+  const overhead = num(o.overhead_cost);
+  const scrap = num(o.scrap_cost);
+  const profit = num(o.profit_amount);
+  const tax = num(o.tax_amount);
+  const totalCost = num(o.total_cost);
+  const taxed = num(o.total_with_tax);
+  const unit = taxed / q;
+  const unitCost = totalCost / q;
+  const margin = taxed ? (profit / taxed * 100) : 0;
+  const warnings = (o.quote_warnings || []).filter(function (w) {
+    return !/Missing operation cost/i.test(String(w));
+  });
+  const status = o.quote_status || "draft";
+
+  document.getElementById("pageSubtitle").textContent =
+    (o.order_number || "") + " · " + (o.item || "") + " · " + qty(q) + " 件 ｜ 单位成本 "
+    + money(unitCost) + " → 单件报价 ¥" + money(unit);
+  document.getElementById("orderLabel").textContent =
+    (o.order_number || "") + " · " + (o.item || "") + " · 报价 + 成本构成";
+  const badge = document.getElementById("badgeStatus");
+  badge.textContent = status === "confirmed" ? "已确认 confirmed" : ("草稿 " + status);
+  badge.className = "badge " + (status === "confirmed" ? "badge-confirmed" : "badge-draft");
+  document.getElementById("topRight").textContent =
+    "状态 " + status + " · 计算方式 " + (o.calculation_method || "—")
+    + (o.history_calibration_enabled ? " · 历史校准已启用" : "");
+
+  document.getElementById("kpiUnit").textContent = "¥" + money(unit);
+  document.getElementById("kpiTaxed").textContent = "¥" + money(taxed);
+  document.getElementById("kpiUnitCost").textContent = "¥" + money(unitCost);
+  document.getElementById("kpiMargin").textContent = margin.toFixed(2) + "%";
+
+  document.getElementById("deliveryInfo").innerHTML =
+    "交期 " + dueShort(o.due)
+    + " · 数量 " + qty(q) + " 件 · 客户 " + (o.customer || "—")
+    + " · 历史校准样本 " + (o.history_sample_count || 0) + " 个";
+
+  const unitMat = material / q, unitRes = resource / q, unitOh = overhead / q;
+  const unitScrap = scrap / q, unitProfit = profit / q, unitTax = tax / q;
+  document.getElementById("costBars").innerHTML =
+    barRow("材料费", unitMat, unitCost || unit, "blue")
+    + barRow("资源/加工费", unitRes, unitCost || unit, "teal")
+    + barRow("制造管理费", unitOh, unitCost || unit, "purple")
+    + barRow("废品损耗", unitScrap, unitCost || unit, "light-gray", "未设置")
+    + barRow("利润", unitProfit, unit || unitCost, "green")
+    + barRow("税额", unitTax, unit || unitCost, "red");
+  document.getElementById("sumCost").textContent = "¥" + money(totalCost);
+  document.getElementById("sumProfit").textContent = "¥" + money(profit);
+  document.getElementById("sumTax").textContent = "¥" + money(tax);
+  document.getElementById("unitBox").textContent = "¥" + money(unit);
+
+  document.getElementById("processTitle").textContent = "资源/加工 · " + (o.order_number || "");
+  document.getElementById("processBadge").style.display = "none";
+  const snap = o.cost_snapshot || {};
+  const rows = snap.operations || snap.resources || [];
+  if (rows.length) {
+    document.getElementById("processBody").innerHTML = rows.slice(0, 12).map(function (r) {
+      const name = r.name || r.operation || r.resource || JSON.stringify(r).slice(0, 40);
+      const val = r.cost || r.hours || r.quantity || "";
+      return "<tr><td>" + name + '</td><td class="bold">' + val + "</td><td></td></tr>";
+    }).join("");
+  } else {
+    document.getElementById("processBody").innerHTML =
+      "<tr><td colspan='3' style='color:#888'>加工费已计入资源/加工费 ¥" + money(resource) + "</td></tr>";
+  }
+  document.getElementById("processTotal").textContent = "资源/加工费 ¥" + money(resource);
+  document.getElementById("processNote").textContent = "工序成本已并入资源/加工费，不再单独列示。";
+
+  function seg(cls, val, label) {
+    if (!val) return "";
+    return '<div class="waterfall-segment ' + cls + '" style="flex:' + Math.max(val, 1) + '">' + label + " " + Math.round(val) + "</div>";
+  }
+  document.getElementById("waterfall").innerHTML =
+    seg("mat", material, "材料成本")
+    + seg("labor", resource, "资源成本")
+    + seg("overhead", overhead, "管理")
+    + seg("profit", profit, "利润")
+    + seg("tax", tax, "税");
+  document.getElementById("waterfallSub").textContent =
+    "管理费 " + money(overhead) + " · 损耗 " + (scrap ? money(scrap) : "未设置");
+  document.getElementById("totalBox").textContent =
+    "含税报价 " + money(taxed) + "  =  单件 ¥" + money(unit) + " × " + qty(q)
+    + " 件  |  总成本 " + money(totalCost) + " + 利润 " + money(profit) + " + 税 " + money(tax);
+
+  function chip(cls, text) { return '<span class="bridge-item ' + cls + '">' + text + "</span>"; }
+  document.getElementById("bridge").innerHTML = [
+    chip("mat", "材料 " + money(unitMat)),
+    '<span class="bridge-arrow">→</span>',
+    chip("labor", "+ 资源 " + money(unitRes)),
+    '<span class="bridge-arrow">→</span>',
+    chip("mgmt", "+ 管理 " + money(unitOh, 3)),
+    '<span class="bridge-arrow">→</span>',
+    chip("scrap", "+ 损耗 " + (scrap ? money(unitScrap, 3) : "—")),
+    '<span class="bridge-arrow">→</span>',
+    chip("unit-cost", "= 成本 " + money(unitCost)),
+    '<span class="bridge-arrow">→</span>',
+    chip("profit", "+ 利润 " + money(unitProfit, 3)),
+    '<span class="bridge-arrow">→</span>',
+    chip("tax", "+ 税 " + money(unitTax, 3)),
+    '<span class="bridge-arrow">→</span>',
+    chip("final", "= 报价 " + money(unit)),
+  ].join("");
+
+  if (warnings.length) {
+    document.getElementById("warningsSection").style.display = "";
+    document.getElementById("warningsList").innerHTML = warnings.map(function (w) {
+      return "<li>" + String(w) + "</li>";
+    }).join("");
+  } else {
+    document.getElementById("warningsSection").style.display = "none";
+  }
+
+  const hist = STATE.hist;
+  document.getElementById("historyDetail").textContent =
+    "历史校准：" + (o.history_calibration_enabled ? "已启用" : "未启用")
+    + " · 匹配样本数：" + (o.history_sample_count || (hist && hist.sample_count) || 0)
+    + " · 校准因子：" + ((hist && hist.calibration_factor) != null ? hist.calibration_factor : "未返回")
+    + " · 建议总额：" + ((hist && hist.suggested_total) != null ? money(hist.suggested_total) : "未返回");
+
+  const matPct = pct(material, totalCost || taxed);
+  document.getElementById("salesTip").textContent =
+    "销售用法：材料费占 " + matPct.toFixed(1) + "%；利润率 " + margin.toFixed(2) + "%"
+    + (margin < 1 ? " 偏低，建议检查利润参数。" : "。");
+}
+
+function fillSelect(orders, selected) {
+  const sel = document.getElementById("orderSelect");
+  const rows = (orders || []).map(function (o) {
+    return typeof o === "string" ? { order_number: o } : o;
+  }).filter(function (o) { return o.order_number; });
+  sel.innerHTML = rows.map(function (o) {
+    const n = o.order_number;
+    const extra = o.item ? (" · " + o.item) : "";
+    return '<option value="' + n + '"' + (n === selected ? " selected" : "") + ">" + n + extra + "</option>";
+  }).join("");
+  const hint = document.getElementById("orderCountHint");
+  if (hint) hint.textContent = rows.length ? ("共 " + rows.length + " 张，可切换") : "";
+}
+
+function findEmbeddedOrder(name) {
+  const list = STATE.orderList || [];
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] && list[i].order_number === name) return list[i];
+  }
+  return null;
+}
+
+function showSelected() {
+  const name = currentOrder();
+  if (!name) return;
+  const local = findEmbeddedOrder(name);
+  const hasQuote = local && (local.material_cost != null || local.total_with_tax != null || local.profit_amount != null);
+  if (hasQuote) {
+    STATE.order = local;
+    STATE.delay = local.delay_days || 0;
+    STATE.hist = (EMBEDDED && EMBEDDED.order && EMBEDDED.order.order_number === name)
+      ? (EMBEDDED.hist || null)
+      : (STATE.hist && STATE.order && STATE.order.order_number === name ? STATE.hist : null);
+    render();
+    toast("已切换 " + name);
+    return;
+  }
+  loadCard();
+}
+
+async function loadCard() {
+  overlay(true, "加载报价…");
+  try {
+    mcp = new McpClient(mcpUrl());
+    await mcp.init();
+    const listed = await mcp.call("list_quote_orders", { limit: 50 });
+    STATE.scenario = listed.scenario || "scenario2";
+    STATE.orderList = listed.orders || [];
+    STATE.orders = STATE.orderList.map(function (o) { return o.order_number; });
+    let name = currentOrder() || new URLSearchParams(location.search).get("order") || STATE.orders[0];
+    if (STATE.orders.indexOf(name) < 0 && STATE.orders.length) name = STATE.orders[0];
+    fillSelect(STATE.orderList, name);
+    if (!name) throw new Error("没有询价单");
+    const detail = await mcp.call("get_quote", { order_number: name, detail: true });
+    STATE.order = detail.order || detail;
+    STATE.orderList = STATE.orderList.map(function (o) {
+      return o.order_number === name ? Object.assign({}, o, STATE.order) : o;
+    });
+    STATE.hist = null;
+    try {
+      STATE.hist = await mcp.call("get_quote_history_calibration", { order_number: name });
+    } catch (e) {}
+    render();
+    const params = new URLSearchParams({ order: name, mcp: mcpUrl() });
+    history.replaceState(null, "", "?" + params.toString());
+    toast("已加载 " + name);
+  } catch (e) {
+    document.getElementById("pageSubtitle").textContent = "加载失败";
+    toast(String(e.message || e));
+  } finally {
+    overlay(false);
+  }
+}
+
+function applyEmbedded() {
+  const list = (EMBEDDED && EMBEDDED.orders) || [];
+  if (!list.length && !(EMBEDDED && EMBEDDED.order)) return false;
+  STATE.scenario = EMBEDDED.scenario || "scenario2";
+  STATE.orderList = list.length ? list : [EMBEDDED.order];
+  STATE.orders = STATE.orderList.map(function (o) { return o.order_number; });
+  const want = new URLSearchParams(location.search).get("order")
+    || (EMBEDDED.order && EMBEDDED.order.order_number)
+    || STATE.orders[0];
+  STATE.order = findEmbeddedOrder(want) || EMBEDDED.order || STATE.orderList[0];
+  STATE.hist = (EMBEDDED.order && STATE.order && EMBEDDED.order.order_number === STATE.order.order_number)
+    ? (EMBEDDED.hist || null) : null;
+  STATE.delay = (STATE.order && STATE.order.delay_days) || EMBEDDED.delay || 0;
+  fillSelect(STATE.orderList, STATE.order.order_number);
+  render();
+  toast("已载入 " + STATE.orders.length + " 张询价单，当前 " + STATE.order.order_number);
+  return true;
+}
+
+function boot() {
+  document.getElementById("orderSelect").onchange = showSelected;
+  if (!applyEmbedded()) loadCard();
+}
+boot();
+</script>
+</body>
+</html>

@@ -218,54 +218,35 @@ class SupplyPlanning(PlanTask):
         except Exception:
             constraint = 4 + 16 + 32  # Default is with all constraints enabled
         solver_mode = Parameter.getValue("plan.solver", database, "mrp").lower()
-        if solver_mode not in ("mrp", "fas", "ga"):
+        if solver_mode not in ("mrp", "fas", "ga", "cp"):
             logger.warning(
                 "Unsupported plan.solver '%s'; falling back to mrp", solver_mode
             )
             solver_mode = "mrp"
-        if solver_mode == "fas":
-            # FAS owns demand selection, supply expansion and forward dates.
-            # It reuses MRP's supply-source rules but never enters MRP's
-            # global demand loop.
-            cls.solver = ccAPPS.solverFAS(
-                constraints=constraint,
-                plantype=plantype,
-                loglevel=loglevel,
-                lazydelay=int(Parameter.getValue("lazydelay", database, "86400")),
-                minimumdelay=int(Parameter.getValue("plan.minimumdelay", database, "3600")),
-                rotateresources=(
-                    Parameter.getValue("plan.rotateResources", database, "true").lower()
-                    == "true"
-                ),
-                administrativeleadtime=86400
-                * float(Parameter.getValue("plan.administrativeLeadtime", database, "0")),
-                autofence=86400
-                * float(Parameter.getValue("plan.autoFenceOperations", database, "0")),
-                iterationmax=int(Parameter.getValue("plan.iterationmax", database, "0")),
-                resourceiterationmax=int(
-                    Parameter.getValue("plan.resourceiterationmax", database, "500")
-                ),
-            )
-        else:
-            cls.solver = ccAPPS.solver_mrp(
-                constraints=constraint,
-                plantype=plantype,
-                loglevel=loglevel,
-                lazydelay=int(Parameter.getValue("lazydelay", database, "86400")),
-                minimumdelay=int(Parameter.getValue("plan.minimumdelay", database, "3600")),
-                rotateresources=(
-                    Parameter.getValue("plan.rotateResources", database, "true").lower()
-                    == "true"
-                ),
-                iterationmax=int(Parameter.getValue("plan.iterationmax", database, "0")),
-                resourceiterationmax=int(
-                    Parameter.getValue("plan.resourceiterationmax", database, "500")
-                ),
-                administrativeleadtime=86400
-                * float(Parameter.getValue("plan.administrativeLeadtime", database, "0")),
-                autofence=86400
-                * float(Parameter.getValue("plan.autoFenceOperations", database, "0")),
-            )
+        # FAS: MRP creates the supply network, then C++ SolverFAS owns the
+        # forward finite-capacity dates/resources. Standalone SolverFAS
+        # (expand+forward) remains available when the model has no planned
+        # open demand yet; the post-MRP path below invokes it in forward-only
+        # mode after this MRP expansion.
+        cls.solver = ccAPPS.solver_mrp(
+            constraints=constraint,
+            plantype=plantype,
+            loglevel=loglevel,
+            lazydelay=int(Parameter.getValue("lazydelay", database, "86400")),
+            minimumdelay=int(Parameter.getValue("plan.minimumdelay", database, "3600")),
+            rotateresources=(
+                Parameter.getValue("plan.rotateResources", database, "true").lower()
+                == "true"
+            ),
+            iterationmax=int(Parameter.getValue("plan.iterationmax", database, "0")),
+            resourceiterationmax=int(
+                Parameter.getValue("plan.resourceiterationmax", database, "500")
+            ),
+            administrativeleadtime=86400
+            * float(Parameter.getValue("plan.administrativeLeadtime", database, "0")),
+            autofence=86400
+            * float(Parameter.getValue("plan.autoFenceOperations", database, "0")),
+        )
         direct_ga = solver_mode == "ga" and Parameter.getValue(
             "ga.direct", database, os.environ.get("GA_DIRECT", "")
         ).lower() in ("1", "true", "yes")
@@ -280,8 +261,7 @@ class SupplyPlanning(PlanTask):
             cls.solver.userexit_demand = cls.debugDemand
         if hasattr(cls, "debugOperation"):
             cls.solver.userexit_operation = cls.debugOperation
-            if hasattr(cls, "nextDemand"):
-                cls.solver.userexit_nextdemand = cls.nextDemand
+        # Timed demand feeder is installed below after the deadline is known.
         logger.info("Plan type: %s" % plantype)
         constraint_str = []
         if constraint & 4:
@@ -368,14 +348,46 @@ class SupplyPlanning(PlanTask):
                     if autofix_first:
                         unlock_aco_locked()
 
+            # Soft wall-clock limit for the supply solver (seconds).
+            # Hard exit is a fallback if the worker never returns; prefer
+            # finishing under the limit by keeping resource search short.
+            import time as _time
+
+            try:
+                solve_timeout = int(
+                    Parameter.getValue("plan.solve_timeout", database, "180")
+                )
+            except Exception:
+                solve_timeout = 180
+            if solve_timeout <= 0:
+                solve_timeout = 1800
+            hard_timeout = solve_timeout + 30
+            # Cut engine log spam so short-horizon runs aren't disk-bound.
+            try:
+                ccAPPS.settings.loglimit = min(
+                    int(getattr(ccAPPS.settings, "loglimit", 0) or 300000),
+                    20000,
+                )
+            except Exception:
+                pass
+            logger.info(
+                "Supply solve timeout: hard=%ss (loglimit=%s)",
+                hard_timeout,
+                getattr(ccAPPS.settings, "loglimit", None),
+            )
+
             thread = Thread(target=solve_with_optional_unlock)
             thread.start()
-            thread.join(timeout=1800)
+            thread.join(timeout=hard_timeout)
             solver_timed_out = thread.is_alive()
             if solver_timed_out:
                 logger.warning(
-                    "Skipping solver.solve(): call timed out after 1800 seconds"
+                    "Skipping solver.solve(): call timed out after %s seconds",
+                    hard_timeout,
                 )
+                # C++ MRP keeps running in the worker thread; do not export a
+                # half-built plan. Exit the planner process so the OS reclaims it.
+                os._exit(124)
             elif solver_error:
                 # Never export or commit a partial FAS command stream after a
                 # C++ solver failure.  The previous implementation let a
@@ -385,18 +397,79 @@ class SupplyPlanning(PlanTask):
                 raise solver_error[0]
             else:
                 logger.info("Solver completed")
-                if solver_mode == "fas":
-                    # Unlike solver_mrp's global loop, FAS deliberately
-                    # retains its single-demand expansion commands until its
-                    # forward scheduling pass is complete. Commit that single
-                    # transactional result before the standard export tasks.
-                    cls.solver.commit()
-                    logger.info("FAS supply expansion and schedule committed")
             # Run ACO/Exact/AutoFix after MRP if enabled
             if solver_mode == "mrp":
                 logger.info("MRP-only planning mode: skipping post-MRP optimization")
             elif solver_mode == "fas":
-                logger.info("FAS planning mode: skipping post-plan optimization")
+                try:
+                    # FAS = MRP supply + C++ SolverFAS forward (calendar,
+                    # material FIFO, pool search, job-order improve).
+                    commit_solver_state()
+                    fas_job_order = Parameter.getValue(
+                        "plan.fas_job_order", database, "lpt"
+                    ).lower()
+                    os.environ["FAS_JOB_ORDER"] = fas_job_order
+                    fas_improve = Parameter.getValue(
+                        "plan.fas_improve_seconds", database, "10"
+                    )
+                    os.environ["FAS_IMPROVE_SECONDS"] = str(fas_improve)
+                    fas_kwargs = {
+                        "constraints": constraint,
+                        "plantype": plantype,
+                        "loglevel": loglevel,
+                        "lazydelay": int(
+                            Parameter.getValue("lazydelay", database, "86400")
+                        ),
+                        "minimumdelay": int(
+                            Parameter.getValue(
+                                "plan.minimumdelay", database, "3600"
+                            )
+                        ),
+                        "rotateresources": (
+                            Parameter.getValue(
+                                "plan.rotateResources", database, "true"
+                            ).lower()
+                            == "true"
+                        ),
+                        "administrativeleadtime": 86400
+                        * float(
+                            Parameter.getValue(
+                                "plan.administrativeLeadtime", database, "0"
+                            )
+                        ),
+                        "autofence": 86400
+                        * float(
+                            Parameter.getValue(
+                                "plan.autoFenceOperations", database, "0"
+                            )
+                        ),
+                        "iterationmax": int(
+                            Parameter.getValue(
+                                "plan.iterationmax", database, "0"
+                            )
+                        ),
+                        "resourceiterationmax": int(
+                            Parameter.getValue(
+                                "plan.resourceiterationmax", database, "500"
+                            )
+                        ),
+                    }
+                    fas_solver = ccAPPS.solverFAS(**fas_kwargs)
+                    logger.info(
+                        "Running SolverFAS forward schedule on MRP supply "
+                        "(job_order=%s, improve_seconds=%s)",
+                        fas_job_order,
+                        fas_improve,
+                    )
+                    fas_solver.solve()
+                    fas_solver.commit()
+                    logger.info("SolverFAS forward schedule committed")
+                except Exception:
+                    logger.error(
+                        "Exception caught during FAS forward schedule",
+                        exc_info=True,
+                    )
+                    raise
             elif solver_mode == "ga":
                 try:
                     # GA is a second-stage forward optimizer.  Its C++
@@ -414,10 +487,28 @@ class SupplyPlanning(PlanTask):
                     # are stable C++ defaults rather than payload controls.
                     ga_environment = {
                         "GA_DIRECT": Parameter.getValue("ga.direct", database, "false"),
-                        "GA_SEED": Parameter.getValue("ga.seed", database, "0"),
-                        "GA_POPULATION": os.environ.get("GA_POPULATION", "50"),
-                        "GA_GENERATIONS": os.environ.get("GA_GENERATIONS", "20"),
-                        "GA_STAGNATION_LIMIT": os.environ.get("GA_STAGNATION_LIMIT", "5"),
+                        "GA_SEED": Parameter.getValue("ga.seed", database, "123456"),
+                        # Aligned with D:\test Numba ga_runner defaults.
+                        "GA_POPULATION": os.environ.get("GA_POPULATION", "500"),
+                        "GA_GENERATIONS": os.environ.get("GA_GENERATIONS", "50"),
+                        # Early stop: halt when best score has not improved for
+                        # this many consecutive generations.
+                        "GA_STAGNATION_LIMIT": Parameter.getValue(
+                            "ga.stagnation_limit",
+                            database,
+                            os.environ.get("GA_STAGNATION_LIMIT", "10"),
+                        ),
+                        "GA_ENABLE_VNS": os.environ.get("GA_ENABLE_VNS", "true"),
+                        "GA_VNS_RATIO": os.environ.get("GA_VNS_RATIO", "0.02"),
+                        "GA_TIME_LIMIT_SECONDS": os.environ.get(
+                            "GA_TIME_LIMIT_SECONDS", "60"
+                        ),
+                        # How many Pareto solutions are sent to stage 2.
+                        "GA_STAGE2_SOLUTIONS": Parameter.getValue(
+                            "ga.stage2_solutions",
+                            database,
+                            os.environ.get("GA_STAGE2_SOLUTIONS", "1"),
+                        ),
                         "GA_OBJECTIVE_PROFILE": Parameter.getValue("ga.objective_profile", database, "due_date"),
                         "GA_MATERIAL_MODE": Parameter.getValue("ga.material_mode", database, "postcheck"),
                         "GA_LOGLEVEL": os.environ.get("GA_LOGLEVEL", "0"),
@@ -438,9 +529,11 @@ class SupplyPlanning(PlanTask):
                     previous_ga_environment = {key: os.environ.get(key) for key in ga_environment}
                     try:
                         os.environ.update(ga_environment)
+                        # Outer thread kill must exceed the internal GA time
+                        # limit so evolution can finish and apply the best plan.
                         ga_timeout = int(Parameter.getValue(
                             "ga.timeout_seconds", database,
-                            os.environ.get("GA_TIMEOUT_SECONDS", "120"),
+                            os.environ.get("GA_TIMEOUT_SECONDS", "70"),
                         ))
                         if run_threaded(
                             ccAPPS.run_ga,
@@ -460,6 +553,35 @@ class SupplyPlanning(PlanTask):
                                 os.environ[key] = value
                 except Exception as e:
                     logger.warning("GA failed: %s" % e)
+            elif solver_mode == "cp":
+                try:
+                    # Same commit point as GA: CP-SAT reads the manufacturing
+                    # orders MRP has already created, then rewrites their
+                    # dates and resources.
+                    commit_solver_state()
+                    cp_method = Parameter.getValue(
+                        "cp.objective_method",
+                        database,
+                        os.environ.get("CP_OBJECTIVE_METHOD", "weighted"),
+                    )
+                    previous_cp_method = os.environ.get("CP_OBJECTIVE_METHOD")
+                    os.environ["CP_OBJECTIVE_METHOD"] = cp_method
+                    logger.info(
+                        "Running CP-SAT flexible job shop (%s)" % cp_method
+                    )
+                    try:
+                        ccAPPS.run_cp()
+                    finally:
+                        if previous_cp_method is None:
+                            os.environ.pop("CP_OBJECTIVE_METHOD", None)
+                        else:
+                            os.environ["CP_OBJECTIVE_METHOD"] = previous_cp_method
+                except Exception:
+                    logger.error(
+                        "Exception caught during CP-SAT schedule",
+                        exc_info=True,
+                    )
+                    raise
         finally:
             ccAPPS.settings.loglimit = 0
         thread = Thread(target=ccAPPS.printsize)
@@ -657,6 +779,8 @@ class GenerateGAFJSPMaterialFlow(PlanTask):
             len(routing_plans),
             len(records),
         )
+
+
 
 
 @PlanTaskRegistry.register

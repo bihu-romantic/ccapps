@@ -24,6 +24,36 @@ from ccAPPSdb.common.utils import get_databases
 from ccAPPSdb import __version__
 
 
+def reload_webservice(database):
+    """Replace the in-memory planning service with the plan just written."""
+    if os.environ.get("CCAPPS_WEBSERVICE", "true").lower() == "false":
+        return
+    from django.core import management
+
+    try:
+        management.call_command("stopwebservice", database=database, force=True, wait=False)
+    except Exception:
+        pass
+    env = os.environ.copy()
+    env.pop("nowebservice", None)
+    env.pop("supply", None)
+    env.pop("quote", None)
+    env["loadplan"] = "1"
+    env["CCAPPS_DATABASE"] = database
+    env["PYTHONPATH"] = getattr(settings, "CCAPPS_APP", "/app")
+    logdir = getattr(settings, "CCAPPS_LOGDIR", "/tmp")
+    os.makedirs(logdir, exist_ok=True)
+    log = open(os.path.join(logdir, f"webservice-{database}.log"), "a")
+    subprocess.Popen(
+        [sys.executable, ccAPPSdb.common.commands.__file__],
+        env=env,
+        cwd=getattr(settings, "CCAPPS_APP", "/app"),
+        start_new_session=True,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+    )
+
+
 def parseConstraints(val):
     try:
         cstrnts = int(val)
@@ -456,6 +486,8 @@ class Command(BaseCommand):
                         update_fields.extend(["status", "message"])
                         t.save(update_fields=update_fields, using=database)
                         break
+                if t.status in ("Done", "100%"):
+                    reload_webservice(database)
             else:
                 # Reread the task from the database and update it
                 task = Task.objects.all().using(database).get(pk=task.id)
@@ -465,6 +497,7 @@ class Command(BaseCommand):
                 task.save(
                     update_fields=["processid", "status", "finished"], using=database
                 )
+                reload_webservice(database)
 
         except Exception as e:
             if task:

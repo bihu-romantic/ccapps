@@ -78,6 +78,7 @@ msgpack==1.1.2
 mypy_extensions==1.1.0
 noraise==0.0.16
 openpyxl==3.0.9
+ortools==9.15.6755
 outcome==1.3.0.post0
 packaging==26.2
 paramiko==4.0.0

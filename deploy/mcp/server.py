@@ -4,7 +4,9 @@ FastMCP v2, streamable-http transport. Run:
     python server.py   (binds 0.0.0.0:9000, serves /mcp)
 """
 import os
+import re
 import time
+import urllib.parse
 from fastmcp import FastMCP
 
 from ccapps_client import (
@@ -390,12 +392,11 @@ def confirm_quote(
     import httpx
     base = client.base_url.rstrip("/")
     grid_url = f"{base}/{s}/data/input/demand/"
-    headers = {"Accept": "application/json"}
-    if client.token:
-        headers["Authorization"] = f"Bearer {client.token}"
+    headers = client._headers()
     with httpx.Client(headers=headers, timeout=client.timeout) as session:
         session.get(f"{base}/{s}/api/input/demand/", params={"format": "json", "rows": 1})
         write_headers = {
+            **headers,
             "X-CSRFToken": session.cookies.get("csrftoken") or "",
             "Referer": f"{base}/",
         }
@@ -405,51 +406,284 @@ def confirm_quote(
     return {"status": "confirmed", "scenario": s, "order_number": order_number}
 
 
+def _parse_delay_days(delay) -> int:
+    if delay in (None, "", "0:00:00", 0):
+        return 0
+    if isinstance(delay, (int, float)):
+        return abs(int(delay))
+    text = str(delay)
+    day_match = re.search(r"(-?\d+)\s*day", text, re.I)
+    if day_match:
+        return abs(int(day_match.group(1)))
+    hm = re.match(r"(\d+):(\d+):", text)
+    if hm and int(hm.group(1)) >= 24:
+        return int(hm.group(1)) // 24
+    return 0
+
+
+def _collect_quote_html_data(scenario: str, order_number: str | None = None) -> dict:
+    listed = list_quote_orders.fn(scenario=scenario, limit=50)
+    orders = []
+    for row in listed.get("orders") or []:
+        name = row.get("order_number")
+        if not name:
+            continue
+        detail = get_quote.fn(order_number=name, scenario=scenario, detail=True)
+        orders.append(detail.get("order") or detail)
+    delay_map = {}
+    try:
+        dem = list_demands.fn(scenario=scenario, limit=500)
+        for demand in dem.get("demands") or []:
+            delay_map[str(demand.get("name"))] = _parse_delay_days(demand.get("delay"))
+    except CcappsError:
+        pass
+    for order in orders:
+        order["delay_days"] = delay_map.get(str(order.get("order_number")), 0)
+    names = [order.get("order_number") for order in orders if order.get("order_number")]
+    chosen = order_number or (names[0] if names else None)
+    current = next((order for order in orders if order.get("order_number") == chosen), orders[0] if orders else None)
+    hist = None
+    if chosen:
+        try:
+            hist = get_quote_history_calibration.fn(order_number=chosen, scenario=scenario)
+        except CcappsError:
+            hist = None
+    return {
+        "scenario": listed.get("scenario") or scenario,
+        "orders": orders,
+        "order": current,
+        "order_names": names,
+        "hist": hist,
+        "delay": (current or {}).get("delay_days", 0),
+    }
+
+
 @mcp.tool
-def analyze_quote_delivery_risk(
+def generate_quote_html(
+    kind: str,
+    order_number: str | None = None,
+    scenario: str | None = None,
+    mcp_url: str | None = None,
+) -> dict:
+    """Generate one standalone quote HTML file from live inquiry orders.
+
+    kind=batch writes 批量报价.html for all inquiry orders.
+    kind=card writes 单订单报价卡.html for one order.
+    Save returned html as filename. The page already contains current quote
+    numbers and can still refresh via MCP.
+
+    order_number: used by card; default is the first inquiry order.
+    mcp_url: MCP endpoint written into the HTML, default public /cc-apps-mcp/mcp.
+    """
+    from quote_html import DEFAULT_MCP_URL, render_batch, render_card
+
+    kind_norm = (kind or "").strip().lower()
+    if kind_norm not in {"batch", "card"}:
+        raise CcappsError(400, "kind must be batch or card")
+    s = scenario or DEFAULT
+    bundle = _collect_quote_html_data(s, order_number)
+    if not bundle["orders"]:
+        raise CcappsError(404, "no quote-enabled inquiry orders in %s" % s)
+    if kind_norm == "card" and not bundle["order"]:
+        raise CcappsError(404, "quote order not found: %s" % (order_number or ""))
+    payload = dict(bundle)
+    payload["mcp_url"] = (mcp_url or DEFAULT_MCP_URL).strip()
+    if kind_norm == "batch":
+        filename = "批量报价.html"
+        html = render_batch(payload)
+    else:
+        filename = "单订单报价卡.html"
+        html = render_card(payload)
+    return {
+        "status": "ok",
+        "scenario": bundle["scenario"],
+        "kind": kind_norm,
+        "order_count": len(bundle["orders"]),
+        "order_number": (bundle["order"] or {}).get("order_number") if kind_norm == "card" else None,
+        "filename": filename,
+        "html": html,
+    }
+
+
+def _demand_path(scenario: str, order_number: str) -> str:
+    return client.scen(
+        scenario,
+        "api/input/demand/%s/" % urllib.parse.quote(order_number, safe=""),
+    )
+
+
+def _normalize_due(due: str) -> str:
+    value = str(due or "").strip()
+    if "T" not in value and len(value) >= 10 and value[4] == "-" and value[7] == "-":
+        return value[:10] + "T18:00:00"
+    return value
+
+
+def _as_bool(value):
+    if value is None or isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "是"}
+
+
+def _existing_demand_names(scenario: str) -> set[str]:
+    payload = client.request(
+        "GET",
+        client.scen(scenario, "api/input/demand/"),
+        params={"format": "json", "rows": 5000},
+    )
+    return {str(row.get("name")) for row in parse_list(payload) if row.get("name")}
+
+
+def _row_to_body(row: dict, *, creating: bool) -> tuple[str, dict, bool | None]:
+    name = str(row.get("order_number") or row.get("name") or "").strip()
+    if not name:
+        raise CcappsError(400, "each order requires order_number or name")
+    body = {"name": name}
+    for src, dst in (
+        ("customer", "customer"),
+        ("item", "item"),
+        ("location", "location"),
+        ("status", "status"),
+        ("description", "description"),
+        ("priority", "priority"),
+    ):
+        if row.get(src) is not None:
+            body[dst] = row[src]
+    if row.get("quantity") is not None:
+        body["quantity"] = str(row["quantity"])
+    if row.get("due") is not None:
+        body["due"] = _normalize_due(row["due"])
+    quote_enabled = _as_bool(row["quote_enabled"]) if "quote_enabled" in row else None
+    if creating:
+        missing = [f for f in ("customer", "item", "location", "quantity", "due") if f not in body]
+        if missing:
+            raise CcappsError(400, "creating %s requires: %s" % (name, ", ".join(missing)))
+        body.setdefault("status", "quote")
+        body.setdefault("policy", "independent")
+    return name, body, quote_enabled
+
+
+def _set_quote_enabled_many(scenario: str, flags: list[tuple[str, bool]]) -> None:
+    if not flags:
+        return
+    # DemandSerializer does not expose quote_enabled; the sales-order grid does.
+    client.request_csrf(
+        "POST",
+        client.scen(scenario, "data/input/demand/"),
+        body=[{"id": name, "quote_enabled": bool(enabled)} for name, enabled in flags],
+    )
+
+
+def _upsert_orders(scenario: str, rows: list[dict]) -> dict:
+    if not rows:
+        raise CcappsError(400, "orders is empty")
+    existing = _existing_demand_names(scenario)
+    creates = []
+    updates = []
+    quote_flags = []
+    created_names = []
+    updated_names = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise CcappsError(400, "each order must be an object")
+        creating = str(row.get("order_number") or row.get("name") or "").strip() not in existing
+        name, body, quote_enabled = _row_to_body(row, creating=creating)
+        if creating:
+            creates.append(body)
+            created_names.append(name)
+            enable_quote = True if quote_enabled is None else quote_enabled
+        else:
+            patch = {k: v for k, v in body.items() if k != "name"}
+            if patch:
+                updates.append((name, patch))
+            updated_names.append(name)
+            enable_quote = quote_enabled
+        if enable_quote is not None:
+            quote_flags.append((name, bool(enable_quote)))
+        existing.add(name)
+    if creates:
+        client.request_csrf("POST", client.scen(scenario, "api/input/demand/"), body=creates)
+    for name, patch in updates:
+        client.request_csrf("PATCH", _demand_path(scenario, name), body=patch)
+    _set_quote_enabled_many(scenario, quote_flags)
+    summaries = [_quote_summary(_get_demand(scenario, name), detail=False) for name in created_names + updated_names]
+    return {
+        "status": "ok",
+        "scenario": scenario,
+        "created_count": len(created_names),
+        "updated_count": len(updated_names),
+        "count": len(summaries),
+        "created": created_names,
+        "updated": updated_names,
+        "orders": summaries,
+    }
+
+
+@mcp.tool
+def write_order(
+    orders: list[dict] | None = None,
+    order_number: str | None = None,
+    customer: str | None = None,
+    item: str | None = None,
+    location: str | None = None,
+    quantity: float | None = None,
+    due: str | None = None,
+    status: str | None = None,
+    quote_enabled: bool | None = None,
+    description: str | None = None,
+    priority: int | None = None,
     scenario: str | None = None,
     confirmed: bool = False,
-    poll_timeout: float = 600.0,
 ) -> dict:
-    """Run MRP plus quote generation and return scenario-wide delivery risks.
+    """Create or update sales/quote orders in bulk.
 
-    MRP determines its own eligible demand scope from the scenario data.
-    Set confirmed=true only after explicit approval.
+    Prefer `orders`: a list of demand objects from an xlsx/import payload.
+    Each item accepts: order_number/name, customer, item, location, quantity,
+    due, status, quote_enabled, description, priority.
+    Required to create: order_number, customer, item, location, quantity, due.
+    New orders default quote_enabled=true. A single order can still be passed
+    with the old top-level fields. Set confirmed=true after explicit approval.
     """
     if not confirmed:
         return {
             "status": "confirmation_required",
-            "message": "This will recalculate the scenario MRP plan and quote. Set confirmed=true only after explicit approval.",
-    }
-    s = scenario or DEFAULT
-    t0 = time.time()
-    response = client.launch_runplan(s, "capa,mfg_lt,po_lt", 1, "supply,quote")
-    taskid = response.get("taskid") if isinstance(response, dict) else None
-    if not taskid:
-        return {"status": "no_task", "scenario": s, "response": response}
-    task = client.poll_task(s, taskid, interval=2.0, timeout=poll_timeout)
-    if task.get("status") != "Done":
-        return {
-            "status": task.get("status"), "scenario": s,
-            "taskid": taskid, "timed_out": bool(task.get("timed_out")), "message": task.get("message"),
+            "message": "This will create or update sales/quote orders. Set confirmed=true after explicit approval.",
         }
-
-    problems_payload = client.request("GET", client.scen(s, "problem/"), params={"format": "json", "rows": 500})
-    constraints_payload = client.request("GET", client.scen(s, "constraint/"), params={"format": "json", "rows": 500})
-    problems = parse_jqgrid(problems_payload)
-    constraints = parse_jqgrid(constraints_payload)
-    # Some deployments publish plan risks as constraints rather than problems.
-    all_risks = problems + constraints
-    capacity = [r for r in all_risks if str(r.get("entity", "")).lower() == "capacity" or "overload" in str(r.get("name", "")).lower()]
-    material = [r for r in all_risks if str(r.get("entity", "")).lower() == "material" or "short" in str(r.get("name", "")).lower()]
-    return {
-        "status": "Done", "scenario": s, "taskid": taskid,
-        "elapsed_s": round(time.time() - t0, 1),
-        "problem_count": len(problems),
-        "constraint_count": len(constraints),
-        "material_risks": material,
-        "capacity_risks": capacity,
-    }
+    s = scenario or DEFAULT
+    rows = list(orders or [])
+    if not rows:
+        if not (order_number or "").strip():
+            raise CcappsError(400, "pass orders=[...] for batch import, or order_number for one order")
+        row = {"order_number": order_number}
+        if customer is not None:
+            row["customer"] = customer
+        if item is not None:
+            row["item"] = item
+        if location is not None:
+            row["location"] = location
+        if quantity is not None:
+            row["quantity"] = quantity
+        if due is not None:
+            row["due"] = due
+        if status is not None:
+            row["status"] = status
+        if quote_enabled is not None:
+            row["quote_enabled"] = quote_enabled
+        if description is not None:
+            row["description"] = description
+        if priority is not None:
+            row["priority"] = priority
+        rows = [row]
+    result = _upsert_orders(s, rows)
+    if len(rows) == 1 and not orders:
+        name = result["created"][0] if result["created"] else result["updated"][0]
+        return {
+            "status": "created" if result["created"] else "updated",
+            "scenario": s,
+            "order_number": name,
+            "order": result["orders"][0] if result["orders"] else {},
+        }
+    return result
 
 
 @mcp.tool
@@ -545,13 +779,12 @@ def set_parameter(name: str, value: str, scenario: str | None = None) -> dict:
     base = client.base_url.rstrip("/")
     list_url = f"{base}/{s}/api/common/parameter/"
     detail_url = f"{list_url}{name}/"
-    headers = {"Accept": "application/json"}
-    if client.token:
-        headers["Authorization"] = f"Bearer {client.token}"
+    headers = client._headers()
     with httpx.Client(headers=headers, timeout=client.timeout) as session:
         # Retrieve the CSRF cookie required by the DRF write endpoints.
         session.get(list_url, params={"format": "json"})
         write_headers = {
+            **headers,
             "X-CSRFToken": session.cookies.get("csrftoken") or "",
             "Referer": f"{base}/",
         }
@@ -592,9 +825,19 @@ MCP_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "").strip()
 MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 MCP_PORT = int(os.environ.get("MCP_PORT", "9000"))
 
+from starlette.middleware.cors import CORSMiddleware
+
 app = mcp.http_app(path="/mcp", transport="streamable-http")
 if MCP_TOKEN:
     app = BearerMiddleware(app, MCP_TOKEN)
+app = CORSMiddleware(
+    app,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["mcp-session-id", "Mcp-Session-Id"],
+)
 
 
 if __name__ == "__main__":

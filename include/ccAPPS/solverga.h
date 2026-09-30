@@ -47,15 +47,18 @@ struct GAConfig {
   // postcheck: GA sequences capacity only, then MRP refreshes proposed PO/DO.
   enum MaterialCheckMode { PRECHECK = 0, POSTCHECK = 1 };
   unsigned int seed = 123456U;
-  // Practical service defaults.  Advanced search sizing is intentionally
-  // solver-owned rather than a CCPL payload concern.
-  int population = 50;
-  int generations = 20;
+  // pop=500, generations=50; stagnation early-stop when no improvement.
+  // VNS on at ratio 0.02. time_limit is a secondary stop.
+  int population = 500;
+  int generations = 50;
   int tournament_size = 4;
   double mutation_rate = 0.15;
-  int stagnation_limit = 5;
+  // Stop after this many consecutive generations without a new best score.
+  int stagnation_limit = 10;
   bool enable_vns = true;
   double vns_ratio = 0.02;
+  // Secondary stop condition (seconds). 0 = disabled.
+  double time_limit_seconds = 60.0;
   double memory_size = 0.2;
   bool use_memory_tournament = true;
   bool use_random_tournament = false;
@@ -130,6 +133,10 @@ class SolverGA : public SolverCreate {
   // This is a forward repair only: a consumer is moved when its actual
   // cumulative input is short; no operation is ever pulled earlier.
   void enforceInternalMaterialAvailability();
+  // Align delivery promises after GA moves manufacturing: commitment =
+  // max(batch receipt, demand due). Clears temporary FG shortages from
+  // stale MRP delivery dates and drops promises that lagged past receipt.
+  void alignDeliveryCommitments();
   // Move existing, movable purchase proposals to the first real post-GA
   // consumption of their receipt buffer.  This deliberately doesn't create
   // or delete supply and is safe for the CCPL joint forward path.

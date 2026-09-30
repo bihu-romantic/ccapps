@@ -3,7 +3,6 @@ import os
 import tempfile
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 from django.conf import settings
@@ -18,81 +17,6 @@ DEFAULT_CONSTRAINT = "capa,mfg_lt,po_lt"
 DEFAULT_PLANTYPE = 1
 DEFAULT_ENV = "supply"
 FORWARD_SCHEDULE_MODE = "forward"
-SUPPORTED_SOLVERS = ("mrp", "fas", "ga")
-
-
-def _normalize_ccpl_plan_options(payload):
-    """Normalize the public CCPL planOptions envelope before conversion.
-
-    This is deliberately at the API boundary: all CCPL datasets then reach
-    the adapter with the same validated plan-start and solver semantics.  The
-    converter only translates process data into ccAPPS master data.
-    """
-    normalized = dict(payload)
-    options = normalized.get("planOptions") or normalized.get("plan_options") or {}
-    if not isinstance(options, dict):
-        raise ValidationError("planOptions must be a JSON object")
-    options = dict(options)
-
-    solver = options.get("solver", "fas")
-    if isinstance(solver, dict):
-        solver_type = solver.get("type", solver.get("name"))
-        if not solver_type:
-            raise ValidationError("planOptions.solver.type is required")
-    elif isinstance(solver, str):
-        solver_type = solver
-    else:
-        raise ValidationError("planOptions.solver must be a string or JSON object")
-    solver_type = solver_type.lower()
-    if solver_type not in SUPPORTED_SOLVERS:
-        raise ValidationError("planOptions.solver.type must be 'mrp', 'fas' or 'ga'")
-
-    plan_start = normalized.get("planStart", options.get("currentdate"))
-    if plan_start is not None:
-        if not isinstance(plan_start, str):
-            raise ValidationError("planStart must be an ISO date-time string")
-        try:
-            datetime.fromisoformat(plan_start.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ValidationError("planStart must be an ISO date-time string") from exc
-        normalized["planStart"] = plan_start
-
-    constraint = options.get("constraint", DEFAULT_CONSTRAINT)
-    if not isinstance(constraint, (str, int)):
-        raise ValidationError("planOptions.constraint must be a constraint string or bit mask")
-    try:
-        plantype = int(options.get("plantype", DEFAULT_PLANTYPE))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError("planOptions.plantype must be 1 or 2") from exc
-    if plantype not in (1, 2):
-        raise ValidationError("planOptions.plantype must be 1 or 2")
-
-    # Retain the solver object (including GA's objectiveProfile) for the
-    # converter, while placing defaults in the same public request shape.
-    options["solver"] = solver
-    options["constraint"] = constraint
-    options["plantype"] = plantype
-    normalized["planOptions"] = options
-    normalized.pop("plan_options", None)
-    return normalized
-
-
-def _convert_long_ccpl_payload(payload, scenario):
-    """Convert protocol 2.0 CCPL process data to the standard import format."""
-    converter = Path(__file__).resolve().parents[3] / "scripts" / "build_battary_factory_standard.py"
-    spec = spec_from_file_location("ccpl_standard_converter", converter)
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    standard = module.build_standard(module.build_from_long_json(payload))
-    # The URL/payload scenario remains authoritative for the target database.
-    standard["scenario"] = scenario
-    # Preserve planning controls supplied alongside the protocol 2.0 dataset.
-    # Without this, a raw CCPL request can only run the converter defaults and
-    # can't select the optional forward finite-capacity scheduling pass.
-    for key in ("constraint", "plantype", "schedule_mode", "solver"):
-        if key in payload:
-            standard[key] = payload[key]
-    return standard
 
 
 class PlanningServiceError(Exception):
@@ -271,28 +195,14 @@ def run_ccpl_plan(payload, database, user=None):
     if not isinstance(payload, dict):
         raise ValidationError("Request body must be a JSON object")
 
-    payload = _normalize_ccpl_plan_options(payload)
-
     data = payload.get("data") or payload
     if not isinstance(data, dict):
         raise ValidationError("'data' must be a JSON object")
-    is_long_ccpl_dataset = bool(data.get("craftProcessNodes"))
-    if is_long_ccpl_dataset:
-        required_long_sections = (
-            "craftProcessNodes",
-            "workSchedules",
-            "scheduleMaterials",
-            "demandOrders",
+    if data.get("craftProcessNodes") or data.get("workSchedules"):
+        raise ValidationError(
+            "CCPL protocol 2.0 (craftProcessNodes/workSchedules) is no longer "
+            "supported; send protocol 1.0 with 'sheets'"
         )
-        if any(not data.get(section) for section in required_long_sections):
-            raise ValidationError(
-                "Missing required CCPL sections: %s"
-                % ", ".join(required_long_sections)
-            )
-        # CCPL protocol 2.0 is the external API contract. Normalize it before
-        # importing so the planning engine only receives standard records.
-        payload = _convert_long_ccpl_payload(payload, database)
-        data = payload["data"]
     is_standard_dataset = bool(data.get("items"))
     required_sections = (
         ("items", "operations", "demands")
@@ -323,8 +233,10 @@ def run_ccpl_plan(payload, database, user=None):
     # optimizer.
     if solver == "ga_multi_obj":
         solver = "ga"
-    if solver not in ("mrp", "fas", "ga"):
-        raise ValidationError("solver must be 'mrp', 'fas' or 'ga_multi_obj'")
+    if solver not in ("mrp", "fas", "ga", "cp"):
+        raise ValidationError(
+            "solver must be 'mrp', 'fas', 'ga_multi_obj' or 'cp'"
+        )
     schedule_mode = str(payload.get("schedule_mode", "mrp")).lower()
     if schedule_mode not in ("mrp", FORWARD_SCHEDULE_MODE):
         raise ValidationError("schedule_mode must be 'mrp' or 'forward'")
@@ -350,9 +262,14 @@ def run_ccpl_plan(payload, database, user=None):
                 clean_source=clean_source,
                 verbosity=0,
             )
-        if solver in ("fas", "ga"):
-            # FAS and GA are selected by the normal plan parameter so runplan
-            # retains the same entry point and constraint parsing as MRP.
+        if solver in ("fas", "ga", "cp"):
+            # FAS, GA and CP are selected by the normal plan parameter so
+            # runplan retains the same entry point and constraint parsing as MRP.
+            solver_description = {
+                "fas": "CCPL requested C++ forward scheduler",
+                "ga": "CCPL requested C++ genetic algorithm scheduler",
+                "cp": "CCPL requested CP-SAT flexible job shop",
+            }[solver]
             with connections[database].cursor() as cursor:
                 cursor.execute(
                     """
@@ -362,12 +279,7 @@ def run_ccpl_plan(payload, database, user=None):
                     set value = excluded.value, description = excluded.description,
                         lastmodified = excluded.lastmodified
                     """,
-                    [
-                        solver,
-                        "CCPL requested C++ forward scheduler"
-                        if solver == "fas"
-                        else "CCPL requested C++ genetic algorithm scheduler",
-                    ],
+                    [solver, solver_description],
                 )
         management.call_command(
             "runplan",

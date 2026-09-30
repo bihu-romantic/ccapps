@@ -3,8 +3,13 @@
  ***************************************************************************/
 
 #include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cstdlib>
 #include <deque>
+#include <limits>
 #include <queue>
+#include <random>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -15,6 +20,61 @@ namespace ccAPPS {
 const MetaClass* SolverFAS::metadata;
 
 namespace {
+
+// Job sequencing: demand priority → due, then tie-break.
+// Default "lpt" = longest total processing time first (stable, strong makespan).
+// "name" = routing operation name; "reference" = caixin MO.reference string.
+// Priority/due always come first: business urgency before processing length.
+enum class FASJobTieBreak { Lpt, Spt, Name, Reference };
+
+FASJobTieBreak fasJobTieBreakFromEnv() {
+  const char* value = getenv("FAS_JOB_ORDER");
+  if (!value || !*value) return FASJobTieBreak::Lpt;
+  string mode(value);
+  for (char& ch : mode) ch = static_cast<char>(tolower(ch));
+  if (mode == "reference" || mode == "ref" || mode == "id" || mode == "priority")
+    return FASJobTieBreak::Reference;
+  if (mode == "name") return FASJobTieBreak::Name;
+  if (mode == "spt") return FASJobTieBreak::Spt;
+  return FASJobTieBreak::Lpt;
+}
+
+string fasJobSortName(const OperationPlan* job) {
+  if (!job) return string();
+  if (job->getOperation()) return job->getOperation()->getName();
+  return string();
+}
+
+Duration fasJobTotalDuration(const OperationPlan* job,
+                             const unordered_map<OperationPlan*, Duration>&
+                                 durationByJob) {
+  if (!job) return Duration(0L);
+  const auto found = durationByJob.find(const_cast<OperationPlan*>(job));
+  return found == durationByJob.end() ? Duration(0L) : found->second;
+}
+
+bool fasJobTieLess(const OperationPlan* left, const OperationPlan* right,
+                   FASJobTieBreak tieBreak,
+                   const unordered_map<OperationPlan*, Duration>& durationByJob) {
+  if (!left) return false;
+  if (!right) return true;
+  if (tieBreak == FASJobTieBreak::Reference)
+    return left->getReference() < right->getReference();
+  if (tieBreak == FASJobTieBreak::Lpt || tieBreak == FASJobTieBreak::Spt) {
+    const long leftSec =
+        fasJobTotalDuration(left, durationByJob).getSeconds();
+    const long rightSec =
+        fasJobTotalDuration(right, durationByJob).getSeconds();
+    if (leftSec != rightSec) {
+      if (tieBreak == FASJobTieBreak::Lpt) return leftSec > rightSec;
+      return leftSec < rightSec;
+    }
+  }
+  const string leftName = fasJobSortName(left);
+  const string rightName = fasJobSortName(right);
+  if (leftName != rightName) return leftName < rightName;
+  return left->getReference() < right->getReference();
+}
 
 // Resource assignment is part of the in-memory planning transaction just as
 // dates are.  LoadPlan::setResource updates timelines and setup events
@@ -66,16 +126,16 @@ void collectExecutableLeaves(OperationPlan* plan, vector<OperationPlan*>& leaves
 
 // Alternate ranking weights, used by SolverFAS::probeAlternateCompletion.
 //
-// queueWeight: how many seconds of the candidate's own processing time are
-// worth one second of load already committed to a machine. A value of 1
-// compares "queue + processing" and therefore balances the machines whatever
-// they cost, which on a transfer line that mixes one-minute and one-hour
-// operations buys balance with hours of extra processing. A very large value
-// degenerates into "always the fastest machine". Measurements on the CCPL
-// FJSP scenario put the flat optimum between 4 and 16: the three-machine
-// bottleneck pool settles around 7.6-7.8h per machine against a search-found
-// minimum of 7.71h, while the total processing time stays near the minimum.
-constexpr long kFASQueueWeight = 8L;
+// Aligned with caixin.zip `fjsp_forward_schedule`: pick the candidate whose
+// earliest feasible slot finishes first (score ≈ slot_end, then start).
+// queueWeight=1 means the ranking key is essentially that probed completion
+// (plus structural contention as a weak tie-break). Weight > 1 inflates the
+// candidate's own processing time and prefers "fast" machines even when they
+// finish later — that diverged from the reference decoder (~9.37h vs ~8.58h
+// on scenario2). SolverFAS still keeps calendar probing, material FIFO,
+// contention and refinement rounds; only this alternate score matches the
+// reference earliest-finish rule.
+constexpr long kFASQueueWeight = 1L;
 // contentionUnit: seconds credited per competing load definition. Only the
 // presence of the term matters on the reference scenario - the ranking is
 // identical for any value between 5 minutes and 2 hours, because it is
@@ -84,29 +144,6 @@ constexpr long kFASQueueWeight = 8L;
 // which is fastest for the most operations, and drove the pool's peak load
 // from 9.9h to 11.1h.
 constexpr long kFASContentionUnit = 1800L;
-// How many times the forward pass may be re-run with the waiting times the
-// previous round observed. Each round is a full forward schedule over the
-// network already in the model - no supply expansion - and is kept only if it
-// shortens the plan, so the bound is a cost ceiling rather than a risk.
-// The promotion strengths the refinement climbs through. How hard to promote
-// is not a constant of the problem: an operation feeding a tight machine
-// should go earlier, but promoting that work hard enough to take the machine
-// over is worse than not promoting it at all. Measured on the reference
-// scenario, feeding the gate as fast as possible pushed the work that does
-// *not* feed it behind itself, made the gate's own machine late, and moved the
-// makespan from 8.81h to 9.21h. A round re-runs with the strength that is
-// currently working while it keeps paying off and only then moves on, and the
-// verified loop keeps whichever round wins.
-constexpr long kFASHHintWindowLadder[] = {7200L,  14400L, 10800L, 21600L,
-                                          3600L,  28800L, 43200L};
-constexpr unsigned short kFASHintWindowLadderSize =
-    sizeof(kFASHHintWindowLadder) / sizeof(kFASHHintWindowLadder[0]);
-// Ceiling on the number of re-schedules, so the search stays a cost bound
-// rather than a risk. Each round is one forward pass and no expansion.
-constexpr unsigned short kFASRefinementRounds = 24;
-// Neutral promotion strength: an operation whose successor has at least this
-// much slack is left in its natural order.
-constexpr long kFASHintWindow = 7200L;
 
 }  // namespace
 
@@ -343,6 +380,40 @@ SolverFAS::ExecutionGraph SolverFAS::buildExecutionGraph(
     successors.push_back(consumer);
     ++indegree[consumer];
   };
+  // FG (and similar) receipts are often posted on a routing/alternate parent,
+  // which is not itself an executable FAS leaf.  Sequence the consumer after
+  // the parent's last in-scope leaf so delivery cannot precede batch receipt.
+  const auto lastExecutableLeaf =
+      [&inScope](OperationPlan* root) -> OperationPlan* {
+    if (!root) return nullptr;
+    if (inScope.count(root)) return root;
+    // Descend to the first leaf, then walk next-suboperation to the end of
+    // the routing/alternate chain — the same leaf FAS will finish last.
+    OperationPlan* probe = root;
+    while (probe->getSubOperationPlans(false) != OperationPlan::end())
+      probe = &*probe->getSubOperationPlans(false);
+    OperationPlan* last = inScope.count(probe) ? probe : nullptr;
+    while (probe) {
+      OperationPlan* owner = probe;
+      OperationPlan* next = nullptr;
+      while (owner && !(next = owner->getNextSubOpplan()))
+        owner = owner->getOwner();
+      if (!next) break;
+      probe = next;
+      while (probe->getSubOperationPlans(false) != OperationPlan::end())
+        probe = &*probe->getSubOperationPlans(false);
+      if (inScope.count(probe)) last = probe;
+    }
+    return last;
+  };
+  const auto addProducerEdge =
+      [&](OperationPlan* producer, OperationPlan* consumer,
+          unordered_set<OperationPlan*>& seen) {
+        OperationPlan* leaf = lastExecutableLeaf(producer);
+        if (!leaf || leaf == consumer || !inScope.count(leaf)) return;
+        if (!seen.insert(leaf).second) return;
+        addEdge(leaf, consumer);
+      };
   // Return the executable leaf immediately preceding a leaf in a nested
   // routing/alternate tree.  Selected alternates add an extra structural
   // level, while unwrapped single-choice steps can be direct routing
@@ -371,44 +442,37 @@ SolverFAS::ExecutionGraph SolverFAS::buildExecutionGraph(
     for (auto consume = consumer->beginFlowPlans();
          consume != consumer->endFlowPlans(); ++consume) {
       if (consume->getQuantity() >= -ROUNDING_ERROR) continue;
-      for (PeggingIterator peg(&*consume, false); peg; --peg) {
-        OperationPlan* producer = peg.getOperationPlan();
-        if (producer && producer != consumer && inScope.count(producer) &&
-            seen.insert(producer).second)
-          addEdge(producer, consumer);
-      }
+      for (PeggingIterator peg(&*consume, false); peg; --peg)
+        addProducerEdge(peg.getOperationPlan(), consumer, seen);
     }
-    for (PeggingIterator peg(consumer, false, 1); peg; --peg) {
-      OperationPlan* producer = peg.getOperationPlan();
-      if (producer && producer != consumer && inScope.count(producer) &&
-          seen.insert(producer).second)
-        addEdge(producer, consumer);
-    }
+    for (PeggingIterator peg(consumer, false, 1); peg; --peg)
+      addProducerEdge(peg.getOperationPlan(), consumer, seen);
     // MRP's pegging iterator can omit the leaf link for a generated
     // distribution order. Complete that relation directly from the material
     // buffers, so a WIP DO is sequenced after its producing MO rather than
-    // being treated as an external source supply.
+    // being treated as an external source supply.  Also close delivery plans
+    // onto the last leaf of the FG-producing routing: the receipt flow often
+    // sits on the non-executable parent, which would otherwise leave DLVR
+    // with indegree 0 and let FAS promise before the batch is finished.
     for (auto consume = consumer->beginFlowPlans();
          consume != consumer->endFlowPlans(); ++consume) {
       if (consume->getQuantity() >= -ROUNDING_ERROR || !consume->getBuffer())
         continue;
-      for (auto candidate : work) {
-        if (candidate == consumer || seen.count(candidate)) continue;
-        for (auto produce = candidate->beginFlowPlans();
-             produce != candidate->endFlowPlans(); ++produce)
+      Buffer* buffer = consume->getBuffer();
+      for (auto* producer : network) {
+        if (producer == consumer) continue;
+        for (auto produce = producer->beginFlowPlans();
+             produce != producer->endFlowPlans(); ++produce)
           if (produce->getQuantity() > ROUNDING_ERROR &&
-              produce->getBuffer() == consume->getBuffer()) {
-            seen.insert(candidate);
-            addEdge(candidate, consumer);
+              produce->getBuffer() == buffer) {
+            addProducerEdge(producer, consumer, seen);
             break;
           }
       }
     }
     auto dependency = consumer->getBlockedbyIterator();
-    while (auto* link = dependency.next()) {
-      OperationPlan* producer = link->getFirst();
-      if (producer && inScope.count(producer)) addEdge(producer, consumer);
-    }
+    while (auto* link = dependency.next())
+      addProducerEdge(link->getFirst(), consumer, seen);
   }
   for (auto* producer : work) {
     OperationPlan* consumer = producer->getNextSubOpplan();
@@ -428,8 +492,7 @@ SolverFAS::ExecutionGraph SolverFAS::buildExecutionGraph(
 
 void SolverFAS::reserveFixedNetwork(
     const unordered_set<OperationPlan*>& inScope,
-    unordered_map<const Resource*, vector<Reservation>>& reservations,
-    unordered_map<const Resource*, Date>& serialReady) const {
+    unordered_map<const Resource*, vector<Reservation>>& reservations) const {
   // Anything outside the trial/committed FAS network is immutable capacity.
   // This includes prior FAS reservations when a single alternate path is
   // trialled after earlier orders, as well as approved and confirmed plans.
@@ -452,8 +515,6 @@ void SolverFAS::reserveFixedNetwork(
       if (alreadyReserved == reservations[resource].end())
         reservations[resource].push_back(
             {op->getStart(), op->getEnd(), fabs(load->getQuantity()), &*op});
-      if (resource->getMaximum() <= 1.0 + ROUNDING_ERROR)
-        serialReady[resource] = max(serialReady[resource], op->getEnd());
     }
   }
 }
@@ -473,16 +534,28 @@ void SolverFAS::solve(void*) {
   // A normal FAS run is a complete replan, matching SolverCreate/MRP
   // semantics.  Trial runs (used while evaluating an alternate) must retain
   // the surrounding model and therefore skip this cleanup.
+  // When open demands are already fully planned (caixin-style MRP then
+  // forward), keep that supply network and only re-date / re-pick resources.
   if (trialRoots.empty()) {
-    for (auto& operation : Operation::all()) operation.deleteOperationPlans();
+    bool hasFullyPlannedOpenDemand = false;
+    for (auto demand = Demand::begin(); demand != Demand::end(); ++demand) {
+      if (demand->getStatus() == Demand::STATUS_OPEN &&
+          demand->getDue() < Date::infiniteFuture &&
+          demand->getQuantity() - demand->getPlannedQuantity() <=
+              ROUNDING_ERROR) {
+        hasFullyPlannedOpenDemand = true;
+        break;
+      }
+    }
+    if (!hasFullyPlannedOpenDemand) {
+      for (auto& operation : Operation::all()) operation.deleteOperationPlans();
+    } else if (getLogLevel() >= 0) {
+      logger << "FAS: existing planned supply retained; forward schedule only\n";
+    }
   }
   activeCommands = trialTransaction ? trialTransaction : &commands;
   alternateProbes = 0;
   contentionCache.clear();
-  // Each forward pass records what it placed from scratch.
-  placedOps.clear();
-  machineCompletion.clear();
-  roundSlack.clear();
   forwardCompletion = Date::infinitePast;
   const bool trial = !trialRoots.empty();
   // FAS owns the order pool. It selects firm orders first, then invokes the
@@ -676,8 +749,7 @@ void SolverFAS::solve(void*) {
   bool hasUnscheduledBucketSupply = false;
 
   unordered_map<const Resource*, vector<Reservation>> reservations;
-  unordered_map<const Resource*, Date> serialReady;
-  reserveFixedNetwork(inScope, reservations, serialReady);
+  reserveFixedNetwork(inScope, reservations);
   size_t moved = 0;
   // Move commands are applied only at commit.  Keep the newly selected dates
   // separately so direct material and operation-dependency successors see
@@ -689,18 +761,53 @@ void SolverFAS::solve(void*) {
   // operationplan-wide pegging iterator can traverse unrelated flows of the
   // same network and make a downstream batch wait for the wrong operation.
   unordered_map<const FlowPlan*, double> allocatedSupply;
+  // Index producing flowplans by buffer once.  materialReady is called for
+  // every dispatch key and again on place; scanning the global OperationPlan
+  // list each time is O(N×M) and dominated CCPL runs once lot counts grow.
+  unordered_map<const Buffer*, vector<FlowPlan*>> supplyByBuffer;
+  for (auto candidate = OperationPlan::begin();
+       candidate != OperationPlan::end(); ++candidate) {
+    OperationPlan* producer = &*candidate;
+    if (!producer->getOperation()) continue;
+    for (auto produce = producer->beginFlowPlans();
+         produce != producer->endFlowPlans(); ++produce) {
+      if (produce->getQuantity() <= ROUNDING_ERROR || !produce->getBuffer())
+        continue;
+      supplyByBuffer[produce->getBuffer()].push_back(&*produce);
+    }
+  }
   const auto materialAvailable =
-      [&scheduledStart, &scheduledEnd](OperationPlan* producer,
-                                       OperationPlan* consumer) {
+      [&scheduledEnd](OperationPlan* producer, OperationPlan* consumer) {
         if (!producer || !consumer) return Date::infiniteFuture;
-        const auto end = scheduledEnd.find(producer);
-        const Date producerEnd = end != scheduledEnd.end()
-                                     ? end->second
-                                     : producer->getEnd();
-        const auto start = scheduledStart.find(producer);
-        const Date producerStart = start != scheduledStart.end()
-                                       ? start->second
-                                       : producer->getStart();
+        // Routing parents post the FG receipt but aren't FAS-placed.  Prefer
+        // the latest already-scheduled executable leaf under the parent so a
+        // delivery never reads a stale MRP parent end.
+        Date producerEnd = Date::infinitePast;
+        bool sawScheduledLeaf = false;
+        if (producer->getSubOperationPlans(false) != OperationPlan::end()) {
+          vector<OperationPlan*> stack{producer};
+          while (!stack.empty()) {
+            OperationPlan* node = stack.back();
+            stack.pop_back();
+            bool hasChild = false;
+            for (OperationPlan::iterator child(node); child != node->end();
+                 ++child) {
+              hasChild = true;
+              stack.push_back(&*child);
+            }
+            if (hasChild) continue;
+            auto scheduled = scheduledEnd.find(node);
+            if (scheduled != scheduledEnd.end()) {
+              producerEnd = max(producerEnd, scheduled->second);
+              sawScheduledLeaf = true;
+            }
+          }
+        }
+        if (!sawScheduledLeaf) {
+          const auto end = scheduledEnd.find(producer);
+          producerEnd = end != scheduledEnd.end() ? end->second
+                                                  : producer->getEnd();
+        }
         Date available = Date::infiniteFuture;
         // Pegging tells us which producer contributes to this consumer. Find
         // the matching positive flow and use its own material event date.
@@ -787,23 +894,22 @@ void SolverFAS::solve(void*) {
         Date available;
       };
       vector<SupplyCandidate> candidates;
-      for (auto candidate = OperationPlan::begin();
-           candidate != OperationPlan::end(); ++candidate) {
-        OperationPlan* producer = &*candidate;
-        if (producer == op || !producer->getOperation()) continue;
-        for (auto produce = producer->beginFlowPlans();
-             produce != producer->endFlowPlans(); ++produce) {
-          if (produce->getQuantity() <= ROUNDING_ERROR ||
-              produce->getBuffer() != consume->getBuffer())
-            continue;
+      const auto supply = supplyByBuffer.find(consume->getBuffer());
+      if (supply != supplyByBuffer.end()) {
+        for (FlowPlan* produce : supply->second) {
+          OperationPlan* producer = produce->getOperationPlan();
+          if (!producer || producer == op || !producer->getOperation()) continue;
           // A producer that hasn't been placed yet still represents finite
-          // supply: use its existing model completion as a boundary until its
-          // FAS date is available.  Treating it as absent incorrectly releases
-          // a consumer at the plan current date (as seen on CCPL OP-12).
-          const Date available = isMovable(producer) && !scheduledEnd.count(producer)
-                                     ? producer->getEnd()
-                                     : materialAvailable(producer, op);
-          candidates.push_back({&*produce, producer, available});
+          // supply only after FAS stamps it. Using its stale MRP completion
+          // here lets a delivery/orphan consumer promise before the batch is
+          // actually finished (seen as temporary FG buffer shortages).
+          Date available = Date::infiniteFuture;
+          if (isMovable(producer) && inScope.count(producer) &&
+              !scheduledEnd.count(producer))
+            available = Date::infiniteFuture;
+          else
+            available = materialAvailable(producer, op);
+          candidates.push_back({produce, producer, available});
         }
       }
       stable_sort(candidates.begin(), candidates.end(),
@@ -815,7 +921,12 @@ void SolverFAS::solve(void*) {
                            right.operationplan->getReference();
                   });
       Date materialDate = Date::infinitePast;
+      bool waitingOnUnscheduled = false;
       for (const auto& candidate : candidates) {
+        if (candidate.available == Date::infiniteFuture) {
+          waitingOnUnscheduled = true;
+          continue;
+        }
         const double availableQuantity =
             candidate.flowplan->getQuantity() -
             allocatedSupply[candidate.flowplan];
@@ -828,8 +939,11 @@ void SolverFAS::solve(void*) {
       }
       // Leave an unpegged/infinite-buffer input to the standard model.  A
       // finite input with known FAS supply must not start before its allocated
-      // batch has completed.
-      if (materialDate != Date::infinitePast)
+      // batch has completed.  If the remaining requirement still sits on an
+      // in-scope producer FAS hasn't placed yet, block this consumer.
+      if (remaining > ROUNDING_ERROR && waitingOnUnscheduled)
+        result = Date::infiniteFuture;
+      else if (materialDate != Date::infinitePast)
         result = max(result, materialDate);
     }
     return result;
@@ -1007,31 +1121,95 @@ void SolverFAS::solve(void*) {
         }
         return true;
       };
-  // Forward dispatch is event driven. An operation is released the moment its
-  // last producer is placed, and the operation that can start earliest goes
-  // first.  Building a static sequence up front instead (as this pass used to)
-  // lets an operation whose material only arrives late occupy a machine slot
-  // ahead of one that was ready earlier, which leaves machines idle while
-  // released work waits: on the CCPL battery scenario that stretched a 20 hour
-  // schedule to 37 hours.
-  //
-  // Ordering by longest remaining route instead ("most work remaining") was
-  // measured on this scenario and is worse: it starves the short routes that
-  // share a machine with a long one, and pushed the makespan from 9.1h to
-  // 13.8h by deferring short operations onto M061/M062 to the end of the day.
-  struct Dispatch {
-    Date ready;
-    OperationPlan* op;
+  // Forward dispatch. Place manufacturing orders in LPT (or configured)
+  // decision order; within each job place ops by operation name. Orphan
+  // PO/DO are placed first so material receipts exist before consumers.
+  // Placement still applies materialReady + capacity calendars.
+  const auto jobOf = [](const OperationPlan* op) -> OperationPlan* {
+    return op ? op->getTopOwner() : nullptr;
   };
-  // Order two operations that are ready at the same instant. Only attributes
-  // that cannot change while an operation waits may be compared: this pass
-  // rewrites plan dates, so a comparator that reads them would leave the
-  // queue ordered by a key that moves, and the dispatch order would depend on
-  // the (unordered) order in which the queue happened to be filled.
-  const auto planOrder = [](const OperationPlan* left,
-                              const OperationPlan* right) {
-    Demand* leftDemand = left->getTopOwner()->getDemand();
-    Demand* rightDemand = right->getTopOwner()->getDemand();
+  const FASJobTieBreak jobTieBreak = fasJobTieBreakFromEnv();
+  // Match Python WorkOrder.duration: fixed + duration_per * qty (not the
+  // calendar-stretched MRP window). Wrong durations scramble LPT order.
+  const auto leafProcessingDuration = [](const OperationPlan* op) -> Duration {
+    if (!op || !op->getOperation()) return Duration(1L);
+    Operation* oper = op->getOperation();
+    long seconds = 0;
+    if (oper->hasType<OperationTimePer>()) {
+      auto* timePer = static_cast<OperationTimePer*>(oper);
+      seconds = timePer->getDuration().getSeconds();
+      const double per = timePer->getDurationPer();
+      if (per > 0.0)
+        seconds += static_cast<long>(per * op->getQuantity() + 0.5);
+    } else if (oper->hasType<OperationFixedTime>()) {
+      seconds = static_cast<OperationFixedTime*>(oper)->getDuration().getSeconds();
+    } else if (op->getEnd() > op->getStart()) {
+      seconds = (op->getEnd() - op->getStart()).getSeconds();
+    }
+    if (seconds < 1) seconds = 1;
+    return Duration(seconds);
+  };
+  unordered_map<OperationPlan*, Duration> durationByJob;
+  for (auto* op : work) {
+    OperationPlan* job = jobOf(op);
+    if (!job || !job->getOperation()) continue;
+    // Only routing MO leaves contribute to the LPT key (same as Python WOs).
+    if (job->getOperation()->getName().find("_ROUTING") == string::npos) continue;
+    if (!op->getOperation()->hasType<OperationFixedTime, OperationTimePer>())
+      continue;
+    durationByJob[job] = durationByJob[job] + leafProcessingDuration(op);
+  }
+  if (!trial && getLogLevel() >= 0) {
+    const char* label = "lpt";
+    if (jobTieBreak == FASJobTieBreak::Reference) label = "reference";
+    else if (jobTieBreak == FASJobTieBreak::Name) label = "name";
+    else if (jobTieBreak == FASJobTieBreak::Spt) label = "spt";
+    logger << "FAS: job tie-break = " << label
+           << ", LPT jobs with duration=" << durationByJob.size() << '\n';
+    if (!durationByJob.empty() && jobTieBreak == FASJobTieBreak::Lpt) {
+      vector<pair<long, string>> ranked;
+      ranked.reserve(durationByJob.size());
+      for (const auto& entry : durationByJob)
+        ranked.emplace_back(
+            entry.second.getSeconds(),
+            entry.first->getOperation() ? entry.first->getOperation()->getName()
+                                        : entry.first->getReference());
+      sort(ranked.begin(), ranked.end(),
+           [](const auto& a, const auto& b) {
+             if (a.first != b.first) return a.first > b.first;
+             return a.second < b.second;
+           });
+      logger << "FAS: LPT top";
+      for (size_t i = 0; i < min<size_t>(5, ranked.size()); ++i)
+        logger << ' ' << ranked[i].second << '(' << ranked[i].first << "s)";
+      logger << '\n';
+    }
+  }
+  // Match Python's DLVR→demand join via pegging (MO.demand_id is often null).
+  unordered_map<OperationPlan*, Demand*> demandByJob;
+  for (auto demand = Demand::begin(); demand != Demand::end(); ++demand) {
+    if (demand->getStatus() != Demand::STATUS_OPEN) continue;
+    for (PeggingIterator peg(&*demand); peg; --peg) {
+      OperationPlan* plan = peg.getOperationPlan();
+      if (!plan) continue;
+      OperationPlan* top = plan->getTopOwner();
+      if (top) demandByJob.emplace(top, &*demand);
+    }
+  }
+  const auto demandOfJob =
+      [&demandByJob](const OperationPlan* job) -> Demand* {
+    if (!job) return nullptr;
+    if (Demand* direct = job->getDemand()) return direct;
+    const auto found = demandByJob.find(const_cast<OperationPlan*>(job));
+    return found == demandByJob.end() ? nullptr : found->second;
+  };
+  const auto planOrder = [&demandOfJob, jobTieBreak, &durationByJob](
+                             const OperationPlan* left,
+                             const OperationPlan* right) {
+    const OperationPlan* leftJob = left->getTopOwner();
+    const OperationPlan* rightJob = right->getTopOwner();
+    Demand* leftDemand = demandOfJob(leftJob);
+    Demand* rightDemand = demandOfJob(rightJob);
     if (leftDemand != rightDemand) {
       if (!leftDemand) return false;
       if (!rightDemand) return true;
@@ -1039,59 +1217,154 @@ void SolverFAS::solve(void*) {
         return leftDemand->getPriority() < rightDemand->getPriority();
       if (leftDemand->getDue() != rightDemand->getDue())
         return leftDemand->getDue() < rightDemand->getDue();
-      if (leftDemand->getName() != rightDemand->getName())
-        return leftDemand->getName() < rightDemand->getName();
     }
+    if (leftJob != rightJob)
+      return fasJobTieLess(leftJob, rightJob, jobTieBreak, durationByJob);
     return left->getReference() < right->getReference();
   };
-  const auto laterFirst = [&planOrder](const Dispatch& left,
-                                         const Dispatch& right) {
-    if (left.ready != right.ready) return left.ready > right.ready;
-    return planOrder(right.op, left.op);
-  };
-  priority_queue<Dispatch, vector<Dispatch>, decltype(laterFirst)> dispatch(
-      laterFirst);
-  unordered_map<OperationPlan*, size_t> pending = graph.indegree;
-  const auto pushReady = [&](OperationPlan* candidate) {
-    // A refinement round carries the waiting time each operation suffered in
-    // the previous round as a dispatch bonus. It shifts the queue position
-    // only: the physical date an operation may start from is still readyDate(),
-    // which is what the placement below uses, so a bonus can never schedule
-    // work before its inputs exist.
-    const auto hint = dispatchBonus.find(candidate);
-    const Duration bonus = hint != dispatchBonus.end() ? hint->second : Duration(0L);
-    dispatch.push({readyDate(candidate) - bonus, candidate});
-  };
-  for (auto* op : work)
-    if (!pending[op]) pushReady(op);
-  unordered_set<OperationPlan*> dispatched;
-  while (dispatched.size() < work.size()) {
-    OperationPlan* op = nullptr;
-    if (!dispatch.empty()) {
-      op = dispatch.top().op;
-      dispatch.pop();
-      if (dispatched.count(op)) continue;
-    } else {
-      // A dependency cycle can leave operations that no producer ever
-      // releases. Place the remainder in the model's demand order so the pass
-      // always completes, like the static sequence did.
-      vector<OperationPlan*> remainder;
-      for (auto* candidate : work)
-        if (!dispatched.count(candidate)) remainder.push_back(candidate);
-      stable_sort(remainder.begin(), remainder.end(), planOrder);
-      for (auto* candidate : remainder) pushReady(candidate);
+  const auto jobOrder = [&demandOfJob, jobTieBreak, &durationByJob](
+                            const OperationPlan* left,
+                            const OperationPlan* right) {
+    Demand* leftDemand = demandOfJob(left);
+    Demand* rightDemand = demandOfJob(right);
+    if (leftDemand || rightDemand) {
+      if (!leftDemand) return false;
+      if (!rightDemand) return true;
+      if (leftDemand->getPriority() != rightDemand->getPriority())
+        return leftDemand->getPriority() < rightDemand->getPriority();
+      if (leftDemand->getDue() != rightDemand->getDue())
+        return leftDemand->getDue() < rightDemand->getDue();
     }
+    return fasJobTieLess(left, right, jobTieBreak, durationByJob);
+  };
+  vector<OperationPlan*> jobSequence;
+  unordered_set<OperationPlan*> seenJob;
+  unordered_set<OperationPlan*> sequencedJobs;
+  const auto isSequencedJob = [](const OperationPlan* job) {
+    if (!job || !job->getOperation()) return false;
+    // FJSP routing MOs look like J001_ROUTING. Purchase/distribution supply
+    // stays always-eligible so it can clear before the next MO needs material.
+    const string& name = job->getOperation()->getName();
+    return name.find("_ROUTING") != string::npos;
+  };
+  for (auto* op : work) {
+    OperationPlan* job = jobOf(op);
+    if (!job || !isSequencedJob(job)) continue;
+    sequencedJobs.insert(job);
+    if (seenJob.insert(job).second) jobSequence.push_back(job);
+  }
+  if (!overrideJobSequence.empty()) {
+    // Trial / improve pass: keep the caller-supplied decision order.
+    jobSequence = overrideJobSequence;
+  } else {
+    stable_sort(jobSequence.begin(), jobSequence.end(), jobOrder);
+  }
+  // Preferred LPT decision order (rank among ready ops). Deliveries are
+  // ranked after manufacturing so a ready-queue tie still finishes the
+  // producing leaf before promising the batch.
+  unordered_map<OperationPlan*, vector<OperationPlan*>> opsByJob;
+  vector<OperationPlan*> orphans;
+  vector<OperationPlan*> deliveries;
+  for (auto* op : work) {
+    OperationPlan* job = jobOf(op);
+    if (job && sequencedJobs.count(job))
+      opsByJob[job].push_back(op);
+    else if (op->getOperation() &&
+             op->getOperation()->hasType<OperationDelivery>())
+      deliveries.push_back(op);
+    else
+      orphans.push_back(op);
+  }
+  const auto withinJobOrder = [](const OperationPlan* left,
+                                   const OperationPlan* right) {
+    const auto seq = [](const OperationPlan* op) -> int {
+      if (!op || !op->getOperation()) return 0;
+      const string& name = op->getOperation()->getName();
+      // J001_O12 / ..._O03 → numeric stage, not lexicographic (O10 < O09).
+      const size_t pos = name.rfind("_O");
+      if (pos == string::npos) return 0;
+      try {
+        return stoi(name.substr(pos + 2));
+      } catch (...) {
+        return 0;
+      }
+    };
+    const int leftSeq = seq(left);
+    const int rightSeq = seq(right);
+    if (leftSeq != rightSeq) return leftSeq < rightSeq;
+    return left->getReference() < right->getReference();
+  };
+  stable_sort(orphans.begin(), orphans.end(), planOrder);
+  stable_sort(deliveries.begin(), deliveries.end(), planOrder);
+  vector<OperationPlan*> preferredOrder;
+  preferredOrder.reserve(work.size());
+  for (auto* op : orphans) preferredOrder.push_back(op);
+  for (auto* job : jobSequence) {
+    auto& ops = opsByJob[job];
+    stable_sort(ops.begin(), ops.end(), withinJobOrder);
+    for (auto* op : ops) preferredOrder.push_back(op);
+  }
+  for (auto* op : deliveries) preferredOrder.push_back(op);
+  unordered_map<OperationPlan*, size_t> placeRank;
+  for (size_t i = 0; i < preferredOrder.size(); ++i)
+    placeRank[preferredOrder[i]] = i;
+  // Dispatch by execution-graph readiness (header contract): an op becomes
+  // eligible only after every material/routing predecessor leaf is placed.
+  // Among ready ops keep the LPT preferred order.  Without this, orphan
+  // deliveries were stamped on stale MRP receipt dates and then left early
+  // when improve/forward delayed the producing routing.
+  unordered_map<OperationPlan*, size_t> remainingIndegree = graph.indegree;
+  const auto rankOf = [&placeRank](const OperationPlan* op) -> size_t {
+    const auto found = placeRank.find(const_cast<OperationPlan*>(op));
+    return found == placeRank.end() ? numeric_limits<size_t>::max()
+                                    : found->second;
+  };
+  auto readyLess = [&rankOf](const OperationPlan* left,
+                             const OperationPlan* right) {
+    const size_t leftRank = rankOf(left);
+    const size_t rightRank = rankOf(right);
+    if (leftRank != rightRank) return leftRank > rightRank;  // min-heap
+    return left->getReference() > right->getReference();
+  };
+  priority_queue<OperationPlan*, vector<OperationPlan*>, decltype(readyLess)>
+      ready(readyLess);
+  for (auto* op : work)
+    if (remainingIndegree[op] == 0) ready.push(op);
+  vector<OperationPlan*> placeOrder;
+  placeOrder.reserve(work.size());
+  unordered_set<OperationPlan*> queued;
+  while (!ready.empty()) {
+    OperationPlan* op = ready.top();
+    ready.pop();
+    if (!queued.insert(op).second) continue;
+    placeOrder.push_back(op);
+    const auto successors = graph.downstream.find(op);
+    if (successors == graph.downstream.end()) continue;
+    for (auto* succ : successors->second) {
+      if (remainingIndegree[succ] == 0) continue;
+      if (--remainingIndegree[succ] == 0) ready.push(succ);
+    }
+  }
+  for (auto* op : preferredOrder)
+    if (queued.insert(op).second) placeOrder.push_back(op);
+  unordered_set<OperationPlan*> dispatched;
+  for (auto* op : placeOrder) {
+    if (!op || dispatched.count(op)) continue;
     dispatched.insert(op);
     // Choose pooled resources as one combination.  Greedily picking the first
     // available operator and then the first available tool can select the
     // same shared member twice, or leave a later common slot unused.  FAS
     // keeps MRP's load definitions and eligibility rules, but searches the
     // bounded Cartesian product of qualified concrete members to minimize the
-    // common ready date.  The capacity-calendar search below remains the
-    // authoritative full-interval feasibility check.
+    // earliest finish — matching caixin `fjsp_forward_schedule` score
+    // (slot_end, slot_start, …). Precedence/material ready must be known
+    // before the choice; previously members were probed from `current` and
+    // a late-predecessor op could pick a busy early machine.
+    const Date opReadyBound =
+        max(readyDate(op), materialReady(op, false));
     struct PoolChoices {
       LoadPlan* load;
-      vector<pair<Resource*, Date>> members;
+      vector<pair<Resource*, Date>> members;  // resource -> earliest start
     };
     vector<PoolChoices> pooledLoads;
     for (auto load = op->beginLoadPlans(); load != op->endLoadPlans(); ++load) {
@@ -1101,9 +1374,7 @@ void SolverFAS::solve(void*) {
         continue;
       PoolChoices choices{&*load, {}};
       // Estimate the first interval in which this member can host the whole
-      // operation. Looking only at serialReady misses members with a
-      // parallel maximum, capacity-calendar gaps, or reservations already in
-      // the FAS reservation stream.
+      // operation via reservation gaps and capacity calendars.
       Duration opDuration;
       op->getOperation()->calculateOperationTime(op, op->getStart(), op->getEnd(),
                                                  &opDuration, true);
@@ -1113,7 +1384,9 @@ void SolverFAS::solve(void*) {
       // trial incorrectly accept an undersized member.
       const double required = fabs(load->getQuantity());
       const auto memberReady = [&](Resource* memberResource) {
-        Date ready = max(current, serialReady[memberResource]);
+        // Start from precedence/material ready, then walk reservation gaps
+        // (and calendars) so idle slots on unary machines can be filled.
+        Date ready = max(opReadyBound, current);
         Calendar* calendar = memberResource->getMaximumCalendar();
         for (unsigned short attempt = 0; attempt < 1000; ++attempt) {
           vector<Date> points{ready, ready + opDuration};
@@ -1167,8 +1440,8 @@ void SolverFAS::solve(void*) {
       const auto addMember = [&](Resource* candidate) {
         if (!candidate || candidate->isGroup() || !candidate->getConstrained() ||
             (definition->getSkill() &&
-             !candidate->hasSkill(definition->getSkill(), op->getStart(),
-                                  op->getEnd())))
+             !candidate->hasSkill(definition->getSkill(), opReadyBound,
+                                  opReadyBound + opDuration)))
           return;
         const Date ready = memberReady(candidate);
         if (ready != Date::infiniteFuture)
@@ -1180,10 +1453,14 @@ void SolverFAS::solve(void*) {
            !member.empty(); ++member) {
         addMember(&*member);
       }
+      // Prefer earliest finish, then earliest start, then name (reference FAS).
       sort(choices.members.begin(), choices.members.end(),
-           [](const auto& left, const auto& right) {
-             return left.second != right.second ? left.second < right.second
-                                                : left.first->getName() < right.first->getName();
+           [&](const auto& left, const auto& right) {
+             const Date leftEnd = left.second + opDuration;
+             const Date rightEnd = right.second + opDuration;
+             if (leftEnd != rightEnd) return leftEnd < rightEnd;
+             if (left.second != right.second) return left.second < right.second;
+             return left.first->getName() < right.first->getName();
            });
       choices.members.erase(unique(choices.members.begin(), choices.members.end(),
                                    [](const auto& left, const auto& right) {
@@ -1195,6 +1472,7 @@ void SolverFAS::solve(void*) {
       vector<Resource*> selected(pooledLoads.size());
       vector<Resource*> best;
       unordered_set<Resource*> used;
+      Date bestFinish = Date::infiniteFuture;
       Date bestReady = Date::infiniteFuture;
       vector<size_t> searchOrder(pooledLoads.size());
       for (size_t index = 0; index < searchOrder.size(); ++index)
@@ -1212,16 +1490,22 @@ void SolverFAS::solve(void*) {
       // bounded multiple while still guaranteeing linear memory use.
       const unsigned long nodeBudget = max(
           1000UL, min(100000UL, min(1000UL, getResourceIterationMax()) * 100UL));
+      Duration comboDuration;
+      op->getOperation()->calculateOperationTime(op, op->getStart(), op->getEnd(),
+                                                 &comboDuration, true);
       const auto choose = [&](auto&& self, size_t depth, Date ready) -> void {
         if (++nodes > nodeBudget) return;
-        if (bestReady != Date::infiniteFuture && ready > bestReady) return;
+        const Date finish = ready + comboDuration;
+        if (bestFinish != Date::infiniteFuture && finish > bestFinish) return;
         if (depth == searchOrder.size()) {
-          if (ready < bestReady ||
-              (ready == bestReady &&
+          if (finish < bestFinish ||
+              (finish == bestFinish && ready < bestReady) ||
+              (finish == bestFinish && ready == bestReady &&
                lexicographical_compare(selected.begin(), selected.end(),
                  best.begin(), best.end(), [](Resource* left, Resource* right) {
                    return left->getName() < right->getName();
                  }))) {
+            bestFinish = finish;
             bestReady = ready;
             best = selected;
           }
@@ -1232,7 +1516,8 @@ void SolverFAS::solve(void*) {
           // A concrete member supplies one load of this operation. Assigning
           // it twice would double-count it in independent reservation lists.
           if (used.count(candidate.first)) continue;
-          if (bestReady != Date::infiniteFuture && candidate.second > bestReady)
+          if (bestFinish != Date::infiniteFuture &&
+              candidate.second + comboDuration > bestFinish)
             break;
           selected[index] = candidate.first;
           used.insert(candidate.first);
@@ -1241,7 +1526,7 @@ void SolverFAS::solve(void*) {
           if (nodes > nodeBudget) return;
         }
       };
-      choose(choose, 0, current);
+      choose(choose, 0, opReadyBound);
       for (size_t index = 0; index < best.size(); ++index)
         if (best[index] != pooledLoads[index].load->getResource())
           activeCommands->add(
@@ -1254,14 +1539,8 @@ void SolverFAS::solve(void*) {
     // create new supply in the past. When disabled, preserve the date from
     // the supply expansion as the lower boundary, matching MRP semantics.
     Date earliest = readyDate(op);
-    for (auto load = op->beginLoadPlans(); load != op->endLoadPlans(); ++load) {
-      const Resource* resource = load->getResource();
-      if (isCapacityConstrained() && resource && resource->getConstrained() &&
-          !resource->isGroup() &&
-          resource->getMaximum() <= 1.0 + ROUNDING_ERROR) {
-        earliest = max(earliest, serialReady[resource]);
-      }
-    }
+    // Gap insertion is handled by the reservation scan below (same idea as
+    // Python _find_earliest_slot): do not append-only on unary machines.
     // Allocate the material batches this operation consumes. The dispatch key
     // above only reads their readiness; the actual FIFO allocation is part of
     // placing the operation.
@@ -1269,10 +1548,17 @@ void SolverFAS::solve(void*) {
     Date newStart = Date::infinitePast;
     Date newEnd = Date::infinitePast;
     if (op->getOperation()->hasType<OperationDelivery>()) {
-      // A delivery is instantaneous.  Its commitment is constrained by both
-      // the final pegged receipt and the requested due date: supply can be
-      // available early, but that must not be written as an earlier promise.
-      const Date commitment = max(earliest, op->getEnd());
+      // Instantaneous commitment: never before material is ready, and never
+      // before the demand due date. Do not keep MRP's old delivery timestamp
+      // (`op->getEnd()`): after FAS moves the producing batch, that stale
+      // promise leaves DLVR days after the real receipt (or, historically,
+      // before it when orphans were placed first).
+      Date due = Date::infinitePast;
+      if (Demand* demand = op->getDemand())
+        due = demand->getDue();
+      else if (Demand* demand = demandOfJob(jobOf(op)))
+        due = demand->getDue();
+      const Date commitment = max(earliest, due);
       newStart = commitment;
       newEnd = commitment;
     } else if (hasBucketLoad(op) && isBucketAllocatable(op)) {
@@ -1350,15 +1636,12 @@ void SolverFAS::solve(void*) {
         // backward timestamp isn't a feasibility restriction in FAS, but a
         // DO can consume internally produced WIP. `earliest` already holds
         // that material-ready time: external PO stays at plan current while
-        // a WIP DO cannot precede its producing MO.
-        if (op->getOrderType() == "PO" || op->getOrderType() == "DO") {
-          newStart = earliest;
-          newEnd = earliest;
-        } else
-          continue;
-      }
-      if (duration <= Duration(0L)) {
-        // The instantaneous external receipt has been placed above.
+        // a WIP DO cannot precede its producing MO.  Other zero-duration
+        // leaves must still be stamped at `earliest` so successors release;
+        // skipping them after marking dispatched left the ready queue empty
+        // and hung the forward pass on CCPL WIP chains.
+        newStart = earliest;
+        newEnd = earliest;
       } else {
       // The operation-time calculation already intersects operation,
       // location and resource availability calendars.  Find a forward slot
@@ -1527,39 +1810,15 @@ void SolverFAS::solve(void*) {
           reservations[resource].push_back({reservedStart, reservedEnd,
                                             fabs(load->getQuantity()), op});
       }
-      if (isCapacityConstrained() && resource && resource->getConstrained() &&
-          !resource->isGroup() &&
-          resource->getMaximum() <= 1.0 + ROUNDING_ERROR)
-        serialReady[resource] = max(serialReady[resource], reservedEnd);
     }
     scheduledEnd[op] = reservedEnd;
     scheduledStart[op] = reservedStart;
-    // How long this operation queued for machine capacity: the gap between
-    // the first date its inputs allowed it to run and the one it was given.
-    // Because readyDate() already accounts for routing and material, this
-    // isolates machine contention, and it feeds the refinement round below:
-    // an operation that waited hours behind unrelated short work is dispatched
-    // ahead of that work next time.
-    placedOps.insert(op);
-    for (auto load = op->beginLoadPlans(); load != op->endLoadPlans(); ++load) {
-      const Resource* resource = load->getResource();
-      if (resource && resource->getConstrained() && !resource->isGroup() &&
-          !resource->hasType<ResourceBuckets>() &&
-          load->getQuantity() < -ROUNDING_ERROR)
-        machineCompletion[resource] = max(machineCompletion[resource],
-                                          reservedEnd);
-    }
     // A delivery plan is pinned to the promise date rather than to capacity,
     // so letting it into the completion would mask the schedule entirely.
     if (!op->getOperation()->hasType<OperationDelivery>())
       forwardCompletion = max(forwardCompletion, reservedEnd);
-    // Release the successors this operation was a prerequisite for.  Their
-    // readiness is now fully known, so they enter the dispatch order with the
-    // date the forward pass just committed to.
-    const auto successors = graph.downstream.find(op);
-    if (successors != graph.downstream.end())
-      for (auto* child : successors->second)
-        if (--pending[child] == 0) pushReady(child);
+    // Successors see this op's new end through readyDate()/scheduledEnd on
+    // later iterations of placeOrder — no ready-queue refill needed.
   }
   if (!trial && getLogLevel() >= 0)
     logger << "FAS: selected " << demands.size() << " orders (expanded "
@@ -1567,10 +1826,6 @@ void SolverFAS::solve(void*) {
            << moved << " of " << work.size() << " supply operationplans on "
            << reservations.size() << " resources, alternate probes "
            << alternateProbes << '\n';
-
-  // Work out what the next round should prioritise while the successor
-  // relation is still at hand.
-  collectRoundSlack(graph);
 
   if (trial) {
     trialCompletion = finishOf(networkRoots);
@@ -1580,7 +1835,9 @@ void SolverFAS::solve(void*) {
   // The forward pass is greedy: it walks the executable network once and never
   // revisits a decision, so an operation it placed behind a queue that did not
   // need to run first keeps that delay for the rest of the schedule.
-  refineForwardSchedule(networkRoots, safetyStockPlans);
+  // Improve by relocating jobs in the decision sequence (same decoder, new
+  // order) — matching Python fjsp_forward_schedule._improve_job_order.
+  improveJobOrder(networkRoots, safetyStockPlans, jobSequence);
 
   // SolverCreate records capacity shortages encountered while it expands
   // demand backwards. Those are planning-trace constraints attached to the
@@ -1615,120 +1872,118 @@ void SolverFAS::solve(void*) {
            << " resolved capacity constraints\n";
 }
 
-void SolverFAS::collectRoundSlack(const ExecutionGraph& graph) {
-  roundSlack.clear();
-  if (forwardCompletion == Date::infinitePast) return;
-  // How much slack the machine an operation hands over to has left: how much
-  // later than it does now it could finish before the plan itself would end.
-  // This, not the operation's remaining work, is what says whether the plan is
-  // waiting for it. The machines of one pool differ widely: on the reference
-  // scenario M008 runs to within minutes of the end of the plan while M073 and
-  // M074 are finished with four hours to spare, and the operations feeding
-  // them look identical from their own route length alone. Ranking by
-  // remaining work starved the short routes instead and measured 13.8h.
-  for (auto* op : placedOps) {
-    const auto successors = graph.downstream.find(op);
-    if (successors == graph.downstream.end()) continue;
-    bool found = false;
-    Duration tightest(0L);
-    for (auto* child : successors->second)
-      for (auto load = child->beginLoadPlans(); load != child->endLoadPlans();
-           ++load) {
-        const Resource* resource = load->getResource();
-        if (!resource || !resource->getConstrained() || resource->isGroup() ||
-            resource->hasType<ResourceBuckets>() ||
-            load->getQuantity() >= -ROUNDING_ERROR)
-          continue;
-        const auto done = machineCompletion.find(resource);
-        if (done == machineCompletion.end()) continue;
-        const Duration slack = forwardCompletion - done->second;
-        if (!found || slack < tightest) tightest = slack;
-        found = true;
-      }
-    // A successor the pass never put on a machine carries no information.
-    if (found) roundSlack[op] = tightest;
-  }
-}
-
-void SolverFAS::refineForwardSchedule(
+void SolverFAS::improveJobOrder(
     const vector<OperationPlan*>& roots,
-    const unordered_set<OperationPlan*>& fixed) {
-  // Re-scheduling the model costs one forward pass and touches nothing but
-  // operation dates and resource assignments, both of which are already
-  // recorded as reversible commands. Take a bookmark so a round that does not
-  // help can be undone exactly.
+    const unordered_set<OperationPlan*>& fixed,
+    vector<OperationPlan*>& jobSequence) {
+  double improveSeconds = 10.0;
+  if (const char* env = getenv("FAS_IMPROVE_SECONDS")) {
+    char* end = nullptr;
+    const double parsed = strtod(env, &end);
+    if (end != env && parsed >= 0.0) improveSeconds = parsed;
+  }
+  if (improveSeconds <= 0.0 || jobSequence.size() < 2) {
+    if (getLogLevel() >= 0)
+      logger << "FAS: job-order improve skipped "
+             << "(FAS_IMPROVE_SECONDS=" << improveSeconds << ", jobs="
+             << jobSequence.size() << ")\n";
+    return;
+  }
+
   Date best = forwardCompletion;
   if (best == Date::infinitePast) return;
-  unsigned short rung = 0;
-  unsigned short round = 0;
-  while (round < kFASRefinementRounds && rung < kFASHintWindowLadderSize) {
-    // See collectRoundSlack. An empty map means the pass found no operation
-    // whose successor machine is placed at all, so there is nothing to rank.
-    if (roundSlack.empty()) break;
-    const long window = kFASHHintWindowLadder[rung];
-    ++round;
-    unordered_map<OperationPlan*, Duration> next;
-    for (const auto& entry : roundSlack) {
-      // Promote only. Deferring operations whose successor has slack was tried
-      // as the symmetric half of this rule and measured worse (8.90h against
-      // 8.81h): pushing slack work back delays the upstream chain that the
-      // promoted operation is itself waiting for.
-      if (entry.second >= Duration(window)) continue;
-      next[entry.first] =
-          Duration(window - static_cast<long>(entry.second.getSeconds()));
-    }
-    // Nothing is tight enough to be worth promoting at this strength; a looser
-    // one reaches further down the plan.
-    if (next.empty()) {
-      ++rung;
-      continue;
-    }
-    // `previous` holds the bonuses currently in force so that a round which
-    // does not help can restore them along with the model.
-    unordered_map<OperationPlan*, Duration> previous;
-    previous.swap(dispatchBonus);
-    dispatchBonus.swap(next);
+  const Date initial = best;
+  size_t moves = 0;
+  const auto clockStart = chrono::steady_clock::now();
+  const auto deadline =
+      clockStart + chrono::duration_cast<chrono::steady_clock::duration>(
+                       chrono::duration<double>(improveSeconds));
+  mt19937 rng(123456u);
+  const size_t n = jobSequence.size();
+
+  const auto timeLeft = [&]() {
+    return chrono::steady_clock::now() < deadline;
+  };
+
+  const auto evaluate = [&](const vector<OperationPlan*>& trialSeq) -> Date {
     CommandManager* manager = activeCommands;
+    if (!manager) return Date::infiniteFuture;
     auto* bookmark = manager->setBookmark();
+    overrideJobSequence = trialSeq;
     trialFixedPlans = fixed;
     trialRoots = roots;
     CommandManager* outerTransaction = trialTransaction;
     trialTransaction = manager;
     Date reached = Date::infiniteFuture;
     try {
-      // A trial run re-schedules the network already in the model: it expands
-      // no supply and owns no demand selection, so the operationplans keep
-      // their identity and the bonuses keep their meaning.
       solve();
       reached = forwardCompletion;
     } catch (...) {
       trialRoots.clear();
       trialTransaction = outerTransaction;
       trialFixedPlans.clear();
-      dispatchBonus = previous;
+      overrideJobSequence.clear();
+      forwardCompletion = best;
       manager->rollback(bookmark);
       throw;
     }
     trialRoots.clear();
     trialTransaction = outerTransaction;
     trialFixedPlans.clear();
-    if (reached >= best) {
+    overrideJobSequence.clear();
+    if (reached == Date::infinitePast || !(reached < best)) {
       manager->rollback(bookmark);
-      dispatchBonus = previous;
-      if (getLogLevel() >= 0)
-        logger << "FAS: refinement " << round << " strength " << window
-               << " reached " << reached << ", keeping " << best << '\n';
-      // This strength has converged on the current plan; a looser one reaches
-      // further down it.
-      ++rung;
-      continue;
+      forwardCompletion = best;
+      return reached;
     }
-    best = reached;
-    // Stay on this strength: the plan changed, so the slack it is derived from
-    // changed too, and the same window usually pays off again.
-    if (getLogLevel() >= 0)
-      logger << "FAS: refinement " << round << " strength " << window
-             << " shortened the plan to " << best << '\n';
+    return reached;
+  };
+
+  // Cheap adjacent-swap pass first (same as Python).
+  bool changed = true;
+  while (changed && timeLeft()) {
+    changed = false;
+    for (size_t i = 0; i + 1 < n; ++i) {
+      if (!timeLeft()) break;
+      vector<OperationPlan*> trial = jobSequence;
+      swap(trial[i], trial[i + 1]);
+      const Date reached = evaluate(trial);
+      if (reached < best) {
+        jobSequence = trial;
+        best = reached;
+        ++moves;
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  // Relocate: pull one job and reinsert elsewhere.
+  uniform_int_distribution<size_t> pick(0, n - 1);
+  while (timeLeft()) {
+    const size_t i = pick(rng);
+    size_t j = pick(rng);
+    if (i == j) continue;
+    vector<OperationPlan*> trial = jobSequence;
+    OperationPlan* job = trial[i];
+    trial.erase(trial.begin() + static_cast<long>(i));
+    trial.insert(trial.begin() + static_cast<long>(j), job);
+    const Date reached = evaluate(trial);
+    if (reached < best) {
+      jobSequence = trial;
+      best = reached;
+      ++moves;
+    }
+  }
+
+  forwardCompletion = best;
+  if (getLogLevel() >= 0) {
+    const auto elapsed = chrono::duration<double>(
+                             chrono::steady_clock::now() - clockStart)
+                             .count();
+    logger << "FAS: job-order improve moves=" << moves
+           << " initial=" << initial << " best=" << best
+           << " elapsed=" << elapsed << "s\n";
   }
 }
 
@@ -1892,15 +2147,10 @@ Date SolverFAS::probeAlternateCompletion(OperationPlan* root) {
       firstDuration = duration;
     }
   }
-  // The caller only orders candidates by this value -- solveroperation.cpp
-  // keeps the smallest forward completion and never reads it as a date -- so
-  // this is a ranking key, not a physical completion. `firstCompletion`
-  // already carries the committed queue at face value; the candidate's own
-  // processing time is weighted here, and the structural contention of the
-  // machine it would occupy is added last so that an unplanned pool cannot
-  // win a candidate on processing time alone. With weight 1 the key compares
-  // "queue + processing" and balances the machines whatever they cost, which
-  // spent hours of extra processing to equalize the bottleneck.
+  // Ranking key ≈ reference FAS earliest finish (slot_end). With
+  // kFASQueueWeight==1 this is firstCompletion (+ contention tie-break).
+  // Weight>1 would add extra multiples of firstDuration and prefer shorter
+  // ops even when their queued finish is later.
   return firstCompletion +
          Duration((kFASQueueWeight - 1L) * firstDuration.getSeconds()) +
          contention;

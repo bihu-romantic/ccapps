@@ -31,6 +31,7 @@
 #include "ccAPPS/solverga.h"
 #include "ccAPPS/solverautofix.h"
 #include "ccAPPS/solverfas.h"
+#include "ccAPPS/solvercp.h"
 #include "ccAPPSinterface.h"
 using namespace ccAPPS;
 
@@ -76,6 +77,9 @@ void ccAPPSInitialize(bool procesInitializationFiles) {
     PythonInterpreter::registerGlobalMethod(
         "run_fas", run_fas, METH_NOARGS,
         "Run deterministic forward scheduling on existing MRP supply.");
+    PythonInterpreter::registerGlobalMethod(
+        "run_cp", run_cp, METH_NOARGS,
+        "Run CP-SAT scheduling and place dates on resource calendars.");
 
     // Initialize the forecast module
     int nok = 0;

@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>批量报价</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 30px 40px;
+    min-height: 100vh;
+  }
+
+  .page-title { text-align: center; color: #ff6b35; font-size: 22px; font-weight: bold; margin-bottom: 6px; }
+  .page-subtitle { text-align: center; color: #aaa; font-size: 13px; margin-bottom: 8px; }
+  .data-source {
+    text-align: center; color: #4caf50; font-size: 12px; margin-bottom: 20px;
+    padding: 6px 16px; background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3);
+    border-radius: 6px; display: inline-block; margin-left: 50%; transform: translateX(-50%);
+  }
+  .data-source.error { color: #ef5350; background: rgba(239,83,80,0.1); border-color: rgba(239,83,80,0.4); }
+
+  .mcp-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 0 auto 18px; max-width: 1100px; justify-content: center;
+  }
+  .mcp-bar input {
+    background: #232340; border: 1px solid #444; color: #ddd;
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; min-width: 380px;
+  }
+  .mcp-bar button {
+    background: transparent; border: 1px solid #4caf50; color: #4caf50;
+    padding: 6px 14px; border-radius: 16px; font-size: 12px; cursor: pointer;
+  }
+  .mcp-bar button:hover { background: rgba(76,175,80,0.12); }
+
+  .top-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+  .top-bar-label { color: #ff6b35; font-size: 16px; font-weight: bold; }
+  .badge { padding: 4px 18px; border-radius: 20px; font-size: 13px; background: transparent; }
+  .badge-draft { border: 1.5px solid #ff9800; color: #ff9800; }
+  .badge-hist { border: 1.5px solid #4caf50; color: #4caf50; }
+  .mode-info { color: #888; font-size: 12px; margin-bottom: 20px; }
+
+  .kpi-area { display: flex; align-items: flex-start; gap: 40px; margin-bottom: 12px; flex-wrap: wrap; }
+  .kpi-main-label { color: #999; font-size: 13px; margin-bottom: 4px; }
+  .kpi-main-value { color: #ff6b35; font-size: 48px; font-weight: bold; line-height: 1.1; }
+  .kpi-cards { display: flex; gap: 16px; }
+  .kpi-card {
+    background: #232340; border: 1px solid #333; border-radius: 10px; padding: 14px 24px; text-align: center; min-width: 120px;
+  }
+  .kpi-card-label { color: #999; font-size: 12px; margin-bottom: 4px; }
+  .kpi-card-value { font-size: 24px; font-weight: bold; color: #fff; }
+  .kpi-card-value.green { color: #4caf50; }
+
+  .cost-summary-line { color: #888; font-size: 12px; margin-bottom: 20px; }
+
+  .alert-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
+  .alert-card { border-radius: 10px; padding: 14px 18px; border: 1.5px solid; }
+  .alert-card.red { border-color: #ef5350; background: rgba(239,83,80,0.08); }
+  .alert-card.orange { border-color: #ff9800; background: rgba(255,152,0,0.08); }
+  .alert-card.yellow { border-color: #fdd835; background: rgba(253,216,53,0.08); }
+  .alert-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .alert-dot.red { background: #ef5350; }
+  .alert-dot.orange { background: #ff9800; }
+  .alert-dot.yellow { background: #fdd835; }
+  .alert-title { font-size: 15px; font-weight: bold; color: #fff; }
+  .alert-desc { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+  .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 24px; }
+  .section-title { font-size: 15px; font-weight: bold; color: #ddd; margin-bottom: 16px; }
+
+  .cost-bar-row { display: flex; align-items: center; margin-bottom: 14px; gap: 12px; }
+  .cost-bar-label { width: 110px; font-size: 13px; color: #ccc; text-align: right; flex-shrink: 0; }
+  .cost-bar-track { flex: 1; height: 22px; background: #2a2a45; border-radius: 4px; overflow: hidden; }
+  .cost-bar-fill { height: 100%; border-radius: 4px; }
+  .cost-bar-fill.blue { background: linear-gradient(90deg, #2196f3, #42a5f5); }
+  .cost-bar-fill.teal { background: linear-gradient(90deg, #26a69a, #4db6ac); }
+  .cost-bar-fill.gray { background: #555; }
+  .cost-bar-fill.light-gray { background: #444; }
+  .cost-bar-fill.purple { background: linear-gradient(90deg, #7e57c2, #9575cd); }
+  .cost-bar-fill.green { background: linear-gradient(90deg, #66bb6a, #81c784); }
+  .cost-bar-fill.red { background: linear-gradient(90deg, #ef5350, #e57373); }
+  .cost-bar-value { font-size: 13px; color: #fff; font-weight: bold; white-space: nowrap; min-width: 90px; }
+  .cost-bar-pct { font-size: 12px; color: #888; min-width: 45px; text-align: right; }
+  .cost-bar-empty { font-size: 12px; color: #666; }
+
+  .pie-title { font-size: 14px; color: #ccc; margin-bottom: 12px; }
+  .pie-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+  .pie-label { width: 80px; font-size: 12px; color: #ccc; text-align: right; }
+  .pie-bar-track { flex: 1; height: 16px; background: #2a2a45; border-radius: 3px; overflow: hidden; }
+  .pie-bar-fill { height: 100%; border-radius: 3px; }
+  .pie-pct { font-size: 12px; color: #888; min-width: 45px; }
+  .pie-note { font-size: 11px; color: #ff9800; margin-top: 10px; line-height: 1.5; }
+  .pie-tip { font-size: 11px; color: #666; margin-top: 6px; }
+
+  .cost-totals { margin-top: 20px; border-top: 1px solid #333; padding-top: 14px; }
+  .cost-total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+  .cost-total-row .label { color: #ccc; }
+  .cost-total-row .value { color: #fff; font-weight: bold; }
+  .cost-total-row .value.orange { color: #ff6b35; }
+  .cost-total-row .value.green { color: #66bb6a; }
+  .cost-total-row .value.red { color: #ef5350; }
+
+  .total-box {
+    background: #2a2a45; border: 1.5px solid #ff6b35; border-radius: 10px;
+    padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px;
+  }
+  .total-box .label { color: #ff6b35; font-size: 15px; font-weight: bold; }
+  .total-box .value { color: #ff6b35; font-size: 26px; font-weight: bold; }
+
+  .table-section { margin-bottom: 24px; }
+  .table-title { font-size: 14px; color: #ccc; margin-bottom: 12px; }
+  .order-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .order-table th {
+    color: #888; font-weight: normal; text-align: left; padding: 8px 10px;
+    border-bottom: 1px solid #333; font-size: 12px;
+  }
+  .order-table td { padding: 10px 10px; border-bottom: 1px solid #2a2a40; color: #ddd; }
+  .order-table tr:hover { background: rgba(255,255,255,0.03); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .dot.red { background: #ef5350; }
+  .dot.orange { background: #ff9800; }
+  .dot.green { background: #4caf50; }
+  .delay-text { color: #ef5350; font-weight: bold; }
+  .delay-none { color: #666; }
+  .complete-no { color: #ef5350; }
+  .hist-val { color: #4caf50; }
+  .hist-none { color: #666; }
+  .expand-btn {
+    background: transparent; border: 1px solid #555; color: #aaa; padding: 4px 14px;
+    border-radius: 15px; font-size: 12px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: inline-block;
+  }
+  .expand-btn:hover { border-color: #ff6b35; color: #ff6b35; }
+  .table-footer { font-size: 12px; color: #666; margin-top: 8px; }
+  .expand-panel {
+    margin: 18px auto 24px; max-width: 1100px; background: #232340;
+    border: 1px solid #333; border-radius: 10px; padding: 18px 20px;
+  }
+
+  .followup { margin-top: 16px; }
+  .followup-label { font-size: 12px; color: #666; margin-bottom: 8px; }
+  .followup-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .followup-btn {
+    background: #232340; border: 1px solid #444; color: #ccc; padding: 8px 18px;
+    border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .followup-btn:hover { border-color: #ff6b35; color: #ff6b35; }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,10,20,0.72);
+    z-index: 50; align-items: center; justify-content: center; color: #fff;
+    font-size: 16px; text-align: center; padding: 24px;
+  }
+  .overlay.show { display: flex; }
+  .toast {
+    display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #2a2a45; border: 1px solid #ff6b35; color: #fff; padding: 10px 18px;
+    border-radius: 10px; z-index: 60; font-size: 13px; max-width: 70vw;
+  }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+<div class="page-title">批量报价</div>
+<div class="page-subtitle" id="pageSubtitle">加载中…</div>
+
+<div class="top-bar">
+  <span class="top-bar-label" id="topLabel">询价订单 · —</span>
+  <span class="badge badge-draft" id="badgeDraft">草稿 draft</span>
+  <span class="badge badge-hist" id="badgeHist">历史校准 —</span>
+</div>
+<div class="mode-info" id="modeInfo">计算方式 —</div>
+
+<div class="kpi-area">
+  <div class="kpi-main">
+    <div class="kpi-main-label">含税报价合计</div>
+    <div class="kpi-main-value" id="kpiTotal">¥—</div>
+  </div>
+  <div class="kpi-cards">
+    <div class="kpi-card">
+      <div class="kpi-card-label">询价单数</div>
+      <div class="kpi-card-value" id="kpiCount">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">总数量</div>
+      <div class="kpi-card-value" id="kpiQty">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">综合毛利率</div>
+      <div class="kpi-card-value green" id="kpiMargin">—</div>
+    </div>
+  </div>
+</div>
+<div class="cost-summary-line" id="costSummaryLine">材料 — · 资源 — · 管理费 — · 利润 — · 税 —</div>
+
+<div class="alert-row">
+  <div class="alert-card yellow">
+    <div class="alert-title"><span class="alert-dot yellow"></span><span id="alertHistTitle">历史校准</span></div>
+    <div class="alert-desc" id="alertHistDesc">加载中…</div>
+  </div>
+</div>
+
+<div class="main-content">
+  <div>
+    <div class="section-title">成本构成（总额口径）</div>
+    <div id="costBars"></div>
+    <div class="cost-totals">
+      <div class="cost-total-row"><span class="label">总成本（不含税）</span><span class="value" id="sumCost">¥—</span></div>
+      <div class="cost-total-row"><span class="label" style="color:#66bb6a;">利润</span><span class="value green" id="sumProfit">¥—</span></div>
+      <div class="cost-total-row"><span class="label" style="color:#ef5350;">税</span><span class="value red" id="sumTax">¥—</span></div>
+    </div>
+    <div class="total-box">
+      <span class="label">含税报价合计</span>
+      <span class="value" id="sumTaxed">¥—</span>
+    </div>
+  </div>
+  <div>
+    <div class="pie-section">
+      <div class="pie-title">物料成本构成（按产品）</div>
+      <div id="pieItems"></div>
+    </div>
+    <div class="pie-section" style="margin-top:22px;">
+      <div class="pie-title">资源成本合计</div>
+      <div id="pieResources"></div>
+    </div>
+    <div class="pie-note" id="pieNote"></div>
+    <div class="pie-tip">点「展开成本」在本页查看该单构成，不用另开文件。</div>
+  </div>
+</div>
+
+<div class="table-section">
+  <div class="table-title" id="tableTitle">询价订单明细</div>
+  <table class="order-table">
+    <thead>
+      <tr>
+        <th>订单</th><th>产品</th><th>数量</th><th>交期</th><th>含税报价</th>
+        <th>历史样本</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="orderBody"></tbody>
+  </table>
+  <div class="table-footer" id="tableFooter"></div>
+</div>
+<div class="expand-panel" id="expandPanel" style="display:none">
+  <div class="section-title" id="expandTitle">单订单成本</div>
+  <div id="expandBars"></div>
+  <div class="cost-totals" style="margin-top:12px">
+    <div class="cost-total-row"><span class="label">总成本（不含税）</span><span class="value" id="expandCost">¥—</span></div>
+    <div class="cost-total-row"><span class="label" style="color:#66bb6a;">利润</span><span class="value green" id="expandProfit">¥—</span></div>
+    <div class="cost-total-row"><span class="label" style="color:#ef5350;">税</span><span class="value red" id="expandTax">¥—</span></div>
+    <div class="cost-total-row"><span class="label" style="color:#ff6b35;">含税报价</span><span class="value orange" id="expandTaxed">¥—</span></div>
+  </div>
+</div>
+
+<div class="followup">
+  <div class="followup-label">可继续问</div>
+  <div class="followup-row">
+    <button class="followup-btn" data-q="哪些单毛利率最低">哪些单毛利率最低？</button>
+    <button class="followup-btn" data-q="展开第一张成本">展开第一张成本</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">处理中…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_MCP = "https://175.27.132.107/cc-apps-mcp/mcp";
+const EMBEDDED = /*EMBEDDED_JSON*/ null /*END_EMBEDDED*/;
+const PIE_COLORS = ["#2196f3","#26a69a","#7e57c2","#ff9800","#ef5350","#66bb6a","#42a5f5","#9575cd"];
+
+function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function money(v, d) {
+  d = d == null ? 2 : d;
+  return num(v).toLocaleString("zh-CN", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function qty(v) { return num(v).toLocaleString("zh-CN", { maximumFractionDigits: 0 }); }
+function dueShort(v) {
+  const m = String(v || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[2] + "-" + m[3] : (v || "—");
+}
+function pct(part, whole) { return whole ? Math.round(part / whole * 1000) / 10 : 0; }
+
+class McpClient {
+  constructor(url) {
+    this.url = url;
+    this.session = null;
+    this.id = 0;
+    this.ready = false;
+  }
+  headers() {
+    const h = {
+      Accept: "application/json, text/event-stream",
+      "Content-Type": "application/json",
+    };
+    if (this.session) h["mcp-session-id"] = this.session;
+    return h;
+  }
+  parse(text, res) {
+    const sid = res.headers.get("mcp-session-id") || res.headers.get("Mcp-Session-Id");
+    if (sid) this.session = sid;
+    const trimmed = (text || "").trim();
+    if (trimmed.startsWith("event:") || trimmed.includes("\ndata:")) {
+      const lines = trimmed.split(/\r?\n/).filter(function (l) { return l.startsWith("data:"); });
+      const last = lines[lines.length - 1].replace(/^data:\s?/, "");
+      return JSON.parse(last);
+    }
+    return JSON.parse(trimmed);
+  }
+  async rpc(method, params, withId) {
+    const body = { jsonrpc: "2.0", method: method };
+    if (params !== undefined) body.params = params;
+    if (withId !== false) body.id = ++this.id;
+    const res = await fetch(this.url, { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
+    if (method === "notifications/initialized") return {};
+    const text = await res.text();
+    let msg;
+    try { msg = this.parse(text, res); }
+    catch (e) { throw new Error("MCP 响应无法解析: " + String(text).slice(0, 180)); }
+    if (msg.error) throw new Error(msg.error.message || JSON.stringify(msg.error));
+    return msg.result;
+  }
+  async init() {
+    await this.rpc("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "quote-batch-html", version: "1.0" },
+    });
+    try { await this.rpc("notifications/initialized", {}, false); } catch (e) {}
+    this.ready = true;
+  }
+  async call(name, args) {
+    if (!this.ready) await this.init();
+    const result = await this.rpc("tools/call", { name: name, arguments: args || {} });
+    if (result && result.isError) {
+      const t = result.content && result.content[0] && result.content[0].text;
+      throw new Error(t || "MCP tool error");
+    }
+    if (result && result.structuredContent) return result.structuredContent;
+    const t = result && result.content && result.content[0] && result.content[0].text;
+    if (t) { try { return JSON.parse(t); } catch (e) { return { text: t }; } }
+    return result;
+  }
+}
+
+let mcp = null;
+let STATE = { orders: [], scenario: "scenario2" };
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { el.classList.remove("show"); }, 4200);
+}
+function overlay(on, msg) {
+  const el = document.getElementById("overlay");
+  el.textContent = msg || "处理中…";
+  el.classList.toggle("show", !!on);
+}
+function mcpUrl() {
+  const q = new URLSearchParams(location.search).get("mcp");
+  return (q || (EMBEDDED && EMBEDDED.mcp_url) || DEFAULT_MCP).trim();
+}
+
+function barRow(label, value, total, color, emptyText) {
+  const p = pct(value, total);
+  const empty = !value;
+  return '<div class="cost-bar-row">'
+    + '<div class="cost-bar-label">' + label + '</div>'
+    + '<div class="cost-bar-track"><div class="cost-bar-fill ' + color + '" style="width:' + Math.min(p, 100) + '%"></div></div>'
+    + (empty
+      ? '<div class="cost-bar-empty">' + (emptyText || "¥0.00") + '</div>'
+      : '<div class="cost-bar-value">¥' + money(value) + '</div><div class="cost-bar-pct">' + p.toFixed(1) + '%</div>')
+    + '</div>';
+}
+
+function showOrderCost(orderNumber) {
+  const o = STATE.orders.filter(function (x) { return x.order_number === orderNumber; })[0];
+  if (!o) return toast("没有这张单");
+  const material = num(o.material_cost);
+  const resource = num(o.resource_cost);
+  const overhead = num(o.overhead_cost);
+  const scrap = num(o.scrap_cost);
+  const profit = num(o.profit_amount);
+  const tax = num(o.tax_amount);
+  const totalCost = num(o.total_cost);
+  const taxed = num(o.total_with_tax);
+  const costBase = totalCost || (material + resource + overhead);
+  document.getElementById("expandTitle").textContent =
+    (o.order_number || "") + " · " + (o.item || "") + " · " + qty(o.quantity) + " 件";
+  document.getElementById("expandBars").innerHTML =
+    barRow("材料费", material, costBase, "blue")
+    + barRow("资源/加工费", resource, costBase, "teal")
+    + barRow("制造管理费", overhead, costBase, "purple")
+    + barRow("废品损耗", scrap, costBase, "light-gray", "未设置")
+    + barRow("利润", profit, taxed || costBase, "green")
+    + barRow("税额", tax, taxed || costBase, "red");
+  document.getElementById("expandCost").textContent = "¥" + money(totalCost);
+  document.getElementById("expandProfit").textContent = "¥" + money(profit);
+  document.getElementById("expandTax").textContent = "¥" + money(tax);
+  document.getElementById("expandTaxed").textContent = "¥" + money(taxed);
+  document.getElementById("expandPanel").style.display = "";
+  document.getElementById("expandPanel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function pieRows(pairs, total) {
+  if (!pairs.length) return '<div class="pie-tip">暂无拆分</div>';
+  return pairs.map(function (pair, i) {
+    const p = pct(pair[1], total);
+    return '<div class="pie-row">'
+      + '<div class="pie-label">' + pair[0] + '</div>'
+      + '<div class="pie-bar-track"><div class="pie-bar-fill" style="width:' + Math.min(p, 100) + '%;background:' + PIE_COLORS[i % PIE_COLORS.length] + '"></div></div>'
+      + '<div class="pie-pct">' + p.toFixed(1) + '%</div>'
+      + '</div>';
+  }).join("");
+}
+
+function groupBy(arr, keyFn, valFn) {
+  const m = {};
+  arr.forEach(function (x) {
+    const k = keyFn(x);
+    m[k] = (m[k] || 0) + valFn(x);
+  });
+  return Object.keys(m).map(function (k) { return [k, m[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+}
+
+function render() {
+  const orders = STATE.orders;
+  const n = orders.length;
+  const sum = function (k) { return orders.reduce(function (a, o) { return a + num(o[k]); }, 0); };
+  const qtySum = sum("quantity");
+  const material = sum("material_cost");
+  const resource = sum("resource_cost");
+  const overhead = sum("overhead_cost");
+  const profit = sum("profit_amount");
+  const tax = sum("tax_amount");
+  const totalCost = sum("total_cost");
+  const taxed = sum("total_with_tax");
+  const histMax = orders.reduce(function (m, o) { return Math.max(m, num(o.history_sample_count)); }, 0);
+  const histOn = orders.some(function (o) { return o.history_calibration_enabled; });
+  const drafts = orders.filter(function (o) { return (o.quote_status || "draft") === "draft"; }).length;
+  const method = (orders[0] && orders[0].calculation_method) || "bom_routing";
+  const generated = orders.map(function (o) { return o.quote_generated_at; }).filter(Boolean).sort().pop() || "—";
+  const margin = taxed ? (profit / taxed * 100) : 0;
+
+  document.getElementById("pageSubtitle").textContent =
+    n + " 张询价单 · 数量 " + qty(qtySum) + " 件 ｜ 含税合计 ¥" + money(taxed);
+  document.getElementById("topLabel").textContent = "询价订单 · " + n + " 张";
+  document.getElementById("badgeDraft").textContent = drafts + " 张草稿 draft";
+  document.getElementById("badgeHist").textContent = histOn ? ("历史校准已启用 · 样本最多 " + histMax) : "历史校准未启用";
+  document.getElementById("modeInfo").textContent = "计算方式 " + method;
+
+  document.getElementById("kpiTotal").textContent = "¥" + money(taxed);
+  document.getElementById("kpiCount").textContent = String(n);
+  document.getElementById("kpiQty").textContent = qty(qtySum);
+  document.getElementById("kpiMargin").textContent = margin.toFixed(2) + "%";
+  document.getElementById("costSummaryLine").textContent =
+    "材料 ¥" + money(material) + " · 资源 ¥" + money(resource)
+    + " · 管理费 ¥" + money(overhead) + " · 利润 ¥" + money(profit) + " · 税 ¥" + money(tax);
+
+  document.getElementById("alertHistTitle").textContent = histOn ? ("历史校准 · 样本最多 " + histMax) : "历史校准未启用";
+  document.getElementById("alertHistDesc").textContent = histOn
+    ? "部分订单已匹配历史报价样本，展开单卡可看建议"
+    : "参数 quote.history_calibration 未打开或无样本";
+
+  const costBase = totalCost || (material + resource + overhead);
+  document.getElementById("costBars").innerHTML =
+    barRow("材料费", material, costBase, "blue")
+    + barRow("资源/加工费", resource, costBase, "teal")
+    + barRow("制造管理费", overhead, costBase, "purple")
+    + barRow("废品损耗", sum("scrap_cost"), costBase, "light-gray", "未设置")
+    + barRow("利润", profit, taxed || costBase, "green")
+    + barRow("税额", tax, taxed || costBase, "red");
+  document.getElementById("sumCost").textContent = "¥" + money(totalCost);
+  document.getElementById("sumProfit").textContent = "¥" + money(profit);
+  document.getElementById("sumTax").textContent = "¥" + money(tax);
+  document.getElementById("sumTaxed").textContent = "¥" + money(taxed);
+
+  const itemPairs = groupBy(orders, function (o) { return o.item || "—"; }, function (o) { return num(o.material_cost); }).slice(0, 8);
+  document.getElementById("pieItems").innerHTML = pieRows(itemPairs, material);
+  document.getElementById("pieResources").innerHTML = pieRows([["资源合计", resource]], resource || 1);
+  document.getElementById("pieNote").textContent = "";
+
+  document.getElementById("tableTitle").textContent = "询价订单明细 · " + n + " 张";
+  document.getElementById("orderBody").innerHTML = orders.map(function (o) {
+    const hist = num(o.history_sample_count);
+    const histHtml = hist ? '<span class="hist-val">' + hist + '</span>' : '<span class="hist-none">0</span>';
+    const st = o.quote_status === "confirmed" ? "green" : "orange";
+    return "<tr>"
+      + '<td><span class="dot ' + st + '"></span>' + (o.order_number || "") + "</td>"
+      + "<td>" + (o.item || "—") + "</td>"
+      + "<td>" + qty(o.quantity) + "</td>"
+      + "<td>" + dueShort(o.due) + "</td>"
+      + "<td>¥" + money(o.total_with_tax) + "</td>"
+      + "<td>" + histHtml + "</td>"
+      + '<td><button type="button" class="expand-btn" data-order="' + (o.order_number || "") + '">展开成本</button></td>'
+      + "</tr>";
+  }).join("");
+  document.getElementById("tableFooter").textContent =
+    "合计数量 " + qty(qtySum) + " · 含税 ¥" + money(taxed) + " · 点「展开成本」在本页查看该单构成";
+}
+
+async function loadAll() {
+  overlay(true, "加载询价单…");
+  try {
+    mcp = new McpClient(mcpUrl());
+    await mcp.init();
+    const listed = await mcp.call("list_quote_orders", { limit: 50 });
+    STATE.scenario = listed.scenario || "scenario2";
+    const compact = listed.orders || [];
+    const details = await Promise.all(compact.map(function (row) {
+      return mcp.call("get_quote", { order_number: row.order_number, detail: true });
+    }));
+    STATE.orders = details.map(function (d) { return d.order || d; });
+    render();
+    toast("已加载 " + STATE.orders.length + " 张询价单");
+  } catch (e) {
+    document.getElementById("pageSubtitle").textContent = "加载失败";
+    toast(String(e.message || e));
+  } finally {
+    overlay(false);
+  }
+}
+
+function applyEmbedded() {
+  if (!EMBEDDED || !EMBEDDED.orders) return false;
+  STATE.scenario = EMBEDDED.scenario || "scenario2";
+  STATE.orders = EMBEDDED.orders;
+  render();
+  toast("已载入 " + STATE.orders.length + " 张询价单");
+  return true;
+}
+
+function boot() {
+  document.getElementById("orderBody").addEventListener("click", function (ev) {
+    const btn = ev.target.closest(".expand-btn");
+    if (!btn) return;
+    showOrderCost(btn.getAttribute("data-order"));
+  });
+  document.querySelectorAll(".followup-btn").forEach(function (btn) {
+    btn.onclick = function () {
+      const q = btn.getAttribute("data-q");
+      if (q === "展开第一张成本" && STATE.orders[0]) {
+        showOrderCost(STATE.orders[0].order_number);
+        return;
+      }
+      if (q === "哪些单毛利率最低") {
+        const ranked = STATE.orders.slice().sort(function (a, b) {
+          const ma = num(a.total_with_tax) ? num(a.profit_amount) / num(a.total_with_tax) : 0;
+          const mb = num(b.total_with_tax) ? num(b.profit_amount) / num(b.total_with_tax) : 0;
+          return ma - mb;
+        }).slice(0, 3);
+        toast(ranked.map(function (o) {
+          const m = num(o.total_with_tax) ? (num(o.profit_amount) / num(o.total_with_tax) * 100).toFixed(2) : "0";
+          return o.order_number + " " + m + "%";
+        }).join(" · "));
+      }
+    };
+  });
+  if (!applyEmbedded()) loadAll();
+}
+boot();
+</script>
+</body>
+</html>

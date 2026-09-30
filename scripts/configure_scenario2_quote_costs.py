@@ -21,10 +21,10 @@ RATES = {
 PARAMETERS = {
     "quote.calculation_mode": "bom_routing",
     "quote.history_calibration": "false",
-    "quote.profit_margin": "0.15",
+    "quote.profit_margin": "8",
     "quote.overhead_rate": "0.08",
     "quote.material_scrap_rate": "0.02",
-    "quote.tax_rate": "0.13",
+    "quote.tax_rate": "13",
     "quote.rounding_precision": "2",
     "quote.rounding_increment": "0.01",
     "quote.supplier_selection": "lowest_cost",

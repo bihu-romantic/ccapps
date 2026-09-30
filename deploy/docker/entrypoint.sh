@@ -27,6 +27,12 @@ if [ "${CCAPPS_BOOTSTRAP:-true}" = "true" ]; then
   python3 ccAPPSctl.py collectstatic --noinput --clear --verbosity=0
 fi
 
+# Planning web service for scenario1 listens on 8101 (gunicorn already owns 8001).
+if [ "${CCAPPS_WEBSERVICE:-true}" = "true" ]; then
+  loadplan=1 CCAPPS_DATABASE="${CCAPPS_WEBSERVICE_DATABASE:-scenario1}" \
+    PYTHONPATH=/app python3 /app/ccAPPSdb/common/commands.py >> "$CCAPPS_LOGDIR/webservice.log" 2>&1 &
+fi
+
 exec gunicorn ccAPPSdb.wsgi:application \
   --bind "0.0.0.0:${PORT:-8001}" \
   --workers "${GUNICORN_WORKERS:-2}" \

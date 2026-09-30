@@ -122,6 +122,7 @@
 .pe-gantt-section-sep.pe-gantt-label-row { padding: 0 8px; }
 .pe-gantt-section-sep.pe-gantt-time-row { height: 28px; padding: 0; }
 .pe-gantt-bar { position: absolute; height: 18px; border: 1px solid #495057; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 18px; padding: 0 5px; color: #111; text-transform: lowercase; transition: left 0.15s ease, width 0.15s ease; user-select: none; z-index: 3; }
+.pe-gantt-bar.pe-gantt-bar-opname { text-transform: none; }
 .pe-gantt-bar:hover { filter: brightness(0.92); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
 .pe-gantt-bar.status-proposed { background: rgba(220, 53, 69, 0.30); }
 .pe-gantt-bar.status-approved { background: rgba(23, 162, 184, 0.30); }
@@ -2244,9 +2245,9 @@ function _renderResourceNode(node, w, minT, span, depth, pathId, labelsHtml, tim
         var left = Math.max(0, (barStart - minT) / span * w);
         var bw = Math.max(4, (barEnd - barStart) / span * w);
         if (bw < 4) bw = 4;
-        // Use the business work-order label in the bar. Internal numeric
-        // references are retained only as data keys for editing/navigation.
-        var ref = it.raw.workorder_display || it.raw.name || it.raw.item_name || it.raw.operation_name || it.raw.operationplan__reference || "";
+        // Resource bars: show the operation name only (e.g. J140_O02).
+        // workorder_display keeps the longer MO/item/qty label for tooltips.
+        var ref = it.raw.operation_name || it.raw.operation_display || it.raw.workorder_display || it.raw.name || it.raw.item_name || it.raw.operationplan__reference || "";
         var st = (it.raw.status || "").toLowerCase().replace(/[^a-z]/g, "");
         var info = _esc(JSON.stringify(it.raw));
         var lane = barLaneMap[it.start + "|" + it.end] || 0;
@@ -2257,7 +2258,7 @@ function _renderResourceNode(node, w, minT, span, depth, pathId, labelsHtml, tim
         if (_peColorScheme === "op_category") {
             rs = _getOperationCategoryStyle(_computeCategoryKey(it.raw, it.raw.type), alpha);
         }
-        bars.push('<div class="pe-gantt-bar status-' + _esc(st) + '" style="left:' + left + 'px;width:' + bw + 'px;top:' + top + 'px;height:' + barH + 'px;background:' + rs.bg + ';border-color:' + rs.border + ';cursor:pointer" data-pe-info="' + info + '">' + _esc(ref) + '</div>');
+        bars.push('<div class="pe-gantt-bar pe-gantt-bar-opname status-' + _esc(st) + '" style="left:' + left + 'px;width:' + bw + 'px;top:' + top + 'px;height:' + barH + 'px;background:' + rs.bg + ';border-color:' + rs.border + ';cursor:pointer" data-pe-info="' + info + '">' + _esc(ref) + '</div>');
     });
 
     var caret = hasChildren ? '<span class="pe-gantt-caret">' + (expanded ? '&#9660;' : '&#9654;') + '</span>' : '<span class="pe-gantt-caret"></span>';
@@ -2390,15 +2391,20 @@ document.addEventListener("mousemove", function(e) {
         }
         return;
     }
-    // Horizontal mode
+    // Horizontal move keeps the original duration.  Do not inflate short
+    // FJSP/CCPL bars to a 1-day minimum — that made minute-scale ops jump
+    // across calendar days after a drag.
     var dx = e.clientX - _barDragState.startMouseX;
     var deltaMs = (dx / _barDragState.w) * _barDragState.span;
+    var origDuration = _barDragState.originalEnd - _barDragState.originalStart;
+    if (origDuration < 1000) origDuration = 1000;
     var newStart = new Date(_barDragState.originalStart.getTime() + deltaMs);
-    var newEnd = new Date(_barDragState.originalEnd.getTime() + deltaMs);
-    var minDate = new Date(_barDragState.originalStart.getTime() - (_barDragState.originalStart - _barDragState.minT));
-    if (newStart < minDate) { newStart = minDate; newEnd = new Date(newStart.getTime() + (_barDragState.originalEnd - _barDragState.originalStart)); }
-    var minWidthMs = 86400000;
-    if (newEnd - newStart < minWidthMs) { newEnd = new Date(newStart.getTime() + minWidthMs); }
+    var newEnd = new Date(newStart.getTime() + origDuration);
+    var minDate = new Date(_barDragState.minT.getTime());
+    if (newStart < minDate) {
+        newStart = minDate;
+        newEnd = new Date(newStart.getTime() + origDuration);
+    }
     var newLeft = ((newStart - _barDragState.minT) / _barDragState.span) * _barDragState.w;
     var newWidth = ((newEnd - _barDragState.minT) / _barDragState.span) * _barDragState.w - newLeft;
     var deltaPx = newLeft - _barDragState.startBarLeft;
@@ -2466,9 +2472,14 @@ document.addEventListener("mouseup", function(e) {
     }
     var dx = e.clientX - state.startMouseX;
     var deltaMs = (dx / state.w) * state.span;
+    var origDuration = state.originalEnd - state.originalStart;
+    if (origDuration < 1000) origDuration = 1000;
     var newStart = new Date(state.originalStart.getTime() + deltaMs);
-    var newEnd = new Date(state.originalEnd.getTime() + deltaMs);
-    if (newEnd - newStart < 86400000) newEnd = new Date(newStart.getTime() + 86400000);
+    var newEnd = new Date(newStart.getTime() + origDuration);
+    if (newStart < state.minT) {
+        newStart = new Date(state.minT.getTime());
+        newEnd = new Date(newStart.getTime() + origDuration);
+    }
     var constraints = _checkBarConstraints(state, newStart, newEnd);
     if (constraints.blocked) {
         state.bar.style.left = state.startBarLeft + "px";

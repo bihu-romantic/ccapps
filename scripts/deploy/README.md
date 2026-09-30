@@ -4,17 +4,22 @@
 
 | 脚本 | 镜像 | 容器(端口) | 构建上下文 |
 |------|------|------------|-----------|
-| `build_app.sh` | `ccapps:slim` | ccapps-app(8010→8001) | 仓库根 / `deploy/docker/Dockerfile.slim` |
+| `build_app.sh` | `ccapps-schedule:slim` | ccapps-app(8010→8001) | 仓库根 / `deploy/docker/Dockerfile.slim` |
 | `build_mcp.sh` | `ccapps-mcp:latest` | ccapps-mcp(9001→9000) | `deploy/mcp/`(17 工具) |
 | `build_mcp_aidt.sh` | `ccapps-mcp-aidt:latest` | aidt_ccappss_mrp_mcp(9005→9000) | `deploy/mcp-aidt/`(12 工具) |
 | `build_mcp_fjsp.sh` | `ccapps-mcp-fjsp:latest` | ccapps-mcp-fjsp(9006→9000) | `deploy/mcp-fjsp/`(6 工具,描述文件驱动) |
 
 ```bash
-./scripts/deploy/build_app.sh          # ccapps:slim
+./scripts/deploy/build_app.sh          # ccapps-schedule:slim(ccapps-app/8010；本机无 docker 时自动到 175 构建)
 ./scripts/deploy/build_mcp.sh          # ccapps-mcp:latest(9001)
 ./scripts/deploy/build_mcp_aidt.sh     # ccapps-mcp-aidt:latest(9005,独立 tag)
 ./scripts/deploy/build_mcp_fjsp.sh     # ccapps-mcp-fjsp:latest(9006,本机无 docker 时自动到 175 构建)
 ```
+
+`build_app.sh` 打的是排产引擎镜像 `ccapps-schedule:slim`（容器 `ccapps-app`，宿主机
+`8010→8001`）。对外 CCPL HTTP 入口为 `POST /api/ccpl/plan/`（导入 13 表 +
+可选排产；原 `/api/ccpl/import/` 已并入此路径）。构建前需保证
+`bin/libccAPPS.so` 已是最新引擎。
 
 ## ccapps-mcp-fjsp(9006)
 

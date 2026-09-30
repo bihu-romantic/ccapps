@@ -69,7 +69,11 @@ from .models import Task, ScheduledTask, DataExport
 from .management.commands.runworker import launchWorker
 from .management.commands.runplan import parseConstraints, constraintString
 from .management.commands.scheduletasks import scheduler
-from .services.ccpl_adapter import PlanningServiceError, run_ccpl_plan
+from .services.workbook_import import (
+    WorkbookImportError,
+    import_ccpl_payload,
+    import_workbook as run_workbook_import,
+)
 
 import logging
 
@@ -78,26 +82,90 @@ logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def CCPLPlanAPI(request):
+    """Import planning master data via HTTP, then optionally run the plan.
+
+    Public path: ``POST /api/ccpl/plan/`` (replaces ``/api/ccpl/import/``
+    and the older four-table planner that previously lived on this URL).
+
+    Two request shapes are supported:
+
+    1) multipart/form-data
+       - spreadsheet | file | workbook: .xlsx file
+       - scenario (optional)
+
+    2) application/json — protocol 1.0 envelope + 13 workbook ``sheets``
+
+    When ``run_plan`` is true, the JSON body matches
+    ``long_2A_mrp_result_175.json`` / ``run_ccpl_plan``:
+    ``summary``, ``operationplans``, ``resources``, ``materials``,
+    ``problems``, ``constraints``, plus ``status``, ``scenario``,
+    ``request_id``, ``constraint``, ``plantype``, ``env``,
+    ``schedule_mode``, ``solver``.
+
+    Also accepts POST /scenario2/api/ccpl/plan/ without a scenario field.
+    """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
     if not request.user.is_authenticated:
         return JsonResponse(
             {"status": "error", "message": "Authentication required"}, status=401
         )
-    if not request.user.has_perm("auth.auth.generate_plan"):
-        return JsonResponse(
-            {"status": "error", "message": "Missing generate_plan permission"},
-            status=403,
-        )
+
+    content_type = (request.content_type or "").split(";")[0].strip().lower()
+    is_json = content_type == "application/json" or (
+        not request.FILES and request.body and request.body[:1] in (b"{", b"[")
+    )
 
     try:
-        payload = json.loads(request.body.decode("utf-8"))
-        database = payload.get("scenario") or request.database
-        result = run_ccpl_plan(payload, database=database, user=request.user)
-        return JsonResponse(result, json_dumps_params={"ensure_ascii": False})
-    except json.JSONDecodeError:
+        if is_json:
+            try:
+                payload = json.loads(
+                    request.body.decode(request.encoding or settings.DEFAULT_CHARSET)
+                )
+            except json.JSONDecodeError:
+                return JsonResponse(
+                    {"status": "error", "message": "Invalid JSON request body"},
+                    status=400,
+                )
+            database = (
+                payload.get("scenario")
+                or request.GET.get("scenario")
+                or getattr(request, "database", None)
+                or DEFAULT_DB_ALIAS
+            )
+            result = import_ccpl_payload(
+                payload, database=database, user=request.user
+            )
+        else:
+            upload = (
+                request.FILES.get("spreadsheet")
+                or request.FILES.get("file")
+                or request.FILES.get("workbook")
+            )
+            if not upload:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": "Missing workbook file (form field "
+                        "'spreadsheet'/'file'/'workbook') or JSON body with 'sheets'",
+                    },
+                    status=400,
+                )
+            database = (
+                request.POST.get("scenario")
+                or request.GET.get("scenario")
+                or getattr(request, "database", None)
+                or DEFAULT_DB_ALIAS
+            )
+            result = run_workbook_import(
+                upload,
+                database=database,
+                user=request.user,
+                source_name=upload.name,
+            )
+        status_code = 200 if result.get("status") == "success" else 207
         return JsonResponse(
-            {"status": "error", "message": "Invalid JSON request body"}, status=400
+            result, status=status_code, json_dumps_params={"ensure_ascii": False}
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -105,8 +173,10 @@ def CCPLPlanAPI(request):
         )
     except PermissionDenied as exc:
         return JsonResponse({"status": "error", "message": str(exc)}, status=403)
-    except PlanningServiceError as exc:
-        logger.exception("CCPL planning service failed")
+    except WorkbookImportError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception("CCPL workbook import failed")
         return JsonResponse({"status": "error", "message": str(exc)}, status=500)
 
 
@@ -2400,7 +2470,7 @@ class PlanEdit(GridReport):
                 r["name"]: r
                 for r in Resource.objects.using(request.database)
                 .filter(lft__isnull=False)
-                .values("name", "description", "lft", "rght", "owner_id")
+                .values("name", "description", "category", "lft", "rght", "owner_id")
             }
 
             def display_operation(operation):
@@ -2415,17 +2485,41 @@ class PlanEdit(GridReport):
                     return ""
                 return operation.description or operation.name or ""
 
-            def display_resource(resource, operation):
-                """Map an internal CCPL resource key to ``OP-xx | 设备``."""
+            CATEGORY_ORDER = {"设备": 0, "人员": 1, "模具": 2}
+
+            def resource_category(resource):
                 if not resource:
                     return "未分配资源"
-                equipment = resource.description or resource.name
-                opname = operation.name if operation else ""
-                marker = opname.rfind("OP-")
-                if marker >= 0:
-                    code = opname[marker:].split()[0]
-                    return "%s | %s" % (code, equipment)
-                return equipment
+                cat = (getattr(resource, "category", None) or "").strip()
+                if cat in CATEGORY_ORDER:
+                    return cat
+                # Fallback when category is empty: infer from naming convention.
+                rid = getattr(resource, "name", "") or ""
+                if rid.startswith("PERSON_"):
+                    return "人员"
+                if rid.startswith("MOLD_"):
+                    return "模具"
+                return "设备"
+
+            def display_resource(resource, operation):
+                """Readable resource leaf label under its category group."""
+                if not resource:
+                    return "未分配资源"
+                rid = resource.name or ""
+                desc = (resource.description or "").strip()
+                cat = resource_category(resource)
+                if cat == "人员":
+                    return desc or rid.replace("PERSON_", "", 1)
+                if cat == "模具":
+                    code = rid.replace("MOLD_", "", 1) if rid.startswith("MOLD_") else rid
+                    return "%s %s" % (code, desc) if desc and desc != code else (desc or code)
+                # 设备: keep machine code visible (B01), append model/workshop
+                # only when it adds information. CCPL names already embed the
+                # equipment label after " | " (eg. OP-03 | 全自动热压机-01),
+                # so repeating description in parentheses is redundant.
+                if desc and desc != rid and desc not in rid:
+                    return "%s（%s）" % (rid, desc)
+                return rid or desc
 
             def display_workorder(opplan):
                 """Human-readable work-order label; never expose numeric ref."""
@@ -2433,7 +2527,10 @@ class PlanEdit(GridReport):
                 # Use a source/business name when one is present.  Generated
                 # CCPL MOs merely repeat the technical operation key, in which
                 # case item and quantity are the meaningful work-order label.
+                # FJSP step plans (J140_O02) keep the bare operation name.
                 technical = opplan.operation_id or ""
+                if operation_label and operation_label == technical:
+                    return technical
                 if opplan.name and opplan.name != technical and not opplan.name.startswith("ccpl-operation-"):
                     return opplan.name
                 item_label = (
@@ -2472,18 +2569,19 @@ class PlanEdit(GridReport):
             for opr in all_oprs:
                 opplan = opr.operationplan
                 rid = opr.resource_id or ""
+                cat = resource_category(opr.resource)
                 resource_label = display_resource(opr.resource, opplan.operation)
                 records.append(
                     {
                         "operationplan__reference": opplan.reference,
                         "resource": rid,
-                        # Gantt labels are deliberately business-facing. The
-                        # raw ``resource`` technical key remains available to
-                        # detail links and update APIs.
-                        "hierarchy": [resource_label],
-                        "resource_display": resource_label,
+                        # Group by 设备/人员/模具 so the board shows resource
+                        # correspondence instead of a flat mold/item-like list.
+                        "hierarchy": [cat, resource_label],
+                        "resource_display": "%s / %s" % (cat, resource_label),
                         "workorder_display": display_workorder(opplan),
                         "operation_display": display_operation(opplan.operation),
+                        "operation_name": opplan.operation_id or "",
                         "type": opplan.type,
                         "status": opplan.status or "",
                         "operation_category": (
@@ -2541,6 +2639,10 @@ class PlanEdit(GridReport):
                         }
                     )
 
+            # Alternate/routing parents have no loadplans by design; their
+            # chosen time_per / step children already appear on 设备/人员/模具
+            # rows. Keep them out of「未分配资源」so the board is not dominated
+            # by false gaps (e.g. FJSP Jxxx_ROUTING containers).
             unassigned_qs = (
                 OperationPlan.objects.using(request.database)
                 .filter(
@@ -2551,6 +2653,7 @@ class PlanEdit(GridReport):
                 )
                 .exclude(status="closed")
                 .filter(resources__isnull=True)
+                .exclude(operation__type__in=("alternate", "routing"))
                 .select_related(
                     "item", "location", "supplier", "demand", "operation"
                 )
@@ -2569,6 +2672,7 @@ class PlanEdit(GridReport):
                         "resource_display": unassigned_label,
                         "workorder_display": display_workorder(opplan),
                         "operation_display": display_operation(opplan.operation),
+                        "operation_name": opplan.operation_id or "",
                         "type": opplan.type,
                         "status": opplan.status or "",
                         "operation_category": (
@@ -2614,13 +2718,19 @@ class PlanEdit(GridReport):
                         }
                     )
 
-            records.sort(
-                key=lambda x: (
-                    x.get("hierarchy", [""])[0] or "",
-                    x["startdate"] or "",
-                    x["operationplan__reference"] or "",
+            def _gantt_sort_key(row):
+                hier = row.get("hierarchy") or [""]
+                root = hier[0] or ""
+                leaf = hier[1] if len(hier) > 1 else ""
+                return (
+                    CATEGORY_ORDER.get(root, 9),
+                    root,
+                    leaf,
+                    row.get("startdate") or "",
+                    row.get("operationplan__reference") or "",
                 )
-            )
+
+            records.sort(key=_gantt_sort_key)
 
         payload = {
             "total": 1,

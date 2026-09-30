@@ -2,9 +2,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <numeric>
+#include <queue>
 #include <sstream>
 #include <unordered_set>
 
@@ -739,6 +741,9 @@ struct GAData {
   struct MaterialFlow {
     const Buffer* buffer = nullptr;
     double quantity = 0.0;
+    // Positive when the operation material is a transfer batch. Zero means
+    // the whole quantity is consumed at the start or produced at the end.
+    double transferBatch = 0.0;
   };
   struct FixedMaterialEvent {
     const Buffer* buffer = nullptr;
@@ -775,6 +780,13 @@ struct GAData {
   GANormBaseline normBaseline;
   GAObjectiveWeights objWeights;
   bool materialPrecheck = false;
+  // Stage 1 still uses the fast machine search. Internal WIP is enforced on
+  // that same decode whenever the operation has a material flow. External
+  // purchase and distribution shortages stay in the postcheck after writeback.
+  bool fastDecode = true;
+  // False when no scheduled resource has a setup matrix. The decoder then
+  // keeps the original machine packing and does not inspect setups.
+  bool changeoverEnabled = false;
   // Buffers produced and consumed inside the GA manufacturing network are
   // always quantity-constrained, including in the default postcheck mode.
   unordered_set<const Buffer*> internalMaterialBuffers;
@@ -786,6 +798,16 @@ struct GAData {
   vector<vector<vector<MaterialFlow>>> operationFlows;
   vector<vector<int>> operationStage;
   vector<FixedMaterialEvent> fixedMaterialEvents;
+  // Non-GA plans (setup, firm WO, etc.) reserved once in buildGAData so each
+  // chromosome decode does not re-walk the global OperationPlan list.
+  struct FixedReservation {
+    const Resource* resource = nullptr;
+    Date start;
+    Date end;
+    double quantity = 1.0;
+    PooledString setup;
+  };
+  vector<FixedReservation> fixedReservations;
   vector<DistributionLink> proposedDistributions;
   // Global OS prefix reserved for immutable operationplans.  The suffix is
   // the normal mutable GA dispatch sequence.
@@ -826,6 +848,9 @@ struct GADecodedSchedule {
   vector<vector<int>> end;
   vector<vector<Date>> calendarBegin;
   vector<vector<Date>> calendarEnd;
+  // Start of the changeover that precedes processing. Equals calendarBegin
+  // when the resource has no setup to perform.
+  vector<vector<Date>> calendarSetupBegin;
   vector<vector<GAScheduleInterval>> machineIntervals;
   long long makespan = 0;
   // Objective makespan: only the movable suffix. Locked operations are hard
@@ -849,6 +874,8 @@ struct GADecodedSchedule {
                          vector<Date>(maxOps, Date::infinitePast));
     calendarEnd.assign(data.jobsNum,
                        vector<Date>(maxOps, Date::infinitePast));
+    calendarSetupBegin.assign(data.jobsNum,
+                              vector<Date>(maxOps, Date::infinitePast));
     machineIntervals.assign(data.machinesNum, {});
     for (auto& intervals : machineIntervals)
       intervals.reserve(data.totalOperations());
@@ -862,14 +889,16 @@ struct GADecodedSchedule {
 };
 
 struct GASolverConfig {
-  int populationSize = 50;
-  int maxStep = 20;
-  int maxNoNewBest = 5;
+  int populationSize = 500;
+  int maxStep = 50;
+  int maxNoNewBest = 10;
   int tournamentM = 4;
   double memorySize = 0.2;
   double crossover = 1.0;
   double mutationScale = 0.15;
   double vnsRatio = 0.02;
+  // Secondary stop (seconds). 0 disables time-based stopping.
+  double timeLimitSeconds = 60.0;
   bool useMemoryTournament = true;
   bool useRandomTournament = false;
   bool useUniformMSCrossover = true;
@@ -891,6 +920,9 @@ struct GARunResult {
   double bestCV = 0.0;          // load-balance CV of the best individual (diagnostic)
   double bestTardiness = 0.0;   // weighted tardiness of the best individual (diagnostic)
   int bestStep = -1;
+  int stepsRun = 0;
+  // "generations" | "stagnation" | "time_limit"
+  string stopReason = "generations";
   double runtimeSeconds = 0.0;
 };
 
@@ -1084,21 +1116,35 @@ GAData buildGAData(
   data.operationStage.assign(data.jobsNum, vector<int>(maxOps, -1));
   unordered_set<const OperationPlan*> gaOperations;
   unordered_set<const Buffer*> producedByGA;
+  int transferBatchFlows = 0;
   for (const auto& inOp : input.operations) {
     if (!inOp.op || inOp.jobIndex < 0 || inOp.operationIndex < 0) continue;
     gaOperations.insert(inOp.op);
     data.operationStage[inOp.jobIndex][inOp.operationIndex] =
         parseCCPLStage(inOp.op);
     auto& flows = data.operationFlows[inOp.jobIndex][inOp.operationIndex];
-    for (auto fp = inOp.op->beginFlowPlans(); fp != inOp.op->endFlowPlans(); ++fp)
-      if (fp->getBuffer() && fabs(fp->getQuantity()) > ROUNDING_ERROR) {
-        flows.push_back({fp->getBuffer(), fp->getQuantity()});
-        if (fp->getQuantity() > ROUNDING_ERROR) {
-          producedByGA.insert(fp->getBuffer());
-          if (fp->getBuffer()->getItem())
-            data.internalMaterialItems.insert(fp->getBuffer()->getItem()->getName());
-        }
+    unordered_map<const Flow*, size_t> flowIndex;
+    for (auto fp = inOp.op->beginFlowPlans(); fp != inOp.op->endFlowPlans(); ++fp) {
+      if (!fp->getBuffer() || fabs(fp->getQuantity()) <= ROUNDING_ERROR) continue;
+      const Flow* flow = fp->getFlow();
+      double transferBatch = 0.0;
+      if (flow && flow->hasType<FlowTransferBatch>())
+        transferBatch =
+            static_cast<const FlowTransferBatch*>(flow)->getTransferBatch();
+      const auto found = flow ? flowIndex.find(flow) : flowIndex.end();
+      if (flow && found != flowIndex.end()) {
+        flows[found->second].quantity += fp->getQuantity();
+      } else {
+        if (flow) flowIndex.emplace(flow, flows.size());
+        flows.push_back({fp->getBuffer(), fp->getQuantity(), transferBatch});
+        if (transferBatch > ROUNDING_ERROR) ++transferBatchFlows;
       }
+      if (fp->getQuantity() > ROUNDING_ERROR) {
+        producedByGA.insert(fp->getBuffer());
+        if (fp->getBuffer()->getItem())
+          data.internalMaterialItems.insert(fp->getBuffer()->getItem()->getName());
+      }
+    }
     if (getEnvBool("GA_WIP_TRACE") && parseCCPLStage(inOp.op) > 0) {
       logger << "GA WIP input " << inOp.op->getReference()
              << " stage=" << parseCCPLStage(inOp.op)
@@ -1108,6 +1154,12 @@ GAData buildGAData(
                << " qty=" << flow.quantity << "\n";
     }
   }
+  logger << "GA transfer-batch flows: " << transferBatchFlows << "\n";
+  int setupMatrixResources = 0;
+  for (const Resource* resource : data.resources)
+    if (resource && resource->getSetupMatrix()) ++setupMatrixResources;
+  data.changeoverEnabled = setupMatrixResources > 0;
+  logger << "GA setup-matrix resources: " << setupMatrixResources << "\n";
   // A manufacturing operation can produce WIP in one buffer while the next
   // operation consumes the same item from another location.  The connecting
   // proposed DO is part of the generated supply network, not external
@@ -1199,6 +1251,32 @@ GAData buildGAData(
         data.fixedMaterialEvents.push_back(
             {buffer, static_cast<long long>((it->getDate() - anchor).getSeconds()),
              it->getQuantity()});
+      }
+    }
+  }
+
+  // Snapshot fixed resource loads once.  gaDecodeOne copies this list into its
+  // per-chromosome shadow timeline instead of rescanning every OperationPlan.
+  {
+    unordered_set<const OperationPlan*> gaPlans;
+    for (const auto& byJob : data.operationPlans)
+      for (const auto* plan : byJob)
+        if (plan) gaPlans.insert(plan);
+    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
+      if (!plan->getOperation() || gaPlans.count(&*plan) ||
+          plan->getEnd() == Date::infiniteFuture)
+        continue;
+      unordered_set<const Resource*> seenResources;
+      for (auto load = plan->beginLoadPlans(); load != plan->endLoadPlans(); ++load) {
+        const Resource* resource = load->getResource();
+        if (!resource || resource->isGroup() || !resource->getConstrained() ||
+            !seenResources.insert(resource).second)
+          continue;
+        PooledString setup;
+        if (load->getLoad()) setup = load->getLoad()->getSetup();
+        data.fixedReservations.push_back(
+            {resource, plan->getStart(), plan->getEnd(),
+             fabs(load->getQuantity()), setup});
       }
     }
   }
@@ -1335,18 +1413,20 @@ void gaInitialMSRandomSelection(
 
 void gaInitialOS(
     vector<vector<int>>& os, const GAData& data, GARNG& rng) {
-  struct Row { int gene; Date start; Date end; string reference; };
+  // Classic FJSP OS: job-id repetition (same as Numba / D:\test ga_comparison).
+  // Locked operations, if any, form a chronological job-id prefix; the
+  // remaining job occurrences are shuffled as the mutable suffix.
+  struct Row { int job; Date start; Date end; string reference; };
   vector<Row> locked;
-  vector<int> suffix;
+  vector<int> lockedCount(data.jobsNum, 0);
   for (int job = 0; job < data.jobsNum; ++job)
     for (int op = 0; op < data.jobsOperations[job]; ++op) {
-      const int gene = job * data.maxOperations() + op;
       const OperationPlan* plan = data.operationPlans[job][op];
-      if (data.lockedOperation[job][op] && plan)
-        locked.push_back({gene, plan->getStart(), plan->getEnd(),
+      if (data.lockedOperation[job][op] && plan) {
+        locked.push_back({job, plan->getStart(), plan->getEnd(),
                           plan->getReference()});
-      else
-        suffix.push_back(gene);
+        ++lockedCount[job];
+      }
     }
   sort(locked.begin(), locked.end(), [](const Row& a, const Row& b) {
     if (a.start != b.start) return a.start < b.start;
@@ -1354,17 +1434,96 @@ void gaInitialOS(
     return a.reference < b.reference;
   });
   const_cast<GAData&>(data).lockedOSPrefixLength = locked.size();
+
+  vector<int> suffix;
+  suffix.reserve(data.totalOperations() - locked.size());
+  for (int job = 0; job < data.jobsNum; ++job) {
+    const int remain = data.jobsOperations[job] - lockedCount[job];
+    for (int i = 0; i < remain; ++i) suffix.push_back(job);
+  }
+
   for (auto& chromosome : os) {
     vector<int> mutableSuffix = suffix;
     rng.shuffle(mutableSuffix);
     chromosome.clear();
-    for (const auto& row : locked) chromosome.push_back(row.gene);
-    chromosome.insert(chromosome.end(), mutableSuffix.begin(), mutableSuffix.end());
+    chromosome.reserve(locked.size() + mutableSuffix.size());
+    for (const auto& row : locked) chromosome.push_back(row.job);
+    chromosome.insert(
+        chromosome.end(), mutableSuffix.begin(), mutableSuffix.end());
   }
+}
+
+// Expand job-repetition OS into explicit (job,op) genes used by the decoder's
+// calendar / routing helpers. Occurrence k of job j becomes op k.
+vector<int> gaExpandJobOSToGenes(const vector<int>& os, const GAData& data) {
+  vector<int> nextOp(data.jobsNum, 0);
+  vector<int> genes;
+  genes.reserve(os.size());
+  for (int job : os) {
+    if (job < 0 || job >= data.jobsNum) continue;
+    const int op = nextOp[job]++;
+    if (op >= data.jobsOperations[job]) continue;
+    genes.push_back(job * data.maxOperations() + op);
+  }
+  return genes;
 }
 
 int gaOperationGene(const GAData& data, int job, int operation) {
   return job * data.maxOperations() + operation;
+}
+
+// Position of the op-th occurrence of job in a job-repetition OS.
+// Setup required by the load that places this operation on the resource.
+// A pool load contributes its setup to every member machine.
+PooledString gaLoadSetup(const Operation* operation, const Resource* resource) {
+  if (!operation) return PooledString();
+  const Load* fallback = nullptr;
+  for (const Load& load : operation->getLoads()) {
+    if (!load.getResource()) continue;
+    if (!fallback) fallback = &load;
+    if (resource &&
+        (resource == load.getResource() ||
+         resource->isMemberOf(load.getResource())))
+      return load.getSetup();
+  }
+  return fallback ? fallback->getSetup() : PooledString();
+}
+
+// Seconds of changeover on this resource. No matrix, or the same setup on
+// both sides, adds nothing. An undefined conversion uses the matrix rule
+// for a disallowed changeover.
+long gaChangeoverSeconds(const Resource* resource, const PooledString& from,
+                         const PooledString& to) {
+  if (!resource || from == to) return 0;
+  if (from.empty() && to.empty()) return 0;
+  SetupMatrix* matrix = resource->getSetupMatrix();
+  if (!matrix) return 0;
+  SetupMatrixRule* rule = matrix->calculateSetup(from, to);
+  if (!rule) return 0;
+  const double seconds = rule->getDuration().getSeconds();
+  if (seconds <= 0.0) return 0;
+  if (seconds > 366.0 * 86400.0) return 366L * 86400L;
+  return static_cast<long>(seconds + 0.5);
+}
+
+Date gaAfterChangeover(const OperationPlan* operation, Date ready,
+                       long setupSeconds) {
+  if (setupSeconds <= 0 || !operation || !operation->getOperation() ||
+      ready == Date::infinitePast || ready == Date::infiniteFuture)
+    return ready;
+  return operation->getOperation()
+      ->calculateOperationTime(operation, ready, Duration(setupSeconds), true)
+      .getEnd();
+}
+
+int gaJobOpOSPosition(const vector<int>& os, int job, int operation) {
+  int seen = 0;
+  for (size_t i = 0; i < os.size(); ++i) {
+    if (os[i] != job) continue;
+    if (seen == operation) return static_cast<int>(i);
+    ++seen;
+  }
+  return -1;
 }
 
 int gaGenePosition(const vector<int>& os, int gene) {
@@ -1382,10 +1541,149 @@ void gaInsertIntervalSorted(
   intervals.insert(it, item);
 }
 
+struct GAMaterialSlice {
+  long long offset = 0;
+  double quantity = 0.0;
+};
+
+// Split a transfer-batch flow across the operation. A producer releases lot
+// i at fraction (i+1)/n. A consumer takes lot i at fraction i/n, so the next
+// step can start when the first lot exists. Any other flow stays as one
+// event: consumption at the start, production at the end.
+vector<GAMaterialSlice> gaMaterialSlices(const GAData::MaterialFlow& flow,
+                                        long long duration) {
+  vector<GAMaterialSlice> slices;
+  if (duration < 0) duration = 0;
+  if (flow.transferBatch <= ROUNDING_ERROR ||
+      fabs(flow.quantity) <= ROUNDING_ERROR) {
+    slices.push_back(
+        {flow.quantity < 0.0 ? 0 : duration, flow.quantity});
+    return slices;
+  }
+  const double absTotal = fabs(flow.quantity);
+  int batches = static_cast<int>(ceil(absTotal / flow.transferBatch));
+  if (batches < 1) batches = 1;
+  if (batches > 50) batches = 50;
+  double lot = flow.transferBatch;
+  if (batches == 50) lot = absTotal / static_cast<double>(batches);
+  const bool consumer = flow.quantity < 0.0;
+  double placed = 0.0;
+  for (int index = 0; index < batches; ++index) {
+    const double remaining = absTotal - placed;
+    if (remaining <= ROUNDING_ERROR) break;
+    double quantity = min(lot, remaining);
+    placed += quantity;
+    if (consumer) quantity = -quantity;
+    const long long offset = consumer
+        ? duration * static_cast<long long>(index) / batches
+        : duration * static_cast<long long>(index + 1) / batches;
+    slices.push_back({offset, quantity});
+  }
+  if (slices.empty())
+    slices.push_back({consumer ? 0 : duration, flow.quantity});
+  return slices;
+}
+
+// Seconds after the producer starts when this consumer may start. A producing
+// transfer batch releases its first lot before the operation ends. A consumer
+// that takes the whole quantity at its start waits until enough lots exist.
+// No transfer batch on the producer keeps the historical full-lot release.
+int gaTransferReleaseOffset(const vector<GAData::MaterialFlow>& producer,
+                            const vector<GAData::MaterialFlow>& consumer,
+                            int producerDuration) {
+  if (producerDuration <= 0) return max(0, producerDuration);
+  int offset = 0;
+  bool linked = false;
+  for (const auto& need : consumer) {
+    if (!need.buffer || need.quantity >= -ROUNDING_ERROR) continue;
+    const GAData::MaterialFlow* supply = nullptr;
+    for (const auto& made : producer) {
+      if (made.buffer == need.buffer && made.quantity > ROUNDING_ERROR) {
+        supply = &made;
+        break;
+      }
+    }
+    if (!supply) continue;
+    if (supply->transferBatch <= ROUNDING_ERROR) return producerDuration;
+    linked = true;
+    const double produced = fabs(supply->quantity);
+    int batches = static_cast<int>(ceil(produced / supply->transferBatch));
+    if (batches < 1) batches = 1;
+    if (batches > 50) batches = 50;
+    const double lot = batches == 50
+        ? produced / static_cast<double>(batches)
+        : supply->transferBatch;
+    double firstNeed = fabs(need.quantity);
+    if (need.transferBatch > ROUNDING_ERROR)
+      firstNeed = min(firstNeed, need.transferBatch);
+    int needed = static_cast<int>(ceil(firstNeed / lot));
+    if (needed < 1) needed = 1;
+    if (needed > batches) needed = batches;
+    const int release = static_cast<int>(
+        (static_cast<long long>(producerDuration) * needed) / batches);
+    offset = max(offset, release);
+  }
+  if (!linked) return producerDuration;
+  if (offset < 0) return 0;
+  if (offset > producerDuration) return producerDuration;
+  return offset;
+}
+
+bool gaTransferSlicesFit(
+    double initial, const vector<pair<long long, double>>& supply,
+    const vector<GAMaterialSlice>& slices, long long start) {
+  struct Event {
+    long long time;
+    double quantity;
+    int consume;
+  };
+  vector<Event> events;
+  events.reserve(supply.size() + slices.size());
+  for (const auto& item : supply)
+    events.push_back({item.first, item.second, 0});
+  for (const auto& slice : slices) {
+    if (slice.quantity >= -ROUNDING_ERROR) continue;
+    events.push_back({start + slice.offset, slice.quantity, 1});
+  }
+  sort(events.begin(), events.end(), [](const Event& left, const Event& right) {
+    if (left.time != right.time) return left.time < right.time;
+    return left.consume < right.consume;
+  });
+  double balance = initial;
+  for (const auto& event : events) {
+    balance += event.quantity;
+    if (balance < -ROUNDING_ERROR) return false;
+  }
+  return true;
+}
+
+long long gaEarliestTransferStart(
+    double initial, const vector<pair<long long, double>>& supply,
+    const vector<GAMaterialSlice>& slices, long long requested) {
+  if (gaTransferSlicesFit(initial, supply, slices, requested)) return requested;
+  vector<long long> candidates;
+  candidates.push_back(requested);
+  for (const auto& item : supply) {
+    if (item.second <= ROUNDING_ERROR) continue;
+    if (item.first > requested) candidates.push_back(item.first);
+    for (const auto& slice : slices) {
+      if (slice.quantity >= -ROUNDING_ERROR) continue;
+      const long long start = item.first - slice.offset;
+      if (start > requested) candidates.push_back(start);
+    }
+  }
+  sort(candidates.begin(), candidates.end());
+  candidates.erase(unique(candidates.begin(), candidates.end()), candidates.end());
+  for (const long long start : candidates)
+    if (gaTransferSlicesFit(initial, supply, slices, start)) return start;
+  return numeric_limits<long long>::max() / 4;
+}
+
 long long gaMaterialReadyTime(
     const vector<GAData::FixedMaterialEvent>& events,
     const unordered_map<const Buffer*, double>& initialOnhand,
-    const vector<GAData::MaterialFlow>& flows, long long requested) {
+    const vector<GAData::MaterialFlow>& flows, long long requested,
+    long long duration) {
   long long ready = requested;
   for (const auto& flow : flows) {
     if (!flow.buffer || flow.quantity >= -ROUNDING_ERROR) continue;
@@ -1400,6 +1698,18 @@ long long gaMaterialReadyTime(
       if (a.time != b.time) return a.time < b.time;
       return a.quantity > b.quantity;
     });
+    if (flow.transferBatch > ROUNDING_ERROR) {
+      vector<pair<long long, double>> supply;
+      supply.reserve(timeline.size());
+      for (const auto& event : timeline)
+        supply.emplace_back(event.time, event.quantity);
+      const long long start = gaEarliestTransferStart(
+          balance, supply, gaMaterialSlices(flow, duration), ready);
+      if (start >= numeric_limits<long long>::max() / 8)
+        return numeric_limits<long long>::max() / 4;
+      ready = max(ready, start);
+      continue;
+    }
     size_t idx = 0;
     // Apply all receipts and reservations up to the requested start first.
     while (idx < timeline.size() && timeline[idx].time <= ready) {
@@ -1496,69 +1806,154 @@ GADecodedSchedule gaDecodeOne(
     Date start;
     Date end;
     double quantity;
+    PooledString setup;
   };
   unordered_map<const Resource*, vector<CalendarReservation>> reservations;
-  unordered_set<const OperationPlan*> gaPlans;
-  for (const auto& byJob : data.operationPlans)
-    for (const auto* plan : byJob)
-      if (plan) gaPlans.insert(plan);
-  for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
-    if (!plan->getOperation() || gaPlans.count(&*plan) ||
-        plan->getEnd() == Date::infiniteFuture)
-      continue;
-    unordered_set<const Resource*> seenResources;
-    for (auto load = plan->beginLoadPlans(); load != plan->endLoadPlans(); ++load) {
-      const Resource* resource = load->getResource();
-      if (!resource || resource->isGroup() || !resource->getConstrained() ||
-          !seenResources.insert(resource).second)
-        continue;
-      reservations[resource].push_back(
-          {plan->getStart(), plan->getEnd(), fabs(load->getQuantity())});
-    }
-  }
+  for (const auto& fixed : data.fixedReservations)
+    reservations[fixed.resource].push_back(
+        {fixed.start, fixed.end, fixed.quantity, fixed.setup});
+  for (auto& entry : reservations)
+    sort(entry.second.begin(), entry.second.end(),
+         [](const CalendarReservation& left, const CalendarReservation& right) {
+           if (left.start != right.start) return left.start < right.start;
+           return left.end < right.end;
+         });
+  const auto changeoverReady =
+      [&](const OperationPlan* operationplan, const Resource* resource,
+          const PooledString& toSetup, Date ready) {
+        if (!data.changeoverEnabled || !operationplan ||
+            !operationplan->getOperation() || !resource ||
+            !resource->getSetupMatrix() || ready == Date::infinitePast ||
+            ready == Date::infiniteFuture)
+          return ready;
+        PooledString fromSetup = resource->getSetup();
+        Date predecessorEnd = Date::infinitePast;
+        for (const auto& entry : reservations[resource]) {
+          if (entry.end > ready) continue;
+          if (predecessorEnd == Date::infinitePast || entry.end > predecessorEnd) {
+            predecessorEnd = entry.end;
+            fromSetup = entry.setup;
+          }
+        }
+        const long setup =
+            gaChangeoverSeconds(resource, fromSetup, toSetup);
+        if (setup <= 0) return ready;
+        if (predecessorEnd != Date::infinitePast && predecessorEnd <= ready) {
+          const Date setupStart =
+              operationplan->getOperation()
+                  ->calculateOperationTime(operationplan, ready,
+                                           Duration(setup), false)
+                  .getStart();
+          if (setupStart >= predecessorEnd) return ready;
+        }
+        const Date base = predecessorEnd != Date::infinitePast
+                              ? max(ready, predecessorEnd)
+                              : ready;
+        return gaAfterChangeover(operationplan, base, setup);
+      };
+  const auto insertReservation =
+      [&](const Resource* resource, Date start, Date end, double quantity,
+          const PooledString& setup = PooledString()) {
+        auto& list = reservations[resource];
+        CalendarReservation item{start, end, quantity, setup};
+        auto pos = lower_bound(
+            list.begin(), list.end(), item,
+            [](const CalendarReservation& left, const CalendarReservation& right) {
+              return left.start < right.start;
+            });
+        list.insert(pos, item);
+      };
+  // Classic FJSP (and most single-machine APS resources) only need "any
+  // overlap blocks".  The previous event-point grid was O(points^2) per
+  // attempt and dominated decode time once calendars had thousands of buckets.
   const auto earliestCapacitySlot =
       [&](const OperationPlan* operationplan, const Resource* resource,
-          double required, Date earliest,
-          Duration duration) {
+          double required, Date earliest, Duration duration,
+          const PooledString& incomingSetup) {
         if (!resource || !resource->getConstrained() ||
             resource->isGroup() || required <= ROUNDING_ERROR)
           return earliest;
         Date candidate = earliest;
         Calendar* calendar = resource->getMaximumCalendar();
+        const double staticMaximum = resource->getMaximum();
+        const bool unitCapacity =
+            staticMaximum <= 1.0 + ROUNDING_ERROR &&
+            required + ROUNDING_ERROR >= staticMaximum;
+        auto& reserved = reservations[resource];
         for (unsigned short attempt = 0; attempt < 1000; ++attempt) {
           const DateRange mapped = operationplan->getOperation()->calculateOperationTime(
               operationplan, candidate, duration, true);
-          vector<Date> points{mapped.getStart(), mapped.getEnd()};
-          if (calendar) {
-            Calendar::EventIterator event(calendar, mapped.getStart(), true);
+          const Date mappedStart = mapped.getStart();
+          const Date mappedEnd = mapped.getEnd();
+          Date retry = Date::infiniteFuture;
+
+          if (unitCapacity) {
+            // Fast path: one overlapping reservation is enough to reject the
+            // slot.  Still honour calendar zeros without building a point grid
+            // from every reservation boundary.
+            for (const auto& entry : reserved) {
+              if (entry.start >= mappedEnd) break;
+              if (entry.end > mappedStart && entry.start < mappedEnd)
+                retry = min(retry, data.changeoverEnabled
+                    ? changeoverReady(operationplan, resource, incomingSetup,
+                                      entry.end)
+                    : entry.end);
+            }
+            if (calendar) {
+            Calendar::EventIterator event(calendar, mappedStart, true);
             Date previous = event.getDate();
             for (unsigned int n = 0; n < 10000 &&
-                 event.getDate() < mapped.getEnd(); ++n) {
-              if (event.getDate() > mapped.getStart()) points.push_back(event.getDate());
+                 event.getDate() < mappedEnd; ++n) {
+              const Date at = event.getDate();
+                const double maximum = calendar->getValue(at);
+                ++event;
+                const Date next = event.getDate();
+                if (at >= mappedStart &&
+                    maximum + ROUNDING_ERROR < required)
+                  retry = min(retry, next);
+                if (next <= previous) break;
+                previous = next;
+              }
+            }
+            if (retry == Date::infiniteFuture) return candidate;
+            if (retry <= candidate) break;
+            candidate = retry;
+            continue;
+          }
+
+          vector<Date> points{mappedStart, mappedEnd};
+          if (calendar) {
+            Calendar::EventIterator event(calendar, mappedStart, true);
+            Date previous = event.getDate();
+            for (unsigned int n = 0; n < 10000 &&
+                 event.getDate() < mappedEnd; ++n) {
+              if (event.getDate() > mappedStart) points.push_back(event.getDate());
               ++event;
               if (event.getDate() <= previous) break;
               previous = event.getDate();
             }
           }
-          for (const auto& entry : reservations[resource])
-            if (entry.start < mapped.getEnd() && entry.end > mapped.getStart()) {
-              points.push_back(max(entry.start, mapped.getStart()));
-              points.push_back(min(entry.end, mapped.getEnd()));
+          for (const auto& entry : reserved)
+            if (entry.start < mappedEnd && entry.end > mappedStart) {
+              points.push_back(max(entry.start, mappedStart));
+              points.push_back(min(entry.end, mappedEnd));
             }
           sort(points.begin(), points.end());
           points.erase(unique(points.begin(), points.end()), points.end());
-          Date retry = Date::infiniteFuture;
           bool feasible = true;
           for (size_t point = 0; point + 1 < points.size(); ++point) {
             double used = 0.0;
             Date release = Date::infiniteFuture;
-            for (const auto& entry : reservations[resource])
+            for (const auto& entry : reserved)
               if (entry.start <= points[point] && entry.end > points[point]) {
                 used += entry.quantity;
-                release = min(release, entry.end);
+                release = min(release, data.changeoverEnabled
+                    ? changeoverReady(operationplan, resource, incomingSetup,
+                                      entry.end)
+                    : entry.end);
               }
             const double maximum = calendar ? calendar->getValue(points[point])
-                                            : resource->getMaximum();
+                                            : staticMaximum;
             if (used + required > maximum + ROUNDING_ERROR) {
               feasible = false;
               retry = min(retry, min(release, points[point + 1]));
@@ -1583,6 +1978,10 @@ GADecodedSchedule gaDecodeOne(
         (buffer->getItem() &&
          data.internalMaterialItems.count(buffer->getItem()->getName())));
   };
+  // Stage 2 always keeps the ledger. Stage 1 keeps it as soon as any GA
+  // operation produces or consumes an internal buffer, or precheck is on.
+  const bool enforceInventory = !data.fastDecode || data.materialPrecheck ||
+      !data.internalMaterialItems.empty();
   // A CCPL line produces WIP at the line-side location while the next stage
   // can consume it from a warehouse buffer.  MRP represents that leg as a
   // proposed zero-lead-time distribution order.  The GA decoder must expose
@@ -1590,6 +1989,7 @@ GADecodedSchedule gaDecodeOne(
   // the producer and consumer as unrelated buffers and falsely reports a
   // shortage after writeback.
   unordered_map<const Buffer*, vector<const Buffer*>> distributionDestinations;
+  if (enforceInventory)
   for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
     if (!plan->getOperation() ||
         !plan->getOperation()->hasType<OperationItemDistribution>())
@@ -1618,13 +2018,16 @@ GADecodedSchedule gaDecodeOne(
           calendarMaterialByItem[buffer->getItem()->getName()].push_back(
               {date, quantity});
       };
+  if (enforceInventory)
   for (const auto& event : data.fixedMaterialEvents)
     addCalendarMaterialEvent(
         event.buffer,
         data.schedulingAnchor + Duration(static_cast<long>(event.time)),
         event.quantity);
   const auto calendarMaterialReady = [&](const vector<GAData::MaterialFlow>& flows,
-                                         Date requested) {
+                                         Date requested,
+                                         const OperationPlan* consumer,
+                                         long long processSeconds) {
     Date ready = requested;
     for (const auto& flow : flows) {
       if (!flow.buffer || flow.quantity >= -ROUNDING_ERROR) continue;
@@ -1692,6 +2095,70 @@ GADecodedSchedule gaDecodeOne(
                     if (left.date != right.date) return left.date < right.date;
                     return left.quantity > right.quantity;
                   });
+      if (flow.transferBatch > ROUNDING_ERROR && consumer &&
+          consumer->getOperation()) {
+        const auto slices = gaMaterialSlices(flow, processSeconds);
+        const auto consumeAt = [&](Date start, long long offset) {
+          if (offset <= 0) return start;
+          return consumer->getOperation()->calculateOperationTime(
+              consumer, start, Duration(static_cast<long>(offset)), true)
+              .getEnd();
+        };
+        const auto fits = [&](Date start) {
+          struct Event {
+            Date date;
+            double quantity;
+            int consume;
+          };
+          vector<Event> events;
+          events.reserve(timeline.size() + slices.size());
+          for (const auto& item : timeline)
+            events.push_back({item.date, item.quantity, 0});
+          for (const auto& slice : slices) {
+            if (slice.quantity >= -ROUNDING_ERROR) continue;
+            events.push_back(
+                {consumeAt(start, slice.offset), slice.quantity, 1});
+          }
+          sort(events.begin(), events.end(),
+               [](const Event& left, const Event& right) {
+                 if (left.date != right.date) return left.date < right.date;
+                 return left.consume < right.consume;
+               });
+          double running = balance;
+          for (const auto& event : events) {
+            running += event.quantity;
+            if (running < -ROUNDING_ERROR) return false;
+          }
+          return true;
+        };
+        if (!fits(ready)) {
+          vector<Date> candidates;
+          candidates.push_back(ready);
+          for (const auto& item : timeline) {
+            if (item.quantity <= ROUNDING_ERROR) continue;
+            if (item.date > ready) candidates.push_back(item.date);
+            for (const auto& slice : slices) {
+              if (slice.quantity >= -ROUNDING_ERROR || slice.offset <= 0)
+                continue;
+              const Date aligned =
+                  item.date - Duration(static_cast<long>(slice.offset));
+              if (aligned > ready) candidates.push_back(aligned);
+            }
+          }
+          sort(candidates.begin(), candidates.end());
+          candidates.erase(unique(candidates.begin(), candidates.end()),
+                           candidates.end());
+          Date found = Date::infiniteFuture;
+          for (const Date start : candidates)
+            if (fits(start)) {
+              found = start;
+              break;
+            }
+          if (found == Date::infiniteFuture) return Date::infiniteFuture;
+          ready = max(ready, found);
+        }
+        continue;
+      }
       size_t position = 0;
       while (position < timeline.size() && timeline[position].date <= ready)
         balance += timeline[position++].quantity;
@@ -1717,7 +2184,7 @@ GADecodedSchedule gaDecodeOne(
     }
     return ready;
   };
-  vector<int> executionOrder = os;
+  vector<int> executionOrder = gaExpandJobOSToGenes(os, data);
   // A consuming stage must be decoded only after all possible upstream
   // production events are known.  Within a fixed CCPL stage we must also
   // decode in its existing chronological release order.  Otherwise an OS
@@ -1729,6 +2196,13 @@ GADecodedSchedule gaDecodeOne(
   // This does not freeze the line: GA still chooses resource alternatives
   // and the order between independent non-flow-line jobs. It merely gives a
   // single, cumulative WIP stream the same FIFO event ordering as MRP.
+  if (static_cast<int>(executionOrder.size()) != data.totalOperations()) {
+    schedule.materialFeasible = false;
+    schedule.materialShortageCount +=
+        abs(data.totalOperations() - static_cast<int>(executionOrder.size()));
+    return schedule;
+  }
+  if (enforceInventory)
   stable_sort(executionOrder.begin(), executionOrder.end(),
               [&](int left, int right) {
                 const int leftJob = left / data.maxOperations();
@@ -1791,7 +2265,31 @@ GADecodedSchedule gaDecodeOne(
   // An OS gene is a priority among ready operations, never permission to
   // violate an explicit routing predecessor. Keep entries pending until the
   // model predecessor has received its actual calendar completion.
-  vector<int> pending = executionOrder;
+  deque<int> pending(executionOrder.begin(), executionOrder.end());
+  if (data.fastDecode) {
+    // Job operations are already in routing order. The next ready gene is the
+    // earliest remaining OS position of each job, so the pending scan does
+    // not walk the routing tree or reshuffle the vector on every operation.
+    const int width = data.maxOperations();
+    vector<vector<int>> position(data.jobsNum);
+    for (int index = 0; index < static_cast<int>(executionOrder.size()); ++index) {
+      const int job = executionOrder[index] / width;
+      if (job >= 0 && job < data.jobsNum) position[job].push_back(index);
+    }
+    using Rank = pair<int, int>;
+    priority_queue<Rank, vector<Rank>, greater<Rank>> ready;
+    vector<int> cursor(data.jobsNum, 0);
+    for (int job = 0; job < data.jobsNum; ++job)
+      if (!position[job].empty()) ready.emplace(position[job][0], job);
+    pending.clear();
+    while (!ready.empty()) {
+      const int job = ready.top().second;
+      ready.pop();
+      pending.push_back(executionOrder[position[job][cursor[job]++]]);
+      if (cursor[job] < static_cast<int>(position[job].size()))
+        ready.emplace(position[job][cursor[job]], job);
+    }
+  }
   while (!pending.empty()) {
     auto selected = pending.end();
     for (auto candidate = pending.begin(); candidate != pending.end(); ++candidate) {
@@ -1800,6 +2298,10 @@ GADecodedSchedule gaDecodeOne(
       if (candidateJob < 0 || candidateJob >= data.jobsNum ||
           candidateOp != nextJobOperation[candidateJob])
         continue;
+      if (data.fastDecode) {
+        selected = candidate;
+        break;
+      }
       const OperationPlan* candidatePlan =
           candidateOp >= 0 && candidateOp < data.jobsOperations[candidateJob]
               ? data.operationPlans[candidateJob][candidateOp] : nullptr;
@@ -1836,7 +2338,15 @@ GADecodedSchedule gaDecodeOne(
     int operationBeginTime = 0;
     if (op != 0) {
       if (!data.overlapEnabled) {
-        operationBeginTime = schedule.end[job][op - 1];
+        const int previousBegin = schedule.begin[job][op - 1];
+        const int previousEnd = schedule.end[job][op - 1];
+        const int previousDuration = max(0, previousEnd - previousBegin);
+        const int release = gaTransferReleaseOffset(
+            data.operationFlows[job][op - 1],
+            data.operationFlows[job][op], previousDuration);
+        operationBeginTime = release >= previousDuration
+            ? previousEnd
+            : previousBegin + release;
       } else {
         const int previousBeginTime = schedule.begin[job][op - 1];
         const int previousProcessingTime =
@@ -1866,7 +2376,7 @@ GADecodedSchedule gaDecodeOne(
       const auto& flows = data.operationFlows[job][op];
       const long long materialReady = gaMaterialReadyTime(
           materialEvents, data.initialOnhand, constrainedFlows,
-          operationBeginTime);
+          operationBeginTime, duration);
       if (materialReady >= numeric_limits<long long>::max() / 8) {
         // External-material postcheck may remain permissive. Internal WIP is
         // different: it is part of this decoded chromosome and an unavailable
@@ -1892,26 +2402,78 @@ GADecodedSchedule gaDecodeOne(
     }
 
     auto& intervals = schedule.machineIntervals[machine];
-    int beginTime = operationBeginTime;
-    for (const auto& interval : intervals) {
-      if (beginTime >= interval.end) continue;
-      if (interval.begin - beginTime >= duration) break;
-      beginTime = interval.end;
+    PooledString toSetup;
+    int processing = operationBeginTime;
+    int setup = 0;
+    if (!data.changeoverEnabled) {
+      for (const auto& interval : intervals) {
+        if (processing >= interval.end) continue;
+        if (interval.begin - processing >= duration) break;
+        processing = interval.end;
+      }
+    } else {
+    const Resource* setupResource =
+        machine >= 0 && machine < static_cast<int>(data.resources.size())
+            ? data.resources[machine] : nullptr;
+    const OperationPlan* setupPlan = data.operationPlans[job][op];
+    toSetup = gaLoadSetup(
+        setupPlan ? setupPlan->getOperation() : nullptr, setupResource);
+    for (int guard = 0; guard < 64; ++guard) {
+      int predecessorEnd = -1;
+      int predecessorJob = -1;
+      int predecessorOp = -1;
+      for (const auto& interval : intervals) {
+        if (interval.end <= processing && interval.end > predecessorEnd) {
+          predecessorEnd = interval.end;
+          predecessorJob = interval.job;
+          predecessorOp = interval.operation;
+        }
+      }
+      PooledString fromSetup;
+      if (predecessorJob >= 0) {
+        const OperationPlan* previous =
+            data.operationPlans[predecessorJob][predecessorOp];
+        fromSetup = gaLoadSetup(
+            previous ? previous->getOperation() : nullptr, setupResource);
+      } else if (setupResource)
+        fromSetup = setupResource->getSetup();
+      setup = static_cast<int>(gaChangeoverSeconds(
+          setupResource, fromSetup, toSetup));
+      int needed = processing;
+      if (predecessorEnd >= 0)
+        needed = max(processing, predecessorEnd + setup);
+      else if (setup > 0)
+        needed = max(processing, setup);
+      const int occupation = needed - setup;
+      bool blocked = false;
+      for (const auto& interval : intervals) {
+        if (occupation >= interval.end) continue;
+        if (interval.begin - occupation >= setup + duration) break;
+        processing = interval.end;
+        blocked = true;
+        break;
+      }
+      if (!blocked) {
+        processing = needed;
+        break;
+      }
     }
-
-    GAScheduleInterval item{beginTime, beginTime + duration, job, op};
+    }
+    GAScheduleInterval item{processing - setup, processing + duration, job, op};
     gaInsertIntervalSorted(intervals, item);
-    schedule.begin[job][op] = item.begin;
-    schedule.end[job][op] = item.end;
-    schedule.machineLoad[machine] += duration;
+    schedule.begin[job][op] = processing;
+    schedule.end[job][op] = processing + duration;
+    schedule.machineLoad[machine] += duration + setup;
     if (data.materialPrecheck || !data.internalMaterialItems.empty()) {
       for (const auto& flow : data.operationFlows[job][op]) {
         if (!data.materialPrecheck &&
             !isInternalMaterial(flow.buffer))
           continue;
-        materialEvents.push_back(
-            {flow.buffer, flow.quantity < 0.0 ? item.begin : item.end,
-             flow.quantity});
+        for (const auto& slice : gaMaterialSlices(flow, duration))
+          materialEvents.push_back(
+              {flow.buffer,
+               processing + static_cast<int>(slice.offset),
+               slice.quantity});
       }
     }
 
@@ -1929,35 +2491,84 @@ GADecodedSchedule gaDecodeOne(
       schedule.calendarBegin[job][op] = modelOp->getStart();
       schedule.calendarEnd[job][op] = modelOp->getEnd();
       calendarCompletion[modelOp] = modelOp->getEnd();
-      reservations[modelRes].push_back(
-          {modelOp->getStart(), modelOp->getEnd(), 1.0});
+      insertReservation(modelRes, modelOp->getStart(), modelOp->getEnd(), 1.0,
+                        gaLoadSetup(modelOp->getOperation(), modelRes));
       const long long lockedEnd =
           (modelOp->getEnd() - data.schedulingAnchor).getSeconds();
       schedule.makespan = max(schedule.makespan, lockedEnd);
       schedule.jobCompletion[job] = max(schedule.jobCompletion[job], lockedEnd);
-      for (const auto& flow : data.operationFlows[job][op])
-        if (flow.buffer && fabs(flow.quantity) > ROUNDING_ERROR)
-          addCalendarMaterialEvent(flow.buffer,
-              flow.quantity < 0.0 ? modelOp->getStart() : modelOp->getEnd(),
-              flow.quantity);
+      const long long lockedDuration = max(
+          0LL, static_cast<long long>(
+              (modelOp->getEnd() - modelOp->getStart()).getSeconds()));
+      for (const auto& flow : data.operationFlows[job][op]) {
+        if (!flow.buffer || fabs(flow.quantity) <= ROUNDING_ERROR) continue;
+        for (const auto& slice : gaMaterialSlices(flow, lockedDuration)) {
+          Date at = modelOp->getEnd();
+          if (slice.offset <= 0)
+            at = modelOp->getStart();
+          else if (slice.offset < lockedDuration)
+            at = modelOp->getOperation()->calculateOperationTime(
+                modelOp, modelOp->getStart(),
+                Duration(static_cast<long>(slice.offset)), true)
+                .getEnd();
+          addCalendarMaterialEvent(flow.buffer, at, slice.quantity);
+        }
+      }
       continue;
     }
     Date requested = data.schedulingAnchor +
         Duration(static_cast<long>(item.begin));
+    const auto transferBoundary = [&](int previousJob, int previousOp,
+                                      Date previousStart, Date previousEnd) {
+      if (previousStart == Date::infinitePast ||
+          previousEnd == Date::infinitePast ||
+          previousEnd == Date::infiniteFuture)
+        return previousEnd;
+      const int previousDuration = max(
+          0, schedule.end[previousJob][previousOp] -
+                 schedule.begin[previousJob][previousOp]);
+      const int release = gaTransferReleaseOffset(
+          data.operationFlows[previousJob][previousOp],
+          data.operationFlows[job][op], previousDuration);
+      if (release >= previousDuration) return previousEnd;
+      if (release <= 0) return previousStart;
+      const OperationPlan* previousPlan =
+          data.operationPlans[previousJob][previousOp];
+      if (!previousPlan || !previousPlan->getOperation()) return previousEnd;
+      return previousPlan->getOperation()->calculateOperationTime(
+          previousPlan, previousStart,
+          Duration(static_cast<long>(release)), true).getEnd();
+    };
     if (op > 0 && schedule.calendarEnd[job][op - 1] != Date::infinitePast)
-      requested = max(requested, schedule.calendarEnd[job][op - 1]);
+      requested = max(requested, transferBoundary(
+          job, op - 1, schedule.calendarBegin[job][op - 1],
+          schedule.calendarEnd[job][op - 1]));
     // The GA job component isn't guaranteed to be identical to the model's
     // routing tree (eg an alternate can flatten the hierarchy). Preserve the
     // model's explicit previous-step relation as the authoritative extra
-    // precedence boundary whenever it has already been decoded.
+    // precedence boundary whenever it has already been decoded. A producing
+    // transfer batch releases that boundary at the first lot instead of the
+    // predecessor's completion.
+    if (!data.fastDecode)
     if (const OperationPlan* previous = modelOp->getPrevSubOpplan()) {
-      const Date predecessorEnd = completionOf(previous, completionOf);
-      if (predecessorEnd != Date::infinitePast &&
-          predecessorEnd != Date::infiniteFuture)
-        // In direct rolling mode a released predecessor isn't a chromosome
-        // gene. Its actual (or newly decoded child) end remains a hard
-        // prefix boundary for the first movable downstream operation.
-        requested = max(requested, predecessorEnd);
+      int previousJob = -1;
+      int previousOp = -1;
+      for (int scanJob = 0; scanJob < data.jobsNum && previousJob < 0; ++scanJob)
+        for (int scanOp = 0; scanOp < data.jobsOperations[scanJob]; ++scanOp)
+          if (data.operationPlans[scanJob][scanOp] == previous) {
+            previousJob = scanJob;
+            previousOp = scanOp;
+            break;
+          }
+      Date boundary = completionOf(previous, completionOf);
+      if (previousJob >= 0 &&
+          schedule.calendarEnd[previousJob][previousOp] != Date::infinitePast)
+        boundary = transferBoundary(
+            previousJob, previousOp,
+            schedule.calendarBegin[previousJob][previousOp],
+            schedule.calendarEnd[previousJob][previousOp]);
+      if (boundary != Date::infinitePast && boundary != Date::infiniteFuture)
+        requested = max(requested, boundary);
     }
     double required = 1.0;
     for (auto load = modelOp->beginLoadPlans(); load != modelOp->endLoadPlans(); ++load)
@@ -1966,13 +2577,24 @@ GADecodedSchedule gaDecodeOne(
         break;
     }
     const Duration processDuration(static_cast<long>(duration));
+    // No internal material: place the operation on the first free machine
+    // slot. With internal WIP, alternate material and capacity until the
+    // start covers every consume lot, including a transfer batch.
+    // Changeover sits before processing and consumes working time.
+    if (!enforceInventory) {
+      if (data.changeoverEnabled)
+        requested = changeoverReady(modelOp, modelRes, toSetup, requested);
+      requested = earliestCapacitySlot(
+          modelOp, modelRes, required, requested, processDuration, toSetup);
+    } else
     // Resource availability can push a consumer past another already-decoded
     // WIP reservation. Alternate between material and capacity boundaries
     // until neither moves. Checking material only before the resource search
     // made a chromosome look feasible and then export with a buffer shortage.
     for (unsigned short pass = 0; pass < 32; ++pass) {
-      const Date materialReady =
-          calendarMaterialReady(data.operationFlows[job][op], requested);
+      const Date materialReady = calendarMaterialReady(
+          data.operationFlows[job][op], requested, modelOp,
+          static_cast<long long>(processDuration.getSeconds()));
       if (gGAFinalGateTrace) {
         // Diagnostics for the exported chromosome: log every internal-material
         // consumption decision of the calendar gate, plus the balance the
@@ -1994,8 +2616,11 @@ GADecodedSchedule gaDecodeOne(
         requested = Date::infiniteFuture;
         break;
       }
+      const Date withSetup = data.changeoverEnabled
+          ? changeoverReady(modelOp, modelRes, toSetup, materialReady)
+          : materialReady;
       const Date capacityReady = earliestCapacitySlot(
-          modelOp, modelRes, required, materialReady, processDuration);
+          modelOp, modelRes, required, withSetup, processDuration, toSetup);
       if (capacityReady == Date::infiniteFuture) {
         requested = Date::infiniteFuture;
         break;
@@ -2018,26 +2643,62 @@ GADecodedSchedule gaDecodeOne(
     schedule.calendarBegin[job][op] = mappedStart;
     schedule.calendarEnd[job][op] = adjustedEnd;
     calendarCompletion[modelOp] = adjustedEnd;
+    Date setupStart = mappedStart;
+    if (data.changeoverEnabled && modelRes && modelRes->getSetupMatrix()) {
+      PooledString fromSetup = modelRes->getSetup();
+      Date predecessorEnd = Date::infinitePast;
+      for (const auto& entry : reservations[modelRes]) {
+        if (entry.end > mappedStart) continue;
+        if (predecessorEnd == Date::infinitePast || entry.end > predecessorEnd) {
+          predecessorEnd = entry.end;
+          fromSetup = entry.setup;
+        }
+      }
+      const long setup = gaChangeoverSeconds(modelRes, fromSetup, toSetup);
+      if (setup > 0) {
+        setupStart = modelOp->getOperation()
+                         ->calculateOperationTime(modelOp, mappedStart,
+                                                  Duration(setup), false)
+                         .getStart();
+        if (setupStart < mappedStart)
+          insertReservation(modelRes, setupStart, mappedStart, required,
+                            toSetup);
+      }
+    }
+    schedule.calendarSetupBegin[job][op] = setupStart;
     // The model recalculates an operation duration during writeback and can
     // round a quantity-dependent interval one second differently from the
     // calendar mapping above.  Reserve that boundary inclusively in the GA
     // shadow timeline.  This is a conservative one-second guard only; it
     // prevents a later plan from being decoded at an instant the model still
     // considers occupied, which otherwise exports as a capacity overload.
-    reservations[modelRes].push_back(
-        {mappedStart, adjustedEnd + Duration(static_cast<long>(1)), required});
+    insertReservation(
+        modelRes, mappedStart,
+        adjustedEnd + Duration(static_cast<long>(1)), required, toSetup);
     const long long mappedEnd =
         (schedule.calendarEnd[job][op] - data.schedulingAnchor).getSeconds();
     schedule.makespan = max(schedule.makespan, mappedEnd);
     schedule.movableMakespan = max(schedule.movableMakespan, mappedEnd);
     schedule.jobCompletion[job] = max(schedule.jobCompletion[job], mappedEnd);
-    for (const auto& flow : data.operationFlows[job][op])
-      if (flow.buffer && fabs(flow.quantity) > ROUNDING_ERROR &&
-          (data.materialPrecheck || isInternalMaterial(flow.buffer)))
-        addCalendarMaterialEvent(
-            flow.buffer,
-            flow.quantity < 0.0 ? mappedStart : schedule.calendarEnd[job][op],
-            flow.quantity);
+    if (enforceInventory)
+    for (const auto& flow : data.operationFlows[job][op]) {
+      if (!flow.buffer || fabs(flow.quantity) <= ROUNDING_ERROR ||
+          (!data.materialPrecheck && !isInternalMaterial(flow.buffer)))
+        continue;
+      const long long producedDuration = max(
+          0LL, static_cast<long long>(
+              (schedule.calendarEnd[job][op] - mappedStart).getSeconds()));
+      for (const auto& slice : gaMaterialSlices(flow, producedDuration)) {
+        Date at = schedule.calendarEnd[job][op];
+        if (slice.offset <= 0)
+          at = mappedStart;
+        else if (slice.offset < producedDuration)
+          at = modelOp->getOperation()->calculateOperationTime(
+              modelOp, mappedStart, Duration(static_cast<long>(slice.offset)),
+              true).getEnd();
+        addCalendarMaterialEvent(flow.buffer, at, slice.quantity);
+      }
+    }
   }
   if (gGAFinalGateTrace) {
     // Dump the final decoded FIFO ledger per internal buffer so a reported
@@ -2055,6 +2716,172 @@ GADecodedSchedule gaDecodeOne(
     if (entry.first && entry.first->getOperation() != entry.second)
       entry.first->setOperation(entry.second);
   return schedule;
+}
+
+void gaApplyDecodedWindow(GADecodedSchedule& schedule, const GAData& data,
+                          int job, int op, Date start, Date end) {
+  const Date oldBegin = schedule.calendarBegin[job][op];
+  const Date oldSetup = schedule.calendarSetupBegin[job][op];
+  schedule.calendarBegin[job][op] = start;
+  schedule.calendarEnd[job][op] = end;
+  if (oldSetup != Date::infinitePast && oldBegin != Date::infinitePast &&
+      oldSetup < oldBegin)
+    schedule.calendarSetupBegin[job][op] = start - (oldBegin - oldSetup);
+  else
+    schedule.calendarSetupBegin[job][op] = start;
+  const long long beginSeconds = (start - data.schedulingAnchor).getSeconds();
+  const long long endSeconds = (end - data.schedulingAnchor).getSeconds();
+  schedule.begin[job][op] = static_cast<int>(beginSeconds);
+  schedule.end[job][op] = static_cast<int>(endSeconds);
+  const int machine = schedule.selectedMachine[job][op];
+  if (machine < 0 || machine >= data.machinesNum) return;
+  for (auto& interval : schedule.machineIntervals[machine])
+    if (interval.job == job && interval.operation == op) {
+      const Date setupBegin = schedule.calendarSetupBegin[job][op];
+      interval.begin = static_cast<int>(
+          (setupBegin - data.schedulingAnchor).getSeconds());
+      interval.end = schedule.end[job][op];
+    }
+  const long long completion = max(0LL, endSeconds);
+  schedule.jobCompletion[job] = max(schedule.jobCompletion[job], completion);
+  schedule.makespan = max(schedule.makespan, completion);
+  schedule.movableMakespan = max(schedule.movableMakespan, completion);
+}
+
+// Stage 2. Right-shift every operation except a job's last step, up to the
+// next step and the next occupant of the same machine. The job completion
+// stays put, so idle gaps between steps (WIP waiting) shrink.
+int gaJitRightShift(GADecodedSchedule& schedule, const GAData& data) {
+  int moved = 0;
+  for (int pass = 0; pass < 4; ++pass) {
+    int passMoved = 0;
+    for (int job = 0; job < data.jobsNum; ++job) {
+      const int operations = data.jobsOperations[job];
+      for (int op = operations - 2; op >= 0; --op) {
+        const Date start = schedule.calendarBegin[job][op];
+        const Date end = schedule.calendarEnd[job][op];
+        const Date nextStart = schedule.calendarBegin[job][op + 1];
+        if (start == Date::infinitePast || end == Date::infinitePast ||
+            nextStart == Date::infinitePast || end <= start ||
+            nextStart <= end)
+          continue;
+        const Duration duration = end - start;
+        Date limit = nextStart;
+        const int machine = schedule.selectedMachine[job][op];
+        if (machine >= 0 && machine < data.machinesNum) {
+          Date nextMachine = Date::infiniteFuture;
+          int nextJob = -1;
+          int nextOp = -1;
+          for (int otherJob = 0; otherJob < data.jobsNum; ++otherJob) {
+            for (int otherOp = 0; otherOp < data.jobsOperations[otherJob];
+                 ++otherOp) {
+              if (otherJob == job && otherOp == op) continue;
+              if (schedule.selectedMachine[otherJob][otherOp] != machine)
+                continue;
+              const Date otherStart = schedule.calendarBegin[otherJob][otherOp];
+              if (otherStart != Date::infinitePast && otherStart > start &&
+                  otherStart < nextMachine) {
+                nextMachine = otherStart;
+                nextJob = otherJob;
+                nextOp = otherOp;
+              }
+            }
+          }
+          if (nextJob >= 0) {
+            long setup = 0;
+            if (data.changeoverEnabled) {
+              const OperationPlan* selfPlan = data.operationPlans[job][op];
+              const OperationPlan* otherPlan =
+                  data.operationPlans[nextJob][nextOp];
+              setup = gaChangeoverSeconds(
+                  data.resources[machine],
+                  gaLoadSetup(selfPlan ? selfPlan->getOperation() : nullptr,
+                              data.resources[machine]),
+                  gaLoadSetup(otherPlan ? otherPlan->getOperation() : nullptr,
+                              data.resources[machine]));
+            }
+            const Date gap = nextMachine - Duration(setup);
+            if (gap < limit) limit = gap;
+          }
+        }
+        Date newEnd = limit;
+        Date newStart = newEnd - duration;
+        if (op > 0) {
+          const Date previousEnd = schedule.calendarEnd[job][op - 1];
+          if (previousEnd != Date::infinitePast && previousEnd > newStart) {
+            newStart = previousEnd;
+            newEnd = newStart + duration;
+          }
+        }
+        if (machine >= 0 && machine < data.machinesNum) {
+          Date machinePrevious = Date::infinitePast;
+          Date latestEnd = Date::infinitePast;
+          int previousJob = -1;
+          int previousOp = -1;
+          for (int otherJob = 0; otherJob < data.jobsNum; ++otherJob) {
+            for (int otherOp = 0; otherOp < data.jobsOperations[otherJob];
+                 ++otherOp) {
+              if (schedule.selectedMachine[otherJob][otherOp] != machine)
+                continue;
+              const Date otherEnd = schedule.calendarEnd[otherJob][otherOp];
+              const Date otherStart = schedule.calendarBegin[otherJob][otherOp];
+              if (otherEnd != Date::infinitePast && otherStart < start &&
+                  otherEnd > latestEnd) {
+                latestEnd = otherEnd;
+                previousJob = otherJob;
+                previousOp = otherOp;
+              }
+            }
+          }
+          if (previousJob >= 0) {
+            long setup = 0;
+            if (data.changeoverEnabled) {
+              const OperationPlan* selfPlan = data.operationPlans[job][op];
+              const OperationPlan* otherPlan =
+                  data.operationPlans[previousJob][previousOp];
+              setup = gaChangeoverSeconds(
+                  data.resources[machine],
+                  gaLoadSetup(otherPlan ? otherPlan->getOperation() : nullptr,
+                              data.resources[machine]),
+                  gaLoadSetup(selfPlan ? selfPlan->getOperation() : nullptr,
+                              data.resources[machine]));
+            }
+            machinePrevious = latestEnd + Duration(setup);
+          }
+          if (machinePrevious != Date::infinitePast &&
+              machinePrevious > newStart) {
+            newStart = machinePrevious;
+            newEnd = newStart + duration;
+          }
+        }
+        if (newStart <= start || newEnd > limit) continue;
+        gaApplyDecodedWindow(schedule, data, job, op, newStart, newEnd);
+        ++passMoved;
+      }
+    }
+    moved += passMoved;
+    if (!passMoved) break;
+  }
+  return moved;
+}
+
+void gaRefineDecodedSchedule(GADecodedSchedule& schedule, const GAData& data,
+                              int candidate, int candidateCount) {
+  if (!data.fastDecode) return;
+  const int jitMoves = gaJitRightShift(schedule, data);
+  long long span = 0;
+  for (int job = 0; job < data.jobsNum; ++job)
+    for (int op = 0; op < data.jobsOperations[job]; ++op) {
+      if (schedule.calendarEnd[job][op] == Date::infinitePast) continue;
+      span = max(span, static_cast<long long>(
+                          (schedule.calendarEnd[job][op] - data.schedulingAnchor)
+                              .getSeconds()));
+    }
+  schedule.makespan = span;
+  schedule.movableMakespan = span;
+  logger << "GA stage2: candidate " << candidate << "/" << candidateCount
+         << " JIT right-shifts=" << jitMoves
+         << " makespan=" << span << "s\n";
 }
 
 // --- Multi-objective evaluation -------------------------------------------
@@ -2268,9 +3095,9 @@ GAEvaluation gaEvaluatePopulationCached(const vector<vector<int>>& ms,
     result.schedules.push_back(gaDecodeOne(ms[i], os[i], data));
     const auto& s = result.schedules.back();
     result.feasible.push_back(s.materialFeasible);
-    result.objectives.push_back({static_cast<double>(s.movableMakespan),
-                                 gaBalanceCV(s, data),
-                                 gaTardinessObjective(s, data)});
+    const double makespan = static_cast<double>(s.movableMakespan);
+    result.objectives.push_back(
+        {makespan, gaBalanceCV(s, data), gaTardinessObjective(s, data)});
     result.rawScores.push_back(gaEvaluate(s, data));
   }
   return result;
@@ -2502,26 +3329,29 @@ void gaRandomCrossover(
 void gaPoxCrossover(
     vector<vector<int>>& code, const vector<float>& crossoverP,
     const GAData& data, GARNG& rng) {
+  // Numba POX: pick a random job set; keep those job-ids in parent1 order,
+  // fill the remaining slots from parent2 order (skipping the job set).
   const int codeSize = static_cast<int>(code.size());
-  if (codeSize < 2) return;
+  if (codeSize < 2 || data.jobsNum <= 1) return;
   const int codeLength = static_cast<int>(code[0].size());
   for (int idx = 0; idx < codeSize - 1; ++idx) {
     if (rng.rand01() >= crossoverP[idx]) continue;
     const int prefix = data.lockedOSPrefixLength;
     if (prefix >= codeLength) continue;
-    auto child = code[idx];
+    unordered_set<int> jobSet;
+    const int setSize = rng.randint(1, data.jobsNum);
+    while (static_cast<int>(jobSet.size()) < setSize)
+      jobSet.insert(rng.randint(0, data.jobsNum));
+    auto& child = code[idx];
     const auto& donor = code[idx + 1];
-    unordered_set<int> preserve;
-    for (int pos = prefix; pos < codeLength; ++pos)
-      if (rng.rand01() < 0.5) preserve.insert(child[pos]);
-    vector<int> replacement;
-    for (int pos = prefix; pos < codeLength; ++pos)
-      if (!preserve.count(donor[pos])) replacement.push_back(donor[pos]);
-    size_t next = 0;
-    for (int pos = prefix; pos < codeLength; ++pos)
-      if (!preserve.count(child[pos]) && next < replacement.size())
-        child[pos] = replacement[next++];
-    code[idx] = std::move(child);
+    int donorPos = prefix;
+    for (int pos = prefix; pos < codeLength; ++pos) {
+      if (jobSet.count(child[pos])) continue;
+      while (donorPos < codeLength && jobSet.count(donor[donorPos]))
+        ++donorPos;
+      if (donorPos >= codeLength) break;
+      child[pos] = donor[donorPos++];
+    }
   }
 }
 
@@ -2623,13 +3453,14 @@ bool gaCanSwapAdjacentOnMachine(
 bool gaTryVNSOne(
     vector<int>& ms, vector<int>& os, double& currentScore,
     const GAData& data, const vector<vector<int>>& msPositions,
-    GARNG& rng) {
+    GARNG& rng, int moveBudget = 0) {
   vector<int> jobsOrder(data.jobsNum);
   iota(jobsOrder.begin(), jobsOrder.end(), 0);
   bool improved = false;
   bool keepSearching = true;
   int acceptedMoves = 0;
-  const int moveBudget = max(1, min(32, data.totalOperations() / 8));
+  if (moveBudget <= 0)
+    moveBudget = max(1, min(32, data.totalOperations() / 8));
   while (keepSearching && acceptedMoves < moveBudget) {
     keepSearching = false;
     auto schedule = gaDecodeOne(ms, os, data);
@@ -2655,11 +3486,9 @@ bool gaTryVNSOne(
               auto candidateMS = ms;
               auto candidateOS = os;
               candidateMS[msPositions[job][op]] = idx;
-              const int osPosition = gaGenePosition(
-                  candidateOS, gaOperationGene(data, job, op));
-              const int oldOSPosition = gaGenePosition(
-                  candidateOS, gaOperationGene(data, interval.job,
-                                                interval.operation));
+              const int osPosition = gaJobOpOSPosition(candidateOS, job, op);
+              const int oldOSPosition = gaJobOpOSPosition(
+                  candidateOS, interval.job, interval.operation);
               if (osPosition >= data.lockedOSPrefixLength &&
                   oldOSPosition >= data.lockedOSPrefixLength &&
                   oldOSPosition < osPosition) {
@@ -2696,11 +3525,12 @@ bool gaTryVNSOne(
 
 bool gaTryVNSTwo(
     vector<int>& ms, vector<int>& os, double& currentScore,
-    const GAData& data, GARNG& rng) {
+    const GAData& data, GARNG& rng, int moveBudget = 0) {
   bool improved = false;
   bool keepSearching = true;
   int acceptedMoves = 0;
-  const int moveBudget = max(1, min(32, data.totalOperations() / 8));
+  if (moveBudget <= 0)
+    moveBudget = max(1, min(32, data.totalOperations() / 8));
   vector<int> machineOrder(data.machinesNum);
   iota(machineOrder.begin(), machineOrder.end(), 0);
   while (keepSearching && acceptedMoves < moveBudget) {
@@ -2731,10 +3561,10 @@ bool gaTryVNSTwo(
             auto candidateOS = os;
             const auto& left = intervals[leftIdx];
             const auto& right = intervals[rightIdx];
-            const int leftPos = gaGenePosition(
-                candidateOS, gaOperationGene(data, left.job, left.operation));
-            const int rightPos = gaGenePosition(
-                candidateOS, gaOperationGene(data, right.job, right.operation));
+            const int leftPos = gaJobOpOSPosition(
+                candidateOS, left.job, left.operation);
+            const int rightPos = gaJobOpOSPosition(
+                candidateOS, right.job, right.operation);
             if (leftPos < data.lockedOSPrefixLength ||
                 rightPos < data.lockedOSPrefixLength) continue;
             swap(candidateOS[leftPos], candidateOS[rightPos]);
@@ -2787,6 +3617,41 @@ void gaApplyVNS(
       gaTryVNSTwo(ms[index], os[index], score, data, rng);
     decodeResults[index] = gaEvaluate(gaDecodeOne(ms[index], os[index], data), data);
   }
+}
+
+// Stage 2 search. A few first-improvement rounds on one exported chromosome:
+// move one operation onto another eligible machine, or swap two adjacent
+// operations on the same machine. The caller passes a fully constrained
+// decoder, so resource calendars, routing precedence and internal WIP are
+// all scored. Only a strictly better weighted score is kept. JIT runs
+// afterwards on the accepted chromosome.
+void gaPolishFinalChromosome(
+    vector<int>& ms, vector<int>& os, double& score, const GAData& data,
+    const vector<vector<int>>& msPositions, GARNG& rng, int candidate,
+    int candidateCount) {
+  if (ms.empty() || os.empty()) return;
+  bool hasMachineAlternates = false;
+  bool hasMultiOperationJobs = false;
+  for (int job = 0; job < data.jobsNum; ++job) {
+    if (data.jobsOperations[job] > 1) hasMultiOperationJobs = true;
+    for (int op = 0; op < data.jobsOperations[job]; ++op)
+      if (data.candidateMachineCount[job][op] > 1)
+        hasMachineAlternates = true;
+  }
+  const double before = score;
+  int roundsUsed = 0;
+  for (int round = 0; round < 3; ++round) {
+    const double roundStart = score;
+    ++roundsUsed;
+    if (hasMachineAlternates)
+      gaTryVNSOne(ms, os, score, data, msPositions, rng, 8);
+    if (hasMultiOperationJobs)
+      gaTryVNSTwo(ms, os, score, data, rng, 8);
+    if (score >= roundStart - 1e-9) break;
+  }
+  logger << "GA stage2: candidate " << candidate << "/" << candidateCount
+         << " neighborhood rounds=" << roundsUsed
+         << " score " << before << " -> " << score << "\n";
 }
 
 struct GAPopulation {
@@ -2919,17 +3784,31 @@ struct GAPopulation {
     vector<double> memoryResults(memoryMS.size(), 1e18);
     const int vnsNum = static_cast<int>(ceil(size * config.vnsRatio));
 
+    string stopReason = "generations";
+    int stepsRun = 0;
     for (int step = 0; step < config.maxStep; ++step) {
-      // NSGA-II uses front rank plus crowding for parent tournaments.
-      // The former rank-normalized weighted score is retained only for the
-      // scalar archive/VNS path, not for population survival.
+      stepsRun = step + 1;
+      const double elapsedSeconds =
+          chrono::duration<double>(chrono::steady_clock::now() - start).count();
+      if (config.timeLimitSeconds > 0.0 &&
+          elapsedSeconds >= config.timeLimitSeconds) {
+        stopReason = "time_limit";
+        break;
+      }
+
+      // NSGA-II: front rank + crowding for parent selection / survival.
+      // Weighted scalar (rawScores) is only for archive / VNS / tie-break.
+      // Calendar decoding stays inside gaDecodeOne for every evaluation.
       auto evaluation = gaEvaluatePopulationCached(ms, os, data);
       auto nsgaInfo = gaNSGA2Rank(evaluation);
       auto decodeResults = gaNSGA2SelectionScore(nsgaInfo);
       auto rawResults = evaluation.rawScores;
-      if (config.enableVNS &&
-          (step > config.maxStep * 0.7 ||
-           noNewBest > config.maxNoNewBest / 2)) {
+      const bool lateByStep = step > config.maxStep * 0.7;
+      const bool lateByStagnation = noNewBest > config.maxNoNewBest / 2;
+      const bool lateByTime =
+          config.timeLimitSeconds > 0.0 &&
+          elapsedSeconds > config.timeLimitSeconds * 0.7;
+      if (config.enableVNS && (lateByStep || lateByStagnation || lateByTime)) {
         vector<int> sortedIndices(decodeResults.size(), 0);
         iota(sortedIndices.begin(), sortedIndices.end(), 0);
         sort(sortedIndices.begin(), sortedIndices.end(),
@@ -2940,8 +3819,6 @@ struct GAPopulation {
             min(vnsNum, static_cast<int>(sortedIndices.size())));
         gaApplyVNS(
             ms, os, rawResults, sortedIndices, data, msPositions, rng);
-        // VNS modified chromosomes: recompute the population-relative ranks
-        // used by the subsequent tournament selection.
         evaluation = gaEvaluatePopulationCached(ms, os, data);
         nsgaInfo = gaNSGA2Rank(evaluation);
         decodeResults = gaNSGA2SelectionScore(nsgaInfo);
@@ -2964,7 +3841,11 @@ struct GAPopulation {
       if (config.memorySize > 0.0 && !memoryResults.empty())
         gaUpdateMemoryLib(
             memoryMS, memoryOS, memoryResults, ms, os, decodeResults);
-      if (noNewBest >= config.maxNoNewBest) break;
+      // Early stop: no improvement for stagnation_limit consecutive generations.
+      if (noNewBest >= config.maxNoNewBest) {
+        stopReason = "stagnation";
+        break;
+      }
 
       vector<vector<int>> newMS(size, vector<int>(length, 0));
       vector<vector<int>> newOS(size, vector<int>(length, 0));
@@ -2972,6 +3853,12 @@ struct GAPopulation {
         gaTournamentRandom(
             ms, os, newMS, newOS, config.tournamentM,
             decodeResults, data, rng);
+      } else if (config.useMemoryTournament && config.memorySize > 0.0 &&
+                 !memoryMS.empty()) {
+        gaTournamentMemory(
+            ms, os, memoryMS, memoryOS, newMS, newOS,
+            config.tournamentM, decodeResults, memoryResults,
+            step, config.maxStep, rng);
       } else {
         gaTournament(
             ms, os, newMS, newOS, config.tournamentM, decodeResults, rng);
@@ -3002,14 +3889,12 @@ struct GAPopulation {
       if (config.useRandomOSMutation)
         gaRandomMutation(newOS, mutationP, data, rng);
 
-      // Elitist NSGA-II survival: combine parent and offspring populations,
-      // then retain complete Pareto fronts and use crowding to trim the last.
+      // Elitist NSGA-II survival (μ+λ): merge parents + offspring, keep the
+      // first complete non-dominated fronts (crowding on the last front).
       ms.insert(ms.end(), make_move_iterator(newMS.begin()),
                 make_move_iterator(newMS.end()));
       os.insert(os.end(), make_move_iterator(newOS.begin()),
                 make_move_iterator(newOS.end()));
-      // Parent results are cached above. Decode only the newly generated
-      // offspring, then combine both caches for NSGA-II survival.
       auto children = gaEvaluatePopulationCached(
           vector<vector<int>>(ms.begin() + size, ms.end()),
           vector<vector<int>>(os.begin() + size, os.end()), data);
@@ -3028,25 +3913,60 @@ struct GAPopulation {
       gaNSGA2Survive(ms, os, size, evaluation);
     }
 
-    // The population has survived with NSGA-II elitism. Select the delivered
-    // plan from its final Pareto front; weights are a business tie-breaker
-    // only, never a replacement for non-dominated survival.
+    // Stage 2 receives the first N Pareto solutions. Front rank comes first,
+    // then the weighted score. Each candidate is polished and right-shifted
+    // on its own; the exported plan is the best score after that repair.
     const auto finalEvaluation = gaEvaluatePopulationCached(ms, os, data);
     const auto finalNSGA = gaNSGA2Rank(finalEvaluation);
     const auto& finalRaw = finalEvaluation.rawScores;
-    int finalIndex = -1;
-    for (size_t i = 0; i < finalNSGA.size(); ++i)
-      if (finalNSGA[i].front == 0 &&
-          (finalIndex < 0 || finalRaw[i] < finalRaw[finalIndex]))
-        finalIndex = static_cast<int>(i);
-    if (finalIndex >= 0) {
-      bestMS = ms[finalIndex];
-      bestOS = os[finalIndex];
-      bestScore = finalRaw[finalIndex];
+    vector<int> ranked(finalNSGA.size());
+    iota(ranked.begin(), ranked.end(), 0);
+    sort(ranked.begin(), ranked.end(), [&](int left, int right) {
+      if (finalNSGA[left].front != finalNSGA[right].front)
+        return finalNSGA[left].front < finalNSGA[right].front;
+      return finalRaw[left] < finalRaw[right];
+    });
+    const int stage2Count = min(
+        getEnvInt("GA_STAGE2_SOLUTIONS", 1),
+        static_cast<int>(ranked.size()));
+    GADecodedSchedule finalSchedule;
+    int keptCandidate = 0;
+    if (stage2Count > 0) {
+      double bestRefined = numeric_limits<double>::max();
+      for (int n = 0; n < stage2Count; ++n) {
+        const int index = ranked[n];
+        vector<int> candidateMS = ms[index];
+        vector<int> candidateOS = os[index];
+        // Few chromosomes reach this point, so each neighborhood trial also
+        // walks the routing predecessor tree. Stage 1 already enforces the
+        // internal WIP ledger when the operations carry material.
+        data.fastDecode = false;
+        double score = gaEvaluate(
+            gaDecodeOne(candidateMS, candidateOS, data), data);
+        gaPolishFinalChromosome(
+            candidateMS, candidateOS, score, data, msPositions, rng,
+            n + 1, stage2Count);
+        auto schedule = gaDecodeOne(candidateMS, candidateOS, data);
+        data.fastDecode = true;
+        gaRefineDecodedSchedule(schedule, data, n + 1, stage2Count);
+        const double refined = gaEvaluate(schedule, data);
+        if (refined < bestRefined) {
+          bestRefined = refined;
+          bestMS = std::move(candidateMS);
+          bestOS = std::move(candidateOS);
+          bestScore = refined;
+          finalSchedule = std::move(schedule);
+          keptCandidate = n + 1;
+        }
+      }
+      logger << "GA stage2: kept candidate " << keptCandidate
+             << "/" << stage2Count << "\n";
+    } else {
+      gGAFinalGateTrace = getEnvBool("GA_GATE_TRACE");
+      finalSchedule = gaDecodeOne(bestMS, bestOS, data);
+      gGAFinalGateTrace = false;
+      gaRefineDecodedSchedule(finalSchedule, data, 1, 1);
     }
-    gGAFinalGateTrace = getEnvBool("GA_GATE_TRACE");
-    auto finalSchedule = gaDecodeOne(bestMS, bestOS, data);
-    gGAFinalGateTrace = false;
     auto end = chrono::steady_clock::now();
     GARunResult result;
     result.bestMS = bestMS;
@@ -3057,6 +3977,8 @@ struct GAPopulation {
     result.schedule = std::move(finalSchedule);
     result.bestScore = bestScore;
     result.bestStep = bestStep;
+    result.stepsRun = stepsRun;
+    result.stopReason = stopReason;
     result.runtimeSeconds = chrono::duration<double>(end - start).count();
     return result;
   }
@@ -3071,6 +3993,7 @@ GASolverConfig buildGASolverConfig(const GAConfig& config) {
   ga.memorySize = max(0.0, config.memory_size);
   ga.mutationScale = max(0.0, config.mutation_rate);
   ga.vnsRatio = max(0.0, config.vns_ratio);
+  ga.timeLimitSeconds = max(0.0, config.time_limit_seconds);
   ga.useMemoryTournament = config.use_memory_tournament;
   ga.useRandomTournament = config.use_random_tournament;
   ga.useUniformMSCrossover = config.use_uniform_ms_crossover;
@@ -3123,6 +4046,10 @@ AntSolution buildAntSolutionFromGASchedule(
           [interval.job][interval.operation];
 
       solution.sequences[resource].push_back(op);
+      const Date setupStart = result.schedule.calendarSetupBegin
+          [interval.job][interval.operation];
+      if (op && setupStart != Date::infinitePast)
+        solution.setupStarts[op] = setupStart;
       solution.startDates[resource].push_back(
           decodedStart != Date::infinitePast ? decodedStart : mapped.start);
       solution.endDates[resource].push_back(
@@ -3191,8 +4118,8 @@ AntSolution buildAntSolutionFromGASchedule(
     // bridge an item produced at one location and consumed at the next line
     // station. The order itself is created by the normal MRP network; GA only
     // supplies the forward receipt event when its source material is released.
-    unordered_map<const Buffer*, vector<const Buffer*>> distributionDestinations;
-    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
+  unordered_map<const Buffer*, vector<const Buffer*>> distributionDestinations;
+  for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
       if (!plan->getOperation() ||
           !plan->getOperation()->hasType<OperationItemDistribution>())
         continue;
@@ -3457,17 +4384,20 @@ PyObject* run_ga(PyObject*, PyObject*) {
   cfg.generations = getEnvInt("GA_GENERATIONS", cfg.generations);
   cfg.stagnation_limit =
       getEnvInt("GA_STAGNATION_LIMIT", cfg.stagnation_limit);
-  cfg.objective_makespan_weight = getEnvDouble(
-      "GA_OBJECTIVE_MAKESPAN_WEIGHT", cfg.objective_makespan_weight);
-  cfg.objective_balance_weight = getEnvDouble(
-      "GA_OBJECTIVE_BALANCE_WEIGHT", cfg.objective_balance_weight);
-  cfg.objective_tardiness_weight = getEnvDouble(
-      "GA_OBJECTIVE_TARDINESS_WEIGHT", cfg.objective_tardiness_weight);
+  cfg.enable_vns = getEnvBool("GA_ENABLE_VNS", cfg.enable_vns);
+  cfg.vns_ratio = getEnvDouble("GA_VNS_RATIO", cfg.vns_ratio);
+  cfg.time_limit_seconds = getEnvDouble(
+      "GA_TIME_LIMIT_SECONDS", cfg.time_limit_seconds, 0.0);
   const string objectiveProfile = []() {
     const char* value = getenv("GA_OBJECTIVE_PROFILE");
     return value ? string(value) : string("due_date");
   }();
-  if (objectiveProfile == "efficiency") {
+  if (objectiveProfile == "makespan") {
+    // Pure Cmax — for fair comparison with classic FJSP GA (e.g. Numba).
+    cfg.objective_makespan_weight = 1.0;
+    cfg.objective_balance_weight = 0.0;
+    cfg.objective_tardiness_weight = 0.0;
+  } else if (objectiveProfile == "efficiency") {
     cfg.objective_makespan_weight = 0.80;
     cfg.objective_balance_weight = 0.10;
     cfg.objective_tardiness_weight = 0.10;
@@ -3478,11 +4408,24 @@ PyObject* run_ga(PyObject*, PyObject*) {
   } else if (objectiveProfile != "due_date") {
     logger << "Warning: Unknown ga.objective_profile '" << objectiveProfile
            << "', using due_date\n";
-  } else {
-    cfg.objective_makespan_weight = 0.25;
+    cfg.objective_makespan_weight = 0.80;
     cfg.objective_balance_weight = 0.10;
-    cfg.objective_tardiness_weight = 0.65;
+    cfg.objective_tardiness_weight = 0.10;
+  } else {
+    cfg.objective_makespan_weight = 0.80;
+    cfg.objective_balance_weight = 0.10;
+    cfg.objective_tardiness_weight = 0.10;
   }
+  // Explicit env weights override the profile (experiment / A-B switches).
+  if (getenv("GA_OBJECTIVE_MAKESPAN_WEIGHT"))
+    cfg.objective_makespan_weight = getEnvDouble(
+        "GA_OBJECTIVE_MAKESPAN_WEIGHT", cfg.objective_makespan_weight);
+  if (getenv("GA_OBJECTIVE_BALANCE_WEIGHT"))
+    cfg.objective_balance_weight = getEnvDouble(
+        "GA_OBJECTIVE_BALANCE_WEIGHT", cfg.objective_balance_weight);
+  if (getenv("GA_OBJECTIVE_TARDINESS_WEIGHT"))
+    cfg.objective_tardiness_weight = getEnvDouble(
+        "GA_OBJECTIVE_TARDINESS_WEIGHT", cfg.objective_tardiness_weight);
   cfg.material_check_mode =
       getMaterialCheckModeFromEnv(cfg.material_check_mode);
   ga.setConfig(cfg);
@@ -3539,6 +4482,10 @@ PyObject* run_ga(PyObject*, PyObject*) {
     ga.synchronizeProposedDistributions();
     if (cmdMgr) cmdMgr->commit();
   }
+  // WIP repair / DO sync can still shift manufacturing receipts.  Re-align
+  // deliveries for both CCPL and FJSP GA paths.
+  ga.alignDeliveryCommitments();
+  if (cmdMgr) cmdMgr->commit();
   // Moving plans through CommandManager can recreate the original MRP
   // capacity trace after applyBestSolution has cleaned it.  The joint CCPL
   // decoder has already verified the final calendar, so remove only those
@@ -4038,7 +4985,12 @@ void SolverGA::applyBestSolution(const AntSolution& best) {
       // serialize it again here: a second resource-by-resource pass loses
       // the material-ledger order and makes the exported plan differ from
       // the fitness that the GA selected.
-      const Date appliedStart = start;
+      Date appliedStart = start;
+      const auto setupIt = best.setupStarts.find(op);
+      if (setupIt != best.setupStarts.end() &&
+          setupIt->second != Date::infinitePast &&
+          setupIt->second < appliedStart)
+        appliedStart = setupIt->second;
 
       auto oit = best.selectedOperations.find(op);
       if (parseCCPLStage(op) < 1 &&
@@ -4168,6 +5120,10 @@ void SolverGA::applyBestSolution(const AntSolution& best) {
     // first receipt became visible.
   }
   syncAllRoutingTimeEnvelopes();
+  // Manufacturing dates are final for this chromosome writeback.  Re-pin
+  // deliveries to max(FG receipt, due) so a delayed MO cannot leave a stale
+  // early (or late) MRP promise on the batch buffer.
+  alignDeliveryCommitments();
   for (const auto& row : applyRows)
     if (row.op) lockOptimizedPlan(row.op);
   if (getLogLevel() >= 0)
@@ -4378,6 +5334,145 @@ void SolverGA::enforceInternalMaterialAvailability() {
     if (!moved) return;
   }
   logger << "Warning: GA internal material repair reached its move limit\n";
+}
+
+void SolverGA::alignDeliveryCommitments() {
+  // GA only rewrites manufacturing (and optionally DO/PO). Delivery plans
+  // keep MRP timestamps unless re-pinned here. Same rule as SolverFAS:
+  // commitment = max(material receipt, demand due).
+  //
+  // Prefer the manufacturing order that shares the delivery's batch id.
+  // Shared unbatched FG buffers otherwise let an early unrelated lot cover
+  // the FIFO check and leave this delivery on its due date while its own
+  // batch is still open (temporary shortage on the shared buffer).
+  // Snapshot first. setStartAndEnd reorders the operationplan list, so
+  // updating a delivery while iterating that list skips the ones it
+  // bubbles past.
+  vector<OperationPlan*> deliveries;
+  for (auto plan = OperationPlan::begin(); plan != OperationPlan::end();
+       ++plan) {
+    OperationPlan* op = &*plan;
+    if (!op->getOperation() ||
+        !op->getOperation()->hasType<OperationDelivery>())
+      continue;
+    if (op->getConfirmed() || op->getCompleted() || op->getClosed()) continue;
+    deliveries.push_back(op);
+  }
+  size_t moved = 0;
+  for (OperationPlan* op : deliveries) {
+    Date due = Date::infinitePast;
+    if (Demand* demand = op->getDemand()) due = demand->getDue();
+    const PooledString batch = op->getBatch();
+    Item* item = nullptr;
+    if (Demand* demand = op->getDemand()) item = demand->getItem();
+    if (!item) {
+      for (auto flow = op->beginFlowPlans(); flow != op->endFlowPlans(); ++flow)
+        if (flow->getQuantity() < -ROUNDING_ERROR && flow->getBuffer() &&
+            flow->getBuffer()->getItem()) {
+          item = flow->getBuffer()->getItem();
+          break;
+        }
+    }
+
+    Date materialReady = Date::infinitePast;
+    // 1) Same-batch manufacturing receipt (authoritative for FJSP/lot splits).
+    if (batch && item) {
+      for (auto producer = OperationPlan::begin();
+           producer != OperationPlan::end(); ++producer) {
+        if (&*producer == op || producer->getBatch() != batch) continue;
+        Item* producerItem = nullptr;
+        for (auto produce = producer->beginFlowPlans();
+             produce != producer->endFlowPlans(); ++produce)
+          if (produce->getQuantity() > ROUNDING_ERROR && produce->getBuffer() &&
+              produce->getBuffer()->getItem()) {
+            producerItem = produce->getBuffer()->getItem();
+            break;
+          }
+        if (!producerItem || producerItem != item) continue;
+        Date available = producer->getEnd();
+        if (producer->getSubOperationPlans(false) != OperationPlan::end()) {
+          Date leafEnd = Date::infinitePast;
+          vector<OperationPlan*> stack{&*producer};
+          while (!stack.empty()) {
+            OperationPlan* node = stack.back();
+            stack.pop_back();
+            bool hasChild = false;
+            for (OperationPlan::iterator child(node); child != node->end();
+                 ++child) {
+              hasChild = true;
+              stack.push_back(&*child);
+            }
+            if (!hasChild) leafEnd = max(leafEnd, node->getEnd());
+          }
+          if (leafEnd != Date::infinitePast) available = leafEnd;
+        }
+        if (available != Date::infinitePast &&
+            available != Date::infiniteFuture)
+          materialReady = max(materialReady, available);
+      }
+    }
+    // 2) Fallback: FIFO on the consuming buffer (unbatched / no batch id).
+    if (materialReady == Date::infinitePast) {
+      for (auto consume = op->beginFlowPlans(); consume != op->endFlowPlans();
+           ++consume) {
+        if (consume->getQuantity() >= -ROUNDING_ERROR || !consume->getBuffer())
+          continue;
+        Buffer* buffer = consume->getBuffer();
+        double remaining = -consume->getQuantity();
+        struct Candidate {
+          Date available;
+          double quantity;
+          string reference;
+        };
+        vector<Candidate> candidates;
+        for (auto producer = OperationPlan::begin();
+             producer != OperationPlan::end(); ++producer) {
+          if (&*producer == op) continue;
+          for (auto produce = producer->beginFlowPlans();
+               produce != producer->endFlowPlans(); ++produce) {
+            if (produce->getQuantity() <= ROUNDING_ERROR ||
+                produce->getBuffer() != buffer)
+              continue;
+            Date available = producer->getEnd();
+            if (produce->getDate() != Date::infinitePast &&
+                produce->getDate() != Date::infiniteFuture)
+              available = max(available, produce->getDate());
+            candidates.push_back(
+                {available, produce->getQuantity(), producer->getReference()});
+          }
+        }
+        stable_sort(candidates.begin(), candidates.end(),
+                    [](const Candidate& left, const Candidate& right) {
+                      if (left.available != right.available)
+                        return left.available < right.available;
+                      return left.reference < right.reference;
+                    });
+        Date batchReady = Date::infinitePast;
+        for (const auto& candidate : candidates) {
+          if (remaining <= ROUNDING_ERROR) break;
+          const double take = min(remaining, candidate.quantity);
+          if (take <= ROUNDING_ERROR) continue;
+          remaining -= take;
+          batchReady = max(batchReady, candidate.available);
+        }
+        if (batchReady != Date::infinitePast)
+          materialReady = max(materialReady, batchReady);
+      }
+    }
+
+    Date commitment = materialReady;
+    if (due != Date::infinitePast) commitment = max(commitment, due);
+    if (commitment == Date::infinitePast) continue;
+    if (commitment == op->getStart() && commitment == op->getEnd()) continue;
+    // Force the promise date. setOperationPlanParameters / CommandMove can
+    // leave deliveries on the MRP due date (esp. with later=true); this is a
+    // zero-duration commitment with no capacity, so stamp it directly.
+    op->setStartAndEnd(commitment, commitment);
+    ++moved;
+  }
+  if (moved && getLogLevel() >= 0)
+    logger << indentlevel << "GA: aligned " << moved
+           << " delivery commitments to max(receipt, due)\n";
 }
 
 void SolverGA::synchronizeProposedPurchases() {
@@ -5082,8 +6177,34 @@ AntSolution SolverGA::evolve(
   if (deterministicFlowLine) {
     GAData gaData = buildGAData(input, config_);
     vector<int> deterministicMS(gaData.totalOperations(), 0);
-    vector<int> deterministicOS(gaData.totalOperations(), 0);
-    iota(deterministicOS.begin(), deterministicOS.end(), 0);
+    // Locked occurrences are decoded first, in start order, so their machine
+    // and material reservations exist before a movable order looks for a slot.
+    // The unlocked suffix stays in job order; this path does not shuffle.
+    struct LockedRow { int job; Date start; Date end; string reference; };
+    vector<LockedRow> lockedRows;
+    vector<int> lockedCount(gaData.jobsNum, 0);
+    for (int job = 0; job < gaData.jobsNum; ++job)
+      for (int op = 0; op < gaData.jobsOperations[job]; ++op) {
+        const OperationPlan* plan = gaData.operationPlans[job][op];
+        if (!gaData.lockedOperation[job][op] || !plan) continue;
+        lockedRows.push_back(
+            {job, plan->getStart(), plan->getEnd(), plan->getReference()});
+        ++lockedCount[job];
+      }
+    sort(lockedRows.begin(), lockedRows.end(),
+         [](const LockedRow& a, const LockedRow& b) {
+           if (a.start != b.start) return a.start < b.start;
+           if (a.end != b.end) return a.end < b.end;
+           return a.reference < b.reference;
+         });
+    gaData.lockedOSPrefixLength = lockedRows.size();
+    vector<int> deterministicOS;
+    deterministicOS.reserve(gaData.totalOperations());
+    for (const LockedRow& row : lockedRows) deterministicOS.push_back(row.job);
+    for (int job = 0; job < gaData.jobsNum; ++job) {
+      const int remain = gaData.jobsOperations[job] - lockedCount[job];
+      for (int i = 0; i < remain; ++i) deterministicOS.push_back(job);
+    }
     const auto started = chrono::steady_clock::now();
     const auto schedule = gaDecodeOne(deterministicMS, deterministicOS, gaData);
     GARunResult result;
@@ -5124,10 +6245,13 @@ AntSolution SolverGA::evolve(
            << "s\n";
   const auto runStarted = chrono::steady_clock::now();
   GARunResult gaResult = population.runGA(buildGASolverConfig(config_));
-  if (getLogLevel() >= 0)
+  if (getLogLevel() >= 0) {
     logger << indentlevel << "GA timing: evolution completed in "
            << chrono::duration<double>(chrono::steady_clock::now() - runStarted).count()
-           << "s\n";
+           << "s (stop=" << gaResult.stopReason
+           << ", steps=" << gaResult.stepsRun
+           << ", best_step=" << gaResult.bestStep << ")\n";
+  }
 
   restoreOriginalOperations(originalOperations);
   bestSolution = buildAntSolutionFromGASchedule(input, gaResult);
@@ -5141,6 +6265,8 @@ AntSolution SolverGA::evolve(
            << ", balanceCV=" << gaResult.bestCV
            << ", tardiness=" << gaResult.bestTardiness << ")"
            << ", best_step=" << gaResult.bestStep
+           << ", stop=" << gaResult.stopReason
+           << ", steps=" << gaResult.stepsRun
            << ", runtime=" << gaResult.runtimeSeconds << "s\n";
   }
   return bestSolution;

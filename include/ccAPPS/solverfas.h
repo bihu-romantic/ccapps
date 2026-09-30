@@ -116,8 +116,7 @@ class SolverFAS : public Solver {
       const std::unordered_set<OperationPlan*>& fixedPlans) const;
   void reserveFixedNetwork(
       const std::unordered_set<OperationPlan*>& inScope,
-      std::unordered_map<const Resource*, std::vector<Reservation>>& plans,
-      std::unordered_map<const Resource*, Date>& serialReady) const;
+      std::unordered_map<const Resource*, std::vector<Reservation>>& plans) const;
   Date finishOf(const std::vector<OperationPlan*>& roots) const;
   /* Ranking key for a candidate alternate: *lower is better*. The shared MRP
    * kernel selects alternates by cost and priority, which is load blind, so
@@ -142,18 +141,13 @@ class SolverFAS : public Solver {
       const Resource* resource, Date start, Duration duration, double required,
       const std::unordered_set<const OperationPlan*>& own) const;
   bool isMovable(const OperationPlan* op) const;
-  /* Re-run the forward pass over the network that is already in the model,
-   * giving priority to the operations that feed a machine with no slack. A
-   * round is kept only when it shortens the plan, so this can improve on the
-   * greedy pass but never worsen it. Each round costs one forward pass and no
-   * supply expansion. */
-  /* Derive the next round's dispatch bonuses from the pass that just ran.
-   * Called at the end of every forward pass, trial rounds included, because
-   * only there is the successor relation still available. */
-  void collectRoundSlack(const ExecutionGraph& graph);
-  void refineForwardSchedule(
+  /* Python-style relocate local search over the job decision sequence.
+   * Re-runs the forward pass (calendar + material) under trial bookmarks;
+   * keeps a neighbour only when it shortens forwardCompletion. */
+  void improveJobOrder(
       const std::vector<OperationPlan*>& roots,
-      const std::unordered_set<OperationPlan*>& fixed);
+      const std::unordered_set<OperationPlan*>& fixed,
+      std::vector<OperationPlan*>& jobSequence);
   bool moveApproved = false;
   Duration lazyDelay = Duration(86400L);
   Duration minimumDelay = Duration(3600L);
@@ -180,26 +174,15 @@ class SolverFAS : public Solver {
   unsigned long alternateProbes = 0;
   // Memoised contentionOf() results, keyed by resource. Cleared per solve().
   std::unordered_map<const Resource*, Duration> contentionCache;
-  // Dispatch bonus per operation for the round in progress (see pushReady).
-  // Empty for the first, greedy round.
-  std::unordered_map<OperationPlan*, Duration> dispatchBonus;
-  // Operations the round in progress placed, and the last end each machine
-  // reached. Together with the network's successor relation these give the
-  // slack of the machine an operation hands over to, which is what tells a
-  // round which operations the makespan is actually waiting for.
-  std::unordered_set<OperationPlan*> placedOps;
-  std::unordered_map<const Resource*, Date> machineCompletion;
-  // Tightest slack of the machine each operation hands over to, measured by
-  // the round in progress. Kept raw rather than as a bonus because the round
-  // that follows chooses how aggressively to translate slack into priority.
-  std::unordered_map<OperationPlan*, Duration> roundSlack;
-  // Plans the refinement round must hold fixed. It does not run the safety
-  // stock pass that normally produces that set, so it inherits it.
+  // Plans improveJobOrder trials must hold fixed (inherited safety-stock set).
   std::unordered_set<OperationPlan*> trialFixedPlans;
   // Latest end the forward pass placed, i.e. the completion of the scheduled
-  // network. Rounds are compared on this rather than on the plan's own dates:
-  // a routing parent carries the delivery promise, not the schedule.
+  // network. Improve rounds are compared on this rather than on routing-parent
+  // dates (those carry the delivery promise, not the schedule).
   Date forwardCompletion = Date::infinitePast;
+  // When non-empty, the forward pass uses this job sequence instead of
+  // re-sorting by priority/due/LPT. Used by improveJobOrder trials.
+  std::vector<OperationPlan*> overrideJobSequence;
 };
 
 PyObject* run_fas(PyObject*, PyObject*);
