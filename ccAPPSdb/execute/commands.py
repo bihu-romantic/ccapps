@@ -1667,11 +1667,97 @@ class SupplyPlanning(PlanTask):
                         return allow
 
                     expansion_names = _supply_expansion_names(local_repair_env)
+
+                    def _follow_changed_demand_quantity(env):
+                        """Shrink proposed supply pegged to a changed order.
+
+                        A quantity decrease is not a new-supply expansion.
+                        The loaded manufacturing order otherwise keeps the
+                        old quantity, so a time-per order also keeps its old
+                        duration. Scale proposed top-level plans that point
+                        at the changed demand down to the new quantity.
+                        Increases stay with supply expansion.
+                        """
+
+                        def split(key):
+                            return {
+                                part.strip()
+                                for part in str(env.get(key) or "")
+                                .replace(";", ",")
+                                .split(",")
+                                if part.strip()
+                            }
+
+                        changed = split("LOCAL_NEW_DEMANDS") & split(
+                            "LOCAL_DELETED_DEMANDS"
+                        )
+                        if not changed:
+                            return
+                        grouped = {}
+                        for plan in ccAPPS.operationplans():
+                            demand = getattr(plan, "demand", None)
+                            if (
+                                demand is None
+                                or getattr(demand, "name", None) not in changed
+                                or getattr(plan, "owner", None) is not None
+                            ):
+                                continue
+                            grouped.setdefault(demand.name, []).append(plan)
+                        for name, plans in grouped.items():
+                            demand = plans[0].demand
+                            target = float(getattr(demand, "quantity", 0) or 0)
+                            movable = []
+                            fixed = 0.0
+                            for plan in plans:
+                                status = str(
+                                    getattr(plan, "status", "") or ""
+                                ).lower()
+                                qty = float(getattr(plan, "quantity", 0) or 0)
+                                if status in ("proposed", "approved"):
+                                    movable.append(plan)
+                                else:
+                                    fixed += qty
+                            movable_qty = sum(
+                                float(getattr(plan, "quantity", 0) or 0)
+                                for plan in movable
+                            )
+                            desired = max(0.0, target - fixed)
+                            if (
+                                not movable
+                                or movable_qty <= desired + 1e-4
+                            ):
+                                continue
+                            scale = (
+                                0.0 if movable_qty <= 1e-9 else desired / movable_qty
+                            )
+                            consumed = 0.0
+                            for index, plan in enumerate(movable):
+                                old = float(getattr(plan, "quantity", 0) or 0)
+                                if index == len(movable) - 1:
+                                    new = max(0.0, desired - consumed)
+                                else:
+                                    new = old * scale
+                                plan.quantity = new
+                                consumed += float(
+                                    getattr(plan, "quantity", 0) or 0
+                                )
+                                logger.info(
+                                    "Local FAS quantity follow: demand=%s "
+                                    "ref=%s %s -> %s start=%s end=%s",
+                                    name,
+                                    getattr(plan, "reference", None),
+                                    old,
+                                    plan.quantity,
+                                    plan.start,
+                                    plan.end,
+                                )
+
                     # MRP and FAS may create work orders. GA and CP may not.
                     os.environ["LOCAL_SUPPLY_REGEN"] = (
                         "1" if solver_mode in ("mrp", "fas") else "0"
                     )
                     if solver_mode == "fas":
+                        _follow_changed_demand_quantity(local_repair_env)
                         ccAPPS.run_fas()
                     elif solver_mode == "ga":
                         ga_quantity_audit = {
