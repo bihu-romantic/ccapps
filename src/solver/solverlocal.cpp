@@ -1342,6 +1342,13 @@ bool fasLocalPolicy() {
   return raw && std::string(raw) == "fas";
 }
 
+// Same named-trigger gate as FAS, but only while a GA local repair is
+// running. Material-horizon seeding stays FAS-only.
+bool gaLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "ga";
+}
+
 void evaluateLocalRescheduleOutcome(const string& mode) {
   g_lastLocalOk = 0;
   const bool combined = isCombinedLocalMode(mode);
@@ -1380,7 +1387,7 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     // the global shortage and overload gate.
     size_t namedMaterial = 0;
     size_t outageLoads = 0;
-    if (fasLocalPolicy()) {
+    if (fasLocalPolicy() || gaLocalPolicy()) {
       const size_t newlyIncomplete = countNewIncompleteOrders();
       orderIncomplete = max(orderIncomplete, newlyIncomplete);
       if (hasMaterialTrigger)

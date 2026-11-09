@@ -911,11 +911,21 @@ void SolverCreate::solve(void*) {
   LocalScopeGuard localScope;
   applyLocalRescheduleScope(localScope);
   if (localScope.skipOptimization) {
-    if (localLastStage() != "local_l1_lock_all" &&
-        localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
-      localSetStage("local_scope_empty");
-    return;
+    // An open GA insert has no root yet. Still create supply for that
+    // named demand. FAS and the other solvers keep the empty-scope return.
+    const char* localSolver = getenv("LOCAL_SOLVER");
+    const bool gaInsert =
+        localSolver && std::string(localSolver) == "ga" &&
+        !localSupplyExpansionNames().empty();
+    if (!gaInsert) {
+      if (localLastStage() != "local_l1_lock_all" &&
+          localLastStage() != "local_delete_complete" &&
+          localLastStage() != "local_delete_not_applied")
+        localSetStage("local_scope_empty");
+      return;
+    }
+    logger << "GA local: no existing root; creating supply for the named insert\n"
+           << flush;
   }
 
   // Configure user exits

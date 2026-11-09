@@ -887,12 +887,13 @@ def _validate_reschedule_refs(database, values):
                             n for n in insert_only if n in already
                         )
                     )
-            # FAS only creates supply for open demands. A closed row with no
-            # plan used to be accepted, its due rewritten, and the solve then
-            # matched no root work order. Scenario 9 has no open demand
-            # without a plan: write a new open demand (same item, location,
-            # customer and a due after currentdate) and insert that name.
-            if values.get("_solver") == "fas" and insert_only:
+            # FAS and GA only create supply for open demands. A closed row
+            # with no plan used to be accepted, its due rewritten, and the
+            # solve then matched no root work order. Scenario 9 has no open
+            # demand without a plan: write a new open demand (same item,
+            # location, customer and a due after currentdate) and insert
+            # that name.
+            if values.get("_solver") in ("fas", "ga") and insert_only:
                 status_rows = dict(
                     Demand.objects.using(database)
                     .filter(name__in=insert_only)
@@ -902,12 +903,20 @@ def _validate_reschedule_refs(database, values):
                     n for n in insert_only if status_rows.get(n) != "open"
                 ]
                 if not_open:
-                    parts.append(
-                        "insert orders must be open demands so FAS can create "
-                        "a plan (set status=open on the demand first; closed "
-                        "demands are not planned): "
-                        + ", ".join(not_open)
-                    )
+                    if values.get("_solver") == "ga":
+                        parts.append(
+                            "insert orders must be open demands so GA can create "
+                            "a plan (set status=open on the demand first; closed "
+                            "demands are not planned): "
+                            + ", ".join(not_open)
+                        )
+                    else:
+                        parts.append(
+                            "insert orders must be open demands so FAS can create "
+                            "a plan (set status=open on the demand first; closed "
+                            "demands are not planned): "
+                            + ", ".join(not_open)
+                        )
     if category in ("material", "all"):
         names = [row["name"] for row in (values.get("_materials") or []) if row.get("name")]
         if names:
