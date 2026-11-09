@@ -177,7 +177,7 @@ def follow_changed_demand_quantity(env, plans):
             plan.quantity = new
             consumed += float(getattr(plan, "quantity", 0) or 0)
             logger.info(
-                "Local FAS quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
+                "Local quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
                 name,
                 getattr(plan, "reference", None),
                 old,
@@ -1814,15 +1814,75 @@ class SupplyPlanning(PlanTask):
                             # (global priority queue): default solve() fans out
                             # one thread per cluster against the same Python
                             # queue and segfaults under concurrent pop.
+                            # LOCAL_SOLVER selects the MRP gates in the shared
+                            # scope helper. FAS sets the same variable itself.
+                            os.environ["LOCAL_SOLVER"] = "mrp"
+                            follow_changed_demand_quantity(
+                                local_repair_env, ccAPPS.operationplans()
+                            )
+
+                            def _open_inserts_without_plan(env):
+                                def split(key):
+                                    return {
+                                        part.strip()
+                                        for part in str(env.get(key) or "")
+                                        .replace(";", ",")
+                                        .split(",")
+                                        if part.strip()
+                                    }
+
+                                pure = split("LOCAL_NEW_DEMANDS") - split(
+                                    "LOCAL_DELETED_DEMANDS"
+                                )
+                                if not pure:
+                                    return []
+                                present = set()
+                                for plan in ccAPPS.operationplans():
+                                    demand = getattr(plan, "demand", None)
+                                    if (
+                                        demand is not None
+                                        and getattr(demand, "name", None) in pure
+                                    ):
+                                        present.add(demand.name)
+                                return [
+                                    demand
+                                    for demand in ccAPPS.demands()
+                                    if demand.name in pure
+                                    and demand.name not in present
+                                    and demand.status == "open"
+                                    and float(demand.quantity or 0) > 0
+                                ]
+
+                            insert_queue = _open_inserts_without_plan(
+                                local_repair_env
+                            )
+                            if insert_queue:
+                                logger.info(
+                                    "Local MRP insert: %s open demand(s) have "
+                                    "no historical plan",
+                                    len(insert_queue),
+                                )
+
+                                def next_insert_demand(
+                                    _cluster, _queue=insert_queue
+                                ):
+                                    if _queue:
+                                        return _queue.pop(0)
+                                    return None
+
+                                cls.solver.userexit_nextdemand = next_insert_demand
                             cls.solver.erasepreviousfirst = True
                             logger.info(
                                 "Local MRP: frozen plans kept; remaining "
                                 "proposed cleared and rebuilt"
                             )
-                            if getattr(cls.solver, "userexit_nextdemand", None):
-                                cls.solver.solve(cluster=0)
-                            else:
-                                cls.solver.solve()
+                            try:
+                                if getattr(cls.solver, "userexit_nextdemand", None):
+                                    cls.solver.solve(cluster=0)
+                                else:
+                                    cls.solver.solve()
+                            finally:
+                                os.environ.pop("LOCAL_SOLVER", None)
                         local_outcome = {}
                         try:
                             raw_outcome = ccAPPS.cp_last_local_outcome()

@@ -434,6 +434,7 @@ def APITask(request, action):
                             # Reschedule API exposes one terminal result only:
                             # true=success, false=failure.
                             row["status"] = success
+                            row["ok"] = success
                             row["local_outcome"] = outcome
                     except Exception:
                         pass
@@ -892,7 +893,7 @@ def _validate_reschedule_refs(database, values):
             # matched no root work order. Scenario 9 has no open demand
             # without a plan: write a new open demand (same item, location,
             # customer and a due after currentdate) and insert that name.
-            if values.get("_solver") == "fas" and insert_only:
+            if values.get("_solver") in ("fas", "mrp") and insert_only:
                 status_rows = dict(
                     Demand.objects.using(database)
                     .filter(name__in=insert_only)
@@ -903,9 +904,10 @@ def _validate_reschedule_refs(database, values):
                 ]
                 if not_open:
                     parts.append(
-                        "insert orders must be open demands so FAS can create "
-                        "a plan (set status=open on the demand first; closed "
-                        "demands are not planned): "
+                        "insert orders must be open demands so "
+                        + str(values.get("_solver") or "").upper()
+                        + " can create a plan (set status=open on the demand "
+                        "first; closed demands are not planned): "
                         + ", ".join(not_open)
                     )
     if category in ("material", "all"):

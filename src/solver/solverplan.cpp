@@ -24,6 +24,8 @@
  ***************************************************************************/
 
 #include "ccAPPS/solver.h"
+
+#include <cstring>
 #include "ccAPPS/solveraco.h"
 #include "ccAPPS/solverexact.h"
 #include "ccAPPS/solverga.h"
@@ -905,15 +907,61 @@ void SolverCreate::update_user_exits() {
   setUserExitResource(getPyObjectProperty(Tags::userexit_resource.getName()));
 }
 
+namespace {
+
+bool mrpPendingOpenInsert() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  if (!raw || strcmp(raw, "mrp") != 0) return false;
+  const auto allow = localSupplyExpansionNames();
+  for (const string& name : allow) {
+    Demand* demand = Demand::find(name);
+    if (!demand || demand->getStatus() != Demand::STATUS_OPEN) continue;
+    if (demand->getQuantity() - demand->getPlannedQuantity() > ROUNDING_ERROR)
+      return true;
+  }
+  return false;
+}
+
+}  // namespace
+
 void SolverCreate::solve(void*) {
   // Shared local scope (hot/freeze). When local.reschedule is on, MRP only
   // repairs the movable set; confirmed / frozen trees stay pinned.
   LocalScopeGuard localScope;
   applyLocalRescheduleScope(localScope);
+  if (localScope.skipOptimization && mrpPendingOpenInsert()) {
+    // An open insert has no historical work order, so the shared scope
+    // matches nothing. Pin the loaded plan and create that order only.
+    size_t frozen = 0;
+    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end();
+         ++plan) {
+      OperationPlan* node = &*plan;
+      if (!node || node->getConfirmed() || node->getCompleted() ||
+          node->getClosed())
+        continue;
+      if (!node->getProposed() && !node->getApproved()) continue;
+      const string status = node->getStatus();
+      try {
+        node->setBoolProperty("local_frozen", true);
+        node->setBoolProperty("cp_local_frozen", true);
+        node->setStatusRaw("confirmed");
+        localScope.frozen.push_back({node, status});
+        ++frozen;
+      } catch (...) {
+      }
+    }
+    localScope.skipOptimization = false;
+    logger << "MRP local insert: no historical root; froze " << frozen
+           << " loaded operationplan(s) and creating supply for the open "
+              "insert\n"
+           << flush;
+  }
   if (localScope.skipOptimization) {
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
+        localLastStage() != "local_delete_not_applied" &&
+        localLastStage() != "local_material_feasible" &&
+        localLastStage() != "local_material_no_root")
       localSetStage("local_scope_empty");
     return;
   }
