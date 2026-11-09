@@ -1190,22 +1190,38 @@ void Buffer::buildProducingOperation() {
   // Last resort: check if there are already operations producing in this
   // buffer. If there exists only 1 we use that operation. Inventory operation
   // or operations with 0 priority are skipped.
+  // When several alternate leaves each carry a co-product end-flow, they share
+  // one OperationAlternate owner — use that owner so either co-product can
+  // replenish through the shared mold lot.
   if (producing_operation == uninitializedProducing) {
     const Flow* found = nullptr;
+    Operation* sharedAlternate = nullptr;
+    bool allSameAlternate = true;
+    int producers = 0;
     for (const auto& tmp : getFlows()) {
       if (tmp.getQuantity() > 0 &&
           !tmp.getOperation()->hasType<OperationInventory>() &&
           tmp.getOperation()->getPriority()) {
-        if (found) {
-          // Found a second operation producing this item. Abort the mission...
-          found = nullptr;
-          break;
-        } else
-          // Found a first operation producing this item
+        ++producers;
+        if (!found)
           found = &tmp;
+        else
+          found = nullptr;
+        Operation* owner = tmp.getOperation()->getOwner();
+        if (owner && owner->hasType<OperationAlternate>()) {
+          if (!sharedAlternate)
+            sharedAlternate = owner;
+          else if (sharedAlternate != owner)
+            allSameAlternate = false;
+        } else {
+          allSameAlternate = false;
+        }
       }
     }
-    if (found) producing_operation = found->getOperation();
+    if (found)
+      producing_operation = found->getOperation();
+    else if (producers > 1 && allSameAlternate && sharedAlternate)
+      producing_operation = sharedAlternate;
   }
 
   if (producing_operation == uninitializedProducing) {

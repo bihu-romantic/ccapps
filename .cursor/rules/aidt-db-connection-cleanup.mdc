@@ -1,0 +1,26 @@
+---
+description: Self-heal AIDT/ccAPPS Postgres "too many clients" via MCP cleanup
+alwaysApply: true
+---
+
+# AIDT DB connection self-heal
+
+When `aidt_ccapps` / `mrp_ccapps` / scenario workers fail with:
+
+- `FATAL: sorry, too many clients already`
+- `max_connections` exhausted (this env is often **40**)
+- stuck `runplan` / execute tasks at `0%` or forever `Waiting`
+- MCP `run_mrp` / `run_fas` returns `no_task`, launch fails, or worker logs show DB connection errors
+
+**Do this yourself** (do not ask the user to SSH/docker/psql):
+
+1. Call MCP tool `cleanup_db_resources` on the affected scenario (default `scenario1` on 175 AIDT).
+   - First optional: `dry_run=true` to inspect.
+   - Then real run. If still full: `aggressive=true` (kills all idle / idle-in-transaction on that DB).
+   - Keep `cancel_stuck=true` so zombie tasks are canceled.
+2. Re-check with `get_task_status` (or list in-flight tasks); cancel any remaining stuck ids if needed.
+3. Retry the original plan (`run_mrp` / `run_fas`).
+
+API behind the tool: `GET /<scenario>/execute/api/cleanup/` (ccAPPS app). MCP image: `ccapps-mcp-aidt` / container `aidt_ccappss_mrp_mcp` (port 9005).
+
+Do **not** terminate `active` short queries casually; prefer idle cleanup first. Only restart worker/app containers if cleanup + cancel still leave the worker dead.

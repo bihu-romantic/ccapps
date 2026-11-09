@@ -14,12 +14,56 @@
 #include <unordered_set>
 
 #include "ccAPPS/solverfas.h"
+#include "ccAPPS/solverlocal.h"
 
 namespace ccAPPS {
 
 const MetaClass* SolverFAS::metadata;
 
 namespace {
+
+// Personnel pools are reusable while an operation is paused. Equipment and
+// molds remain assigned across a pause to preserve their existing semantics.
+vector<DateRange> capacityWindows(const Resource* resource,
+                                  const OperationPlan* op, Date start, Date end) {
+  if (end <= start) return {};
+  if (resource->getCategory() != "人员") return {DateRange(start, end)};
+  Calendar::EventIterator calendars[10];
+  const auto count = op->getOperation()->collectCalendars(calendars, start, op);
+  vector<Date> points{start, end};
+  for (unsigned short i = 0; i < count; ++i) {
+    Date previous = calendars[i].getDate();
+    for (unsigned int n = 0; n < 10000 && calendars[i].getDate() < end; ++n) {
+      if (calendars[i].getDate() > start) points.push_back(calendars[i].getDate());
+      ++calendars[i];
+      if (calendars[i].getDate() <= previous) break;
+      previous = calendars[i].getDate();
+    }
+  }
+  sort(points.begin(), points.end());
+  points.erase(unique(points.begin(), points.end()), points.end());
+  vector<DateRange> result;
+  for (size_t p = 0; p + 1 < points.size(); ++p) {
+    bool available = true;
+    for (unsigned short i = 0; i < count; ++i)
+      if (!calendars[i].getCalendar()->getValue(points[p])) {
+        available = false;
+        break;
+      }
+    if (!available) continue;
+    if (!result.empty() && result.back().getEnd() == points[p])
+      result.back() = DateRange(result.back().getStart(), points[p + 1]);
+    else
+      result.emplace_back(points[p], points[p + 1]);
+  }
+  return result;
+}
+
+bool windowActive(const vector<DateRange>& windows, Date date) {
+  return any_of(windows.begin(), windows.end(), [date](const DateRange& w) {
+    return w.getStart() <= date && date < w.getEnd();
+  });
+}
 
 // Job sequencing: demand priority → due, then tie-break.
 // Default "lpt" = longest total processing time first (stable, strong makespan).
@@ -148,10 +192,26 @@ constexpr long kFASContentionUnit = 1800L;
 }  // namespace
 
 PyObject* run_fas(PyObject*, PyObject*) {
+  // Shared local scope (hot/freeze). FAS only repairs the movable set when
+  // local.reschedule / cp.local_reschedule is on; confirmed trees stay pinned.
+  LocalScopeGuard localScope;
+  applyLocalRescheduleScope(localScope);
+  if (localScope.skipOptimization) {
+    if (localLastStage() != "local_l1_lock_all" &&
+        localLastStage() != "local_delete_complete" &&
+        localLastStage() != "local_delete_not_applied")
+      localSetStage("local_scope_empty");
+    Py_RETURN_NONE;
+  }
   SolverFAS fas;
+  applyPlanConstraintsToFas(fas);
   fas.setLogLevel(1);
   fas.solve();
   fas.commitPlan();
+  if (localRescheduleEnabled()) {
+    // Outcome destructor needs a non-zero applied gate for order/resource.
+    if (localLastApplied() == 0) localSetLastApplied(1);
+  }
   Py_RETURN_NONE;
 }
 
@@ -276,10 +336,13 @@ PyObject* SolverFAS::rollback(PyObject* self, PyObject*) {
 
 void SolverFAS::expandDemand(Demand* demand) {
   if (!demand) return;
-  // Match the normal constrained supply rules. The FAS scheduler owns the
-  // order sequence; the expander owns only BOM/lot-size/source semantics.
-  supplyExpander.setConstraints(getConstraints());
-  supplyExpander.setPlanType(getPlanType());
+  // Build the full supply network even when capacity is tight. FAS owns
+  // finite-capacity placement and delays work past due rather than planning
+  // short / leaving orders unplanned during expansion.
+  const short expandConstraints =
+      getConstraints() & ~static_cast<short>(SolverCreate::CAPACITY);
+  supplyExpander.setConstraints(expandConstraints);
+  supplyExpander.setPlanType(2);
   // Supply expansion mutates the process-global planning model. Keep this
   // internal phase single-worker even when FAS itself runs with loglevel 0;
   // parallel cluster workers race on shared routing/alternate state.
@@ -433,20 +496,13 @@ SolverFAS::ExecutionGraph SolverFAS::buildExecutionGraph(
   };
   for (auto* consumer : work) {
     unordered_set<OperationPlan*> seen;
-    // Build the execution graph from every *consuming flowplan*.  An
-    // operationplan-level pegging iterator is intentionally aggregated at
-    // routing/owner level and can therefore lose the leaf-to-leaf batch link.
-    // Losing that link incorrectly turns a downstream line operation into a
-    // source candidate, which lets it reserve shared labour before its input
-    // batch is actually released.
-    for (auto consume = consumer->beginFlowPlans();
-         consume != consumer->endFlowPlans(); ++consume) {
-      if (consume->getQuantity() >= -ROUNDING_ERROR) continue;
-      for (PeggingIterator peg(&*consume, false); peg; --peg)
-        addProducerEdge(peg.getOperationPlan(), consumer, seen);
-    }
-    for (PeggingIterator peg(consumer, false, 1); peg; --peg)
-      addProducerEdge(peg.getOperationPlan(), consumer, seen);
+    // Don't derive execution edges from pegging iterators. Both flowplan- and
+    // operationplan-level walks can cross a routing owner and return a
+    // downstream sibling. Treating that result as a producer creates a false
+    // cycle, eg Apply varnish -> Drying varnish from routing order plus a
+    // reverse Drying -> Apply edge from pegging. Material edges are built by
+    // matching positive and negative flows on the same buffer below; routing
+    // and explicit dependencies are handled separately.
     // MRP's pegging iterator can omit the leaf link for a generated
     // distribution order. Complete that relation directly from the material
     // buffers, so a WIP DO is sequenced after its producing MO rather than
@@ -513,8 +569,9 @@ void SolverFAS::reserveFixedNetwork(
           reservations[resource].begin(), reservations[resource].end(),
           [&op](const Reservation& entry) { return entry.operationplan == &*op; });
       if (alreadyReserved == reservations[resource].end())
-        reservations[resource].push_back(
-            {op->getStart(), op->getEnd(), fabs(load->getQuantity()), &*op});
+        for (const auto& w : capacityWindows(resource, &*op, op->getStart(), op->getEnd()))
+          reservations[resource].push_back(
+              {w.getStart(), w.getEnd(), fabs(load->getQuantity()), &*op});
     }
   }
 }
@@ -536,7 +593,8 @@ void SolverFAS::solve(void*) {
   // the surrounding model and therefore skip this cleanup.
   // When open demands are already fully planned (caixin-style MRP then
   // forward), keep that supply network and only re-date / re-pick resources.
-  if (trialRoots.empty()) {
+  const bool localRepair = localRescheduleEnabled();
+  if (trialRoots.empty() && !localRepair) {
     bool hasFullyPlannedOpenDemand = false;
     for (auto demand = Demand::begin(); demand != Demand::end(); ++demand) {
       if (demand->getStatus() == Demand::STATUS_OPEN &&
@@ -574,7 +632,10 @@ void SolverFAS::solve(void*) {
     if (demand->getStatus() == Demand::STATUS_OPEN &&
         demand->getDue() < Date::infiniteFuture) {
       demands.push_back(&*demand);
-      if (demand->getQuantity() - demand->getPlannedQuantity() > ROUNDING_ERROR)
+      // FAS may produce a new work order wherever the loaded plan is short.
+      // GA and CP do not; they only move work orders that already exist.
+      if (demand->getQuantity() - demand->getPlannedQuantity() >
+          ROUNDING_ERROR)
         demandsToExpand.push_back(&*demand);
     }
   }
@@ -600,8 +661,12 @@ void SolverFAS::solve(void*) {
   // Let the shared MRP queue kernel expand exactly FAS's selected queue. It
   // preserves MRP's batching and purchasing rules without taking over order
   // selection or scheduling dates.
-  supplyExpander.setConstraints(getConstraints());
-  supplyExpander.setPlanType(getPlanType());
+  // Create the full supply network without capacity cuts; the forward pass
+  // applies capa and delays work instead of planning short.
+  const short expandConstraints =
+      getConstraints() & ~static_cast<short>(SolverCreate::CAPACITY);
+  supplyExpander.setConstraints(expandConstraints);
+  supplyExpander.setPlanType(2);
   supplyExpander.setLogLevel(std::max<short>(1, getLogLevel()));
   // `planSelectedDemands` executes SolverCreate's normal queue kernel.
   // Keep every scheduling control in sync with solver_mrp before entering
@@ -615,6 +680,7 @@ void SolverFAS::solve(void*) {
   supplyExpander.setResourceIterationMax(getResourceIterationMax());
   supplyExpander.setAutoFence(getAutoFence());
   supplyExpander.setErasePreviousFirst(false);
+  supplyExpander.setLocalSupplyRegen(true);
   // Alternate evaluation runs inside the caller's bookmark transaction.
   // Keep all operationplans created by that trial reversible; only the
   // top-level FAS expansion may autocommit at demand boundaries.
@@ -641,10 +707,16 @@ void SolverFAS::solve(void*) {
   unordered_set<OperationPlan*> plansBeforeSafetyStock;
   for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan)
     plansBeforeSafetyStock.insert(&*plan);
-  for (const auto cluster : selectedClusters) {
-    if (getLogLevel() >= 1)
-      logger << "FAS: planning safety stock for cluster " << cluster << '\n';
-    supplyExpander.planSafetyStock(cluster);
+  if (!localRepair) {
+    for (const auto cluster : selectedClusters) {
+      if (getLogLevel() >= 1)
+        logger << "FAS: planning safety stock for cluster " << cluster << '\n';
+      supplyExpander.planSafetyStock(cluster);
+    }
+  } else if (getLogLevel() >= 0) {
+    logger << "FAS local repair: producing new work orders for "
+           << demandsToExpand.size()
+           << " short demand(s); safety stock off\n";
   }
   unordered_set<OperationPlan*> safetyStockPlans;
   for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan)
@@ -666,6 +738,83 @@ void SolverFAS::solve(void*) {
     supplyExpander.planSelectedDemands(entry.second, entry.first);
   }
 
+  // Close tiny replenishment residues on discrete, integer customer demand.
+  // SolverCreate can stop after its retry limit with e.g. 17.99399399 of an
+  // 18-piece demand.  That is a numerical/iteration residue, not a valid
+  // partial piece.  Adjust both the pegged production root and delivery so
+  // material remains balanced.  Real shortages (>= tolerance) are untouched.
+  if (!trial && !localRepair) {
+    double residualTolerance = 0.01;
+    if (const char* raw = getenv("FAS_INTEGER_RESIDUAL_TOLERANCE"))
+      try {
+        residualTolerance = max(ROUNDING_ERROR, stod(raw));
+      } catch (...) {
+      }
+    size_t closedResidues = 0;
+    for (Demand* demand : demands) {
+      if (!demand || demand->getStatus() != Demand::STATUS_OPEN) continue;
+      const double requested = demand->getQuantity();
+      if (fabs(requested - round(requested)) > ROUNDING_ERROR) continue;
+      const double planned = demand->getPlannedQuantity();
+      const double residue = requested - planned;
+      if (residue <= ROUNDING_ERROR || residue >= residualTolerance) continue;
+
+      OperationPlan* delivery = nullptr;
+      Demand::DeliveryIterator deliveries(demand);
+      while (OperationPlan* candidate = deliveries.next())
+        if (candidate && candidate->getProposed()) delivery = candidate;
+      if (!delivery) continue;
+
+      OperationPlan* productionRoot = nullptr;
+      double outputPerRoot = 0.0;
+      unordered_set<OperationPlan*> seenRoots;
+      for (PeggingIterator peg(demand); peg; --peg) {
+        OperationPlan* node = peg.getOperationPlan();
+        if (!node) continue;
+        OperationPlan* root = node->getTopOwner();
+        if (!root) root = node;
+        if (!seenRoots.insert(root).second || root == delivery ||
+            root->getQuantity() <= ROUNDING_ERROR)
+          continue;
+        double produced = 0.0;
+        vector<OperationPlan*> stack{root};
+        while (!stack.empty()) {
+          OperationPlan* current = stack.back();
+          stack.pop_back();
+          for (auto flow = current->beginFlowPlans();
+               flow != current->endFlowPlans(); ++flow)
+            if (flow->getQuantity() > ROUNDING_ERROR && flow->getBuffer() &&
+                flow->getBuffer()->getItem() == demand->getItem())
+              produced += flow->getQuantity();
+          for (OperationPlan::iterator child(current); child != current->end();
+               ++child)
+            stack.push_back(&*child);
+        }
+        if (produced <= ROUNDING_ERROR) continue;
+        productionRoot = root;
+        outputPerRoot = produced / root->getQuantity();
+        break;
+      }
+      if (!productionRoot || outputPerRoot <= ROUNDING_ERROR) continue;
+
+      const double oldProduction = productionRoot->getQuantity();
+      productionRoot->setQuantity(oldProduction + residue / outputPerRoot,
+                                  false, true, true);
+      delivery->setQuantity(delivery->getQuantity() + residue, false, true,
+                            true);
+      ++closedResidues;
+      logger << "FAS: closed integer replenishment residue demand='"
+             << demand->getName() << "' residue=" << residue
+             << " production=" << oldProduction << "->"
+             << productionRoot->getQuantity() << " delivery="
+             << delivery->getQuantity() << '\n';
+    }
+    if (closedResidues)
+      logger << "FAS: closed " << closedResidues
+             << " integer replenishment residue(s), tolerance="
+             << residualTolerance << '\n';
+  }
+
   if (!trial && getLogLevel() >= 0) {
     size_t expandedManufacturing = 0;
     for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan)
@@ -673,7 +822,9 @@ void SolverFAS::solve(void*) {
           plan->getOperation()->hasType<OperationFixedTime, OperationTimePer>() &&
           !plan->getOperation()->hasType<OperationDelivery>())
         ++expandedManufacturing;
-    logger << "FAS: supply expansion created " << expandedManufacturing
+    logger << (localRepair ? "FAS local repair: existing network contains "
+                           : "FAS: supply expansion created ")
+           << expandedManufacturing
            << " manufacturing operationplans before forward scheduling\n";
   }
 
@@ -681,6 +832,9 @@ void SolverFAS::solve(void*) {
   // generated by FAS. Manufacturing, purchase and distribution receipts all
   // participate, so their dates are determined in one forward pass.
   const Date current = Plan::instance().getCurrent();
+  Date horizonEnd = Date::infiniteFuture;
+  if (const char* rawHorizon = getenv("FAS_HORIZON_END"))
+    if (*rawHorizon) horizonEnd = Date(rawHorizon);
   // Scope FAS strictly to the supply network pegged to the selected orders.
   // In particular, don't move a proposed plan which was created by a normal
   // MRP run for a different order.  Shared supply remains included naturally
@@ -694,10 +848,9 @@ void SolverFAS::solve(void*) {
       }
   unordered_set<OperationPlan*> selectedNetwork = collectNetwork(networkRoots);
   // Build the external part of the FAS supply graph from material buffers.
-  // PO/DO plans aren't connected by an OperationDependency, so relying on
-  // MRP pegging here would retain their backward-planned dates. The scan is
-  // read-only and is repeated only as the set grows: PO -> DO -> MO chains
-  // are therefore closed without mutating a model iterator.
+  // PO/DO/MO plans aren't always connected by pegging (shared lots, sync
+  // orphans). Close required buffers over every movable producer so a
+  // delivery can wait for real FG instead of failing material.
   bool addedSupply = true;
   while (addedSupply) {
     addedSupply = false;
@@ -708,11 +861,12 @@ void SolverFAS::solve(void*) {
         if (flow->getQuantity() < -ROUNDING_ERROR && flow->getBuffer())
           required.insert(flow->getBuffer());
     vector<OperationPlan*> additions;
-    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end(); ++plan) {
+    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end();
+         ++plan) {
       OperationPlan* supply = &*plan;
-      if (selectedNetwork.count(supply) || !isMovable(supply) ||
-          (supply->getOrderType() != "PO" && supply->getOrderType() != "DO"))
-        continue;
+      if (selectedNetwork.count(supply) || !isMovable(supply)) continue;
+      const string orderType = supply->getOrderType();
+      if (orderType != "PO" && orderType != "DO" && orderType != "MO") continue;
       for (auto flow = supply->beginFlowPlans(); flow != supply->endFlowPlans();
            ++flow)
         if (flow->getQuantity() > ROUNDING_ERROR && flow->getBuffer() &&
@@ -761,6 +915,8 @@ void SolverFAS::solve(void*) {
   // operationplan-wide pegging iterator can traverse unrelated flows of the
   // same network and make a downstream batch wait for the wrong operation.
   unordered_map<const FlowPlan*, double> allocatedSupply;
+  // Initial buffer onhand claimed by earlier FAS consumers in this pass.
+  unordered_map<const Buffer*, double> allocatedOnhand;
   // Index producing flowplans by buffer once.  materialReady is called for
   // every dispatch key and again on place; scanning the global OperationPlan
   // list each time is O(N×M) and dominated CCPL runs once lot counts grow.
@@ -769,11 +925,85 @@ void SolverFAS::solve(void*) {
        candidate != OperationPlan::end(); ++candidate) {
     OperationPlan* producer = &*candidate;
     if (!producer->getOperation()) continue;
+    // Opening inventory is already claimed through buffer->getOnHand().
+    // Indexing the STCK flowplan as FIFO supply double-counts the same
+    // quantity and lets a consumer start before real MO/PO receipts arrive.
+    if (producer->getOperation()->hasType<OperationInventory>() ||
+        producer->getOrderType() == "STCK")
+      continue;
     for (auto produce = producer->beginFlowPlans();
          produce != producer->endFlowPlans(); ++produce) {
       if (produce->getQuantity() <= ROUNDING_ERROR || !produce->getBuffer())
         continue;
       supplyByBuffer[produce->getBuffer()].push_back(&*produce);
+    }
+  }
+  // Reserve material already consumed by plans outside this FAS execution
+  // graph.  These plans remain in the exported buffer timeline, so leaving
+  // them out of allocatedSupply lets an in-scope consumer reuse the same
+  // production batch.  Start with opening stock and then consume positive
+  // flowplans FIFO.  The dates are intentionally irrelevant for this
+  // reservation step: fixed demand owns its quantity even when its existing
+  // dates expose a pre-existing shortage.
+  unordered_map<const Buffer*, vector<FlowPlan*>> fixedConsumptionByBuffer;
+  for (auto candidate = OperationPlan::begin();
+       candidate != OperationPlan::end(); ++candidate) {
+    OperationPlan* consumer = &*candidate;
+    if (!consumer->getOperation()) continue;
+    // Routing/alternate parents aren't executable graph leaves, but their
+    // flows still belong to the selected FAS network. Treating them as fixed
+    // external demand reserves the same material again for their children.
+    // Safety-stock plans remain fixed and therefore keep their reservation.
+    if (selectedNetwork.count(consumer) &&
+        !safetyStockPlans.count(consumer))
+      continue;
+    for (auto consume = consumer->beginFlowPlans();
+         consume != consumer->endFlowPlans(); ++consume)
+      if (consume->getQuantity() < -ROUNDING_ERROR && consume->getBuffer())
+        fixedConsumptionByBuffer[consume->getBuffer()].push_back(&*consume);
+  }
+  for (auto& entry : supplyByBuffer)
+    stable_sort(entry.second.begin(), entry.second.end(),
+                [](const FlowPlan* left, const FlowPlan* right) {
+                  if (left->getDate() != right->getDate())
+                    return left->getDate() < right->getDate();
+                  return left->getOperationPlan()->getReference() <
+                         right->getOperationPlan()->getReference();
+                });
+  for (auto& entry : fixedConsumptionByBuffer) {
+    const Buffer* buffer = entry.first;
+    stable_sort(entry.second.begin(), entry.second.end(),
+                [](const FlowPlan* left, const FlowPlan* right) {
+                  if (left->getDate() != right->getDate())
+                    return left->getDate() < right->getDate();
+                  return left->getOperationPlan()->getReference() <
+                         right->getOperationPlan()->getReference();
+                });
+    double opening =
+        max(0.0, buffer->getOnHand(current, false) - allocatedOnhand[buffer]);
+    auto supply = supplyByBuffer.find(buffer);
+    size_t supplyIndex = 0;
+    for (FlowPlan* consume : entry.second) {
+      double remaining = -consume->getQuantity();
+      const double fromOpening = min(opening, remaining);
+      opening -= fromOpening;
+      allocatedOnhand[buffer] += fromOpening;
+      remaining -= fromOpening;
+      while (remaining > ROUNDING_ERROR &&
+             supply != supplyByBuffer.end() &&
+             supplyIndex < supply->second.size()) {
+        FlowPlan* produce = supply->second[supplyIndex];
+        const double available =
+            produce->getQuantity() - allocatedSupply[produce];
+        if (available <= ROUNDING_ERROR) {
+          ++supplyIndex;
+          continue;
+        }
+        const double allocated = min(remaining, available);
+        allocatedSupply[produce] += allocated;
+        remaining -= allocated;
+        if (allocated + ROUNDING_ERROR >= available) ++supplyIndex;
+      }
     }
   }
   const auto materialAvailable =
@@ -805,8 +1035,15 @@ void SolverFAS::solve(void*) {
         }
         if (!sawScheduledLeaf) {
           const auto end = scheduledEnd.find(producer);
-          producerEnd = end != scheduledEnd.end() ? end->second
-                                                  : producer->getEnd();
+          if (end != scheduledEnd.end())
+            producerEnd = end->second;
+          else if (producer->getSubOperationPlans(false) !=
+                   OperationPlan::end())
+            // Composite receipt with no FAS-placed leaf yet: MRP's parent
+            // end is not a real release. Wait / block instead of trusting it.
+            return Date::infiniteFuture;
+          else
+            producerEnd = producer->getEnd();
         }
         Date available = Date::infiniteFuture;
         // Pegging tells us which producer contributes to this consumer. Find
@@ -879,7 +1116,8 @@ void SolverFAS::solve(void*) {
   // read-only to compute the dispatch key of the forward pass, and again with
   // `allocate` while the operation is placed, where the batches it takes are
   // recorded so a later consumer sees the remaining supply.
-  const auto materialReady = [&](OperationPlan* op, bool allocate) {
+  const auto materialReady = [&](OperationPlan* op, bool allocate,
+                                 bool allowUnscheduledEnds = false) {
     Date result = Date::infinitePast;
     // Allocate the exact material batch in forward FIFO order.  Only a
     // positive flowplan on the same buffer can supply this consumption.
@@ -887,27 +1125,56 @@ void SolverFAS::solve(void*) {
     for (auto consume = op->beginFlowPlans(); consume != op->endFlowPlans();
          ++consume) {
       if (consume->getQuantity() >= -ROUNDING_ERROR) continue;
+      Buffer* buffer = consume->getBuffer();
+      // FC marks some 自制 codes as BufferInfinite when no route leaf exists.
+      // Those still must not go negative: enforce whenever the item is 自制
+      // or the buffer already has producing batches in this plan.
+      const bool infiniteBuffer =
+          !buffer || buffer->hasType<BufferInfinite>();
+      const bool selfMade =
+          buffer && buffer->getItem() &&
+          buffer->getItem()->getCategory() == "自制";
+      const auto supplyLookup = supplyByBuffer.find(buffer);
+      const bool hasMakers = supplyLookup != supplyByBuffer.end() &&
+                             !supplyLookup->second.empty();
+      const bool enforceMaterial =
+          buffer && (!infiniteBuffer || selfMade || hasMakers);
       double remaining = -consume->getQuantity();
+      // Initial onhand is available immediately (plan current / past).
+      if (enforceMaterial && buffer) {
+        const double freeOnhand =
+            buffer->getOnHand() - allocatedOnhand[buffer];
+        if (freeOnhand > ROUNDING_ERROR) {
+          const double take = min(remaining, freeOnhand);
+          if (allocate) allocatedOnhand[buffer] += take;
+          remaining -= take;
+        }
+      }
       struct SupplyCandidate {
         FlowPlan* flowplan;
         OperationPlan* operationplan;
         Date available;
       };
       vector<SupplyCandidate> candidates;
-      const auto supply = supplyByBuffer.find(consume->getBuffer());
+      const auto& supply = supplyLookup;
       if (supply != supplyByBuffer.end()) {
         for (FlowPlan* produce : supply->second) {
           OperationPlan* producer = produce->getOperationPlan();
           if (!producer || producer == op || !producer->getOperation()) continue;
-          // A producer that hasn't been placed yet still represents finite
-          // supply only after FAS stamps it. Using its stale MRP completion
-          // here lets a delivery/orphan consumer promise before the batch is
-          // actually finished (seen as temporary FG buffer shortages).
+          if (producer->getOperation()->hasType<OperationInventory>() ||
+              producer->getOrderType() == "STCK")
+            continue;
+          // In-scope makers must be FAS-stamped before they release material.
+          // Outside-scope lots keep their current end (shared / already fixed).
+          // allowUnscheduledEnds is a last-resort delay path: wait on the
+          // maker's current end instead of unplanning the consumer.
           Date available = Date::infiniteFuture;
-          if (isMovable(producer) && inScope.count(producer) &&
-              !scheduledEnd.count(producer))
-            available = Date::infiniteFuture;
-          else
+          if (isMovable(producer) && !scheduledEnd.count(producer)) {
+            if (inScope.count(producer) && !allowUnscheduledEnds)
+              available = Date::infiniteFuture;
+            else
+              available = materialAvailable(producer, op);
+          } else
             available = materialAvailable(producer, op);
           candidates.push_back({produce, producer, available});
         }
@@ -921,29 +1188,57 @@ void SolverFAS::solve(void*) {
                            right.operationplan->getReference();
                   });
       Date materialDate = Date::infinitePast;
-      bool waitingOnUnscheduled = false;
+      const char* traceMaterial = getenv("FAS_TRACE_MATERIAL");
+      const bool traceThisMaterial =
+          traceMaterial && *traceMaterial && buffer && buffer->getItem() &&
+          string(traceMaterial).find(buffer->getItem()->getName()) !=
+              string::npos;
       for (const auto& candidate : candidates) {
-        if (candidate.available == Date::infiniteFuture) {
-          waitingOnUnscheduled = true;
-          continue;
-        }
+        if (candidate.available == Date::infiniteFuture) continue;
         const double availableQuantity =
             candidate.flowplan->getQuantity() -
             allocatedSupply[candidate.flowplan];
         if (availableQuantity <= ROUNDING_ERROR) continue;
         const double allocated = min(remaining, availableQuantity);
         if (allocate) allocatedSupply[candidate.flowplan] += allocated;
+        if (allocate && traceThisMaterial)
+          logger << "FAS material allocation buffer='" << buffer->getName()
+                 << "' consumer=" << op->getReference() << " producer="
+                 << candidate.operationplan->getReference() << " qty="
+                 << allocated << " available=" << candidate.available
+                 << " producer_end=" << candidate.operationplan->getEnd()
+                 << "\n";
         remaining -= allocated;
         materialDate = max(materialDate, candidate.available);
         if (remaining <= ROUNDING_ERROR) break;
       }
-      // Leave an unpegged/infinite-buffer input to the standard model.  A
-      // finite input with known FAS supply must not start before its allocated
-      // batch has completed.  If the remaining requirement still sits on an
-      // in-scope producer FAS hasn't placed yet, block this consumer.
-      if (remaining > ROUNDING_ERROR && waitingOnUnscheduled)
+      // True external infinite buffers may start short. Everything we
+      // enforce must cover the full requirement from onhand + placed batches.
+      if (remaining > ROUNDING_ERROR && enforceMaterial) {
+        if (traceThisMaterial) {
+          logger << "FAS material unavailable buffer='" << buffer->getName()
+                 << "' consumer=" << op->getReference()
+                 << " required=" << -consume->getQuantity()
+                 << " remaining=" << remaining
+                 << " onhand=" << buffer->getOnHand()
+                 << " allocated_onhand=" << allocatedOnhand[buffer]
+                 << " producers=";
+          bool first = true;
+          for (const auto& candidate : candidates) {
+            if (!first) logger << ',';
+            logger << candidate.operationplan->getReference()
+                   << "(qty=" << candidate.flowplan->getQuantity()
+                   << ",allocated=" << allocatedSupply[candidate.flowplan]
+                   << ",available=" << candidate.available
+                   << ",scheduled="
+                   << (scheduledEnd.count(candidate.operationplan) ? "yes" : "no")
+                   << ')';
+            first = false;
+          }
+          logger << '\n';
+        }
         result = Date::infiniteFuture;
-      else if (materialDate != Date::infinitePast)
+      } else if (materialDate != Date::infinitePast)
         result = max(result, materialDate);
     }
     return result;
@@ -1072,6 +1367,12 @@ void SolverFAS::solve(void*) {
             continue;
           const double required = fabs(load->getQuantity());
           vector<Date> points{candidate->getStart(), candidate->getEnd()};
+          const auto working = capacityWindows(resource, candidate,
+                                               candidate->getStart(), candidate->getEnd());
+          for (const auto& w : working) {
+            points.push_back(w.getStart());
+            points.push_back(w.getEnd());
+          }
           Calendar* calendar = resource->getMaximumCalendar();
           if (calendar) {
             Calendar::EventIterator event(calendar, candidate->getStart(), true);
@@ -1095,6 +1396,7 @@ void SolverFAS::solve(void*) {
           points.erase(unique(points.begin(), points.end()), points.end());
           for (size_t p = 0; p + 1 < points.size(); ++p) {
             const Date check = points[p];
+            if (!windowActive(working, check)) continue;
             double used = 0.0;
             Date release = Date::infiniteFuture;
             for (const auto& reservation : reservations[resource])
@@ -1193,7 +1495,14 @@ void SolverFAS::solve(void*) {
       OperationPlan* plan = peg.getOperationPlan();
       if (!plan) continue;
       OperationPlan* top = plan->getTopOwner();
-      if (top) demandByJob.emplace(top, &*demand);
+      if (top) {
+        auto existing = demandByJob.find(top);
+        if (existing == demandByJob.end() ||
+            demand->getPriority() < existing->second->getPriority() ||
+            (demand->getPriority() == existing->second->getPriority() &&
+             demand->getDue() < existing->second->getDue()))
+          demandByJob[top] = &*demand;
+      }
     }
   }
   const auto demandOfJob =
@@ -1345,11 +1654,50 @@ void SolverFAS::solve(void*) {
       if (--remainingIndegree[succ] == 0) ready.push(succ);
     }
   }
+  if (queued.size() != work.size() && getLogLevel() >= 1) {
+    logger << "FAS: execution graph has " << (work.size() - queued.size())
+           << " operationplans outside topological order\n";
+    for (auto* op : work) {
+      if (!op || queued.count(op)) continue;
+      logger << "FAS: graph blocked ref=" << op->getReference()
+             << " operation="
+             << (op->getOperation() ? op->getOperation()->getName() : "")
+             << " indegree=" << remainingIndegree[op] << " predecessors=";
+      bool first = true;
+      for (const auto& entry : graph.downstream)
+        if (find(entry.second.begin(), entry.second.end(), op) !=
+            entry.second.end()) {
+          if (!first) logger << ',';
+          logger << (entry.first ? entry.first->getReference() : "");
+          first = false;
+        }
+      logger << '\n';
+    }
+  }
   for (auto* op : preferredOrder)
     if (queued.insert(op).second) placeOrder.push_back(op);
   unordered_set<OperationPlan*> dispatched;
-  for (auto* op : placeOrder) {
+  unordered_map<OperationPlan*, int> materialDeferCount;
+  unordered_set<Demand*> failedDemands;
+  unordered_set<OperationPlan*> failedRoots;
+  unordered_map<string, size_t> failedReasons;
+  const auto markFailed = [&](OperationPlan* op, const char* reason) {
+    if (!op) return;
+    ++failedReasons[reason];
+    if (Demand* demand = demandOfJob(jobOf(op))) failedDemands.insert(demand);
+    if (OperationPlan* root = op->getTopOwner()) failedRoots.insert(root);
+  };
+  // Index loop so material-deferred ops can be appended and retried after
+  // their makers have been placed — prefer delay over unplanning.
+  for (size_t placeIndex = 0; placeIndex < placeOrder.size(); ++placeIndex) {
+    OperationPlan* op = placeOrder[placeIndex];
     if (!op || dispatched.count(op)) continue;
+    if (Demand* demand = demandOfJob(jobOf(op));
+        demand && failedDemands.count(demand))
+      continue;
+    if (OperationPlan* root = op->getTopOwner();
+        root && failedRoots.count(root))
+      continue;
     dispatched.insert(op);
     // Choose pooled resources as one combination.  Greedily picking the first
     // available operator and then the first available tool can select the
@@ -1388,7 +1736,7 @@ void SolverFAS::solve(void*) {
         // (and calendars) so idle slots on unary machines can be filled.
         Date ready = max(opReadyBound, current);
         Calendar* calendar = memberResource->getMaximumCalendar();
-        for (unsigned short attempt = 0; attempt < 1000; ++attempt) {
+        for (unsigned int attempt = 0; attempt < 10000; ++attempt) {
           vector<Date> points{ready, ready + opDuration};
           if (calendar) {
             Calendar::EventIterator event(calendar, ready, true);
@@ -1543,8 +1891,81 @@ void SolverFAS::solve(void*) {
     // Python _find_earliest_slot): do not append-only on unary machines.
     // Allocate the material batches this operation consumes. The dispatch key
     // above only reads their readiness; the actual FIFO allocation is part of
-    // placing the operation.
+    // placing the operation. Snapshot so a failed capacity/material search
+    // can release the claim for a later retry or another demand.
+    const auto supplyBeforeAllocate = allocatedSupply;
+    const auto onhandBeforeAllocate = allocatedOnhand;
     earliest = max(earliest, materialReady(op, true));
+    auto releaseMaterialClaim = [&]() {
+      allocatedSupply = supplyBeforeAllocate;
+      allocatedOnhand = onhandBeforeAllocate;
+    };
+    if (earliest == Date::infiniteFuture) {
+      releaseMaterialClaim();
+      // Wait for in-scope makers that have not been stamped yet.
+      bool waitingMaker = false;
+      for (auto consume = op->beginFlowPlans(); consume != op->endFlowPlans();
+           ++consume) {
+        if (consume->getQuantity() >= -ROUNDING_ERROR || !consume->getBuffer())
+          continue;
+        const auto supply = supplyByBuffer.find(consume->getBuffer());
+        if (supply == supplyByBuffer.end()) continue;
+        for (FlowPlan* produce : supply->second) {
+          OperationPlan* producer = produce->getOperationPlan();
+          if (!producer || producer == op || !inScope.count(producer)) continue;
+          if (isMovable(producer) && !scheduledEnd.count(producer)) {
+            waitingMaker = true;
+            break;
+          }
+        }
+        if (waitingMaker) break;
+      }
+      // A shared-material producer can sit far behind this consumer in a
+      // network containing thousands of executable leaves.  Eight retries
+      // incorrectly classified that ordering delay as a material shortage.
+      // Give every original work item a chance to be placed first.
+      if (waitingMaker && materialDeferCount[op] < work.size()) {
+        ++materialDeferCount[op];
+        dispatched.erase(op);
+        placeOrder.push_back(op);
+        if (getLogLevel() >= 1) {
+          Demand* demand = demandOfJob(jobOf(op));
+          logger << "FAS: defer for material "
+                 << (demand ? demand->getName() : op->getReference()) << " on "
+                 << op->getOperation()->getName() << '\n';
+        }
+        continue;
+      }
+      // Delay onto current maker ends instead of unplanning the order.
+      earliest = max(readyDate(op), materialReady(op, true, true));
+      if (earliest == Date::infiniteFuture) {
+        releaseMaterialClaim();
+        // No producer batch exists at all for an enforced buffer: cannot
+        // invent supply by delaying. Otherwise keep the expanded network.
+        bool hasAnyMaker = false;
+        for (auto consume = op->beginFlowPlans();
+             consume != op->endFlowPlans(); ++consume) {
+          if (consume->getQuantity() >= -ROUNDING_ERROR || !consume->getBuffer())
+            continue;
+          const auto supply = supplyByBuffer.find(consume->getBuffer());
+          if (supply != supplyByBuffer.end() && !supply->second.empty()) {
+            hasAnyMaker = true;
+            break;
+          }
+        }
+        if (!hasAnyMaker) {
+          markFailed(op, "material-no-maker");
+          if (getLogLevel() >= 0) {
+            Demand* demand = demandOfJob(jobOf(op));
+            logger << "FAS: material shortage blocks "
+                   << (demand ? demand->getName() : op->getReference())
+                   << " on " << op->getOperation()->getName() << '\n';
+          }
+        } else
+          markFailed(op, "material-unavailable");
+        continue;
+      }
+    }
     Date newStart = Date::infinitePast;
     Date newEnd = Date::infinitePast;
     if (op->getOperation()->hasType<OperationDelivery>()) {
@@ -1568,7 +1989,7 @@ void SolverFAS::solve(void*) {
       // makes failed trials fully reversible, including resource timelines.
       Date candidate = earliest;
       bool placed = false;
-      for (unsigned short attempt = 0; attempt < 1000; ++attempt) {
+      for (unsigned int attempt = 0; attempt < 10000; ++attempt) {
         Date mappedStart = candidate;
         for (auto load = op->beginLoadPlans(); load != op->endLoadPlans();
              ++load) {
@@ -1620,8 +2041,11 @@ void SolverFAS::solve(void*) {
         if (next == Date::infiniteFuture) break;
         candidate = max(candidate + Duration(1L), next);
       }
-      if (!placed)
-        throw DataException("FAS bucket allocator couldn't find feasible capacity");
+      if (!placed) {
+        releaseMaterialClaim();
+        markFailed(op, "bucket-capacity");
+        continue;
+      }
       // The successful trial has already moved the operationplan and is kept
       // in the command manager.  Suppress the generic move below.
       newStart = op->getStart();
@@ -1648,7 +2072,8 @@ void SolverFAS::solve(void*) {
       // with enough *remaining* resource capacity on every interval. This
       // is the forward equivalent of MRP's LoadPlan timeline scan: calendar
       // changes and existing load start/end events are all breakpoints.
-      for (unsigned short attempt = 0; attempt < 1000; ++attempt) {
+      for (unsigned int attempt = 0; attempt < 10000; ++attempt) {
+        if (earliest >= horizonEnd) break;
         DateRange slot = op->getOperation()->calculateOperationTime(
             op, earliest, duration, true, nullptr, true);
         Date nextEarliest = earliest;
@@ -1660,6 +2085,11 @@ void SolverFAS::solve(void*) {
             continue;
           const double required = fabs(load->getQuantity());
           vector<Date> points{slot.getStart(), slot.getEnd()};
+          const auto working = capacityWindows(resource, op, slot.getStart(), slot.getEnd());
+          for (const auto& w : working) {
+            points.push_back(w.getStart());
+            points.push_back(w.getEnd());
+          }
           // Capacity calendars in the planning model are bucket based. Add
           // daily checkpoints so a multi-day operation is checked across
           // every capacity-calendar day, even without another load event.
@@ -1695,6 +2125,7 @@ void SolverFAS::solve(void*) {
           points.erase(unique(points.begin(), points.end()), points.end());
           for (size_t p = 0; p + 1 < points.size(); ++p) {
             const Date check = points[p];
+            if (!windowActive(working, check)) continue;
             double used = 0.0;
             Date release = Date::infiniteFuture;
             for (const auto& reservation : reservations[resource])
@@ -1704,6 +2135,14 @@ void SolverFAS::solve(void*) {
               }
             const double capacity = calendar ? calendar->getValue(check)
                                              : resource->getMaximum();
+            // The operation time calculation pauses work when its availability
+            // calendar closes. A zero-capacity interval inside that pause is
+            // not an overload: the remaining processing resumes next shift.
+            if (capacity <= ROUNDING_ERROR &&
+                op->getOperation()->getAvailable() &&
+                op->getOperation()->getAvailable()->getValue(check) <=
+                    ROUNDING_ERROR)
+              continue;
             if (used + required > capacity + ROUNDING_ERROR) {
               // The next candidate is either when a current reservation
               // releases, or the next calendar day. Calendar values are
@@ -1732,11 +2171,12 @@ void SolverFAS::solve(void*) {
           }
           if (!valid) break;
         }
-        if (valid) {
+        if (valid && slot.getEnd() <= horizonEnd) {
           newStart = slot.getStart();
           newEnd = slot.getEnd();
           break;
         }
+        if (valid) break;
         if (nextEarliest <= earliest) {
           // EventIterator can legitimately be positioned on the same
           // boundary when a sparse calendar starts with a zero-capacity
@@ -1776,8 +2216,11 @@ void SolverFAS::solve(void*) {
         }
         earliest = nextEarliest;
       }
-      if (newEnd == Date::infinitePast)
-        throw DataException("FAS capacity-calendar search exceeded its iteration limit");
+      if (newEnd == Date::infinitePast) {
+        releaseMaterialClaim();
+        markFailed(op, "continuous-capacity");
+        continue;
+      }
       }
     }
     if (newStart != op->getStart() || newEnd != op->getEnd()) {
@@ -1807,8 +2250,9 @@ void SolverFAS::solve(void*) {
             reservations[resource].begin(), reservations[resource].end(),
             [op](const Reservation& entry) { return entry.operationplan == op; });
         if (alreadyReserved == reservations[resource].end())
-          reservations[resource].push_back({reservedStart, reservedEnd,
-                                            fabs(load->getQuantity()), op});
+          for (const auto& w : capacityWindows(resource, op, reservedStart, reservedEnd))
+            reservations[resource].push_back({w.getStart(), w.getEnd(),
+                                              fabs(load->getQuantity()), op});
       }
     }
     scheduledEnd[op] = reservedEnd;
@@ -1827,6 +2271,36 @@ void SolverFAS::solve(void*) {
            << reservations.size() << " resources, alternate probes "
            << alternateProbes << '\n';
 
+  // A finite scheduling window is a selection boundary.  Orders for which
+  // the forward pass finds no complete slot before that boundary are valid
+  // unplanned orders, not a fatal solver error. Remove their complete pegged
+  // supply networks after dispatch so no iterator is invalidated mid-pass.
+  if (!failedDemands.empty() || !failedRoots.empty()) {
+    unordered_set<OperationPlan*> seenRoots = failedRoots;
+    for (const auto& entry : demandByJob)
+      if (entry.second && failedDemands.count(entry.second)) {
+        OperationPlan* root = entry.first ? entry.first->getTopOwner() : nullptr;
+        if (root) seenRoots.insert(root);
+      }
+    // A failed demand can also reference a locked stock/confirmed plan.
+    // Those plans are inputs to this run and can't be rolled back with the
+    // proposed supply created by the expander.
+    size_t removed = 0;
+    for (auto* root : seenRoots)
+      if (root && root->getProposed()) {
+        activeCommands->add(new CommandDeleteOperationPlan(root));
+        ++removed;
+      }
+    if (getLogLevel() >= 0)
+      logger << "FAS: left " << failedDemands.size()
+             << " orders unplanned (" << removed
+             << " proposed supply networks removed)\n";
+    if (getLogLevel() >= 0)
+      for (const auto& reason : failedReasons)
+        logger << "FAS: unplanned reason " << reason.first << '='
+               << reason.second << '\n';
+  }
+
   if (trial) {
     trialCompletion = finishOf(networkRoots);
     return;
@@ -1837,7 +2311,99 @@ void SolverFAS::solve(void*) {
   // need to run first keeps that delay for the rest of the schedule.
   // Improve by relocating jobs in the decision sequence (same decoder, new
   // order) — matching Python fjsp_forward_schedule._improve_job_order.
-  improveJobOrder(networkRoots, safetyStockPlans, jobSequence);
+  if (failedDemands.empty())
+    improveJobOrder(networkRoots, safetyStockPlans, jobSequence);
+
+  // Final material sweep. The greedy forward pass (and job-order improve)
+  // can still leave a 自制 / finite buffer negative when a producer was
+  // outside the dispatch key, a composite MRP end was trusted historically,
+  // or capacity later stretched a producer past its consumer. Delay each
+  // violating consumer to the first future receipt that restores a
+  // non-negative balance; if no receipt exists, drop the proposed network.
+  {
+    const auto enforceBuffer = [](Buffer* buffer) {
+      if (!buffer) return false;
+      if (!buffer->hasType<BufferInfinite>()) return true;
+      if (buffer->getItem() && buffer->getItem()->getCategory() == "自制")
+        return true;
+      for (const Flow& flow : buffer->getFlows())
+        if (flow.getQuantity() > ROUNDING_ERROR && flow.getOperation() &&
+            flow.getOperation()->hasType<OperationTimePer, OperationFixedTime>())
+          return true;
+      return false;
+    };
+    size_t repaired = 0;
+    size_t removed = 0;
+    const unsigned int maxPasses = 50000;
+    for (unsigned int pass = 0; pass < maxPasses; ++pass) {
+      bool changed = false;
+      for (auto bufferIt = Buffer::begin(); bufferIt != Buffer::end();
+           ++bufferIt) {
+        Buffer* buffer = &*bufferIt;
+        if (!enforceBuffer(buffer)) continue;
+        for (auto flow = buffer->getFlowPlans().begin();
+             flow != buffer->getFlowPlans().end(); ++flow) {
+          if (flow->getEventType() != 1) continue;
+          auto* fp = static_cast<FlowPlan*>(&*flow);
+          if (fp->getQuantity() >= -ROUNDING_ERROR) continue;
+          if (fp->getOnhand() >= -ROUNDING_ERROR) continue;
+          OperationPlan* consumer = fp->getOperationPlan();
+          if (!consumer || !isMovable(consumer)) continue;
+          // Start from the balance *after* this consumption; walk forward
+          // until later receipts restore a non-negative onhand.
+          double available = fp->getOnhand();
+          Date candidate = Date::infiniteFuture;
+          for (auto future = flow; future != buffer->getFlowPlans().end();
+               ++future) {
+            if (future->getDate() <= fp->getDate() ||
+                fabs(future->getQuantity()) <= ROUNDING_ERROR)
+              continue;
+            available += future->getQuantity();
+            if (available >= -ROUNDING_ERROR) {
+              candidate = future->getDate();
+              break;
+            }
+          }
+          if (candidate == Date::infiniteFuture) {
+            // Timing cannot be repaired and inventing supply is out of scope.
+            // Keep the expanded network so the order stays planned; the
+            // material problem remains visible on the buffer timeline.
+            continue;
+          }
+          if (candidate <= consumer->getStart()) continue;
+          const Duration dur = consumer->getEnd() - consumer->getStart();
+          const DateRange mapped =
+              consumer->getOperation()->calculateOperationTime(
+                  consumer, candidate, dur, true);
+          if (mapped.getStart() <= consumer->getStart()) continue;
+          if (getLogLevel() >= 0)
+            logger << "FAS: material repair delay consumer="
+                   << consumer->getReference() << " op="
+                   << consumer->getOperation()->getName() << " buffer='"
+                   << buffer->getName() << "' from " << consumer->getStart()
+                   << " to " << mapped.getStart() << " (onhand was "
+                   << fp->getOnhand() << ")\n";
+          activeCommands->add(new CommandMoveOperationPlan(
+              consumer, mapped.getStart(), mapped.getEnd(), -1.0, false, true,
+              false));
+          // Material events must reflect the new start before the next
+          // consumer on this buffer is inspected.
+          activeCommands->commit();
+          ++repaired;
+          changed = true;
+          break;
+        }
+        if (changed) break;
+      }
+      if (!changed) break;
+      if (pass + 1 == maxPasses && getLogLevel() >= 0)
+        logger << "Warning: FAS material repair reached its move limit\n";
+    }
+    if (getLogLevel() >= 0 && (repaired || removed))
+      logger << "FAS: material repair delayed " << repaired
+             << " consumers, removed " << removed
+             << " uncovered proposed networks\n";
+  }
 
   // SolverCreate records capacity shortages encountered while it expands
   // demand backwards. Those are planning-trace constraints attached to the
@@ -1991,8 +2557,49 @@ Date SolverFAS::probeResourceConflict(
     const Resource* resource, Date start, Duration duration, double required,
     const unordered_set<const OperationPlan*>& own) const {
   const Date end = start + duration;
-  const Calendar* calendar = resource->getMaximumCalendar();
+  Calendar* calendar = resource->getMaximumCalendar();
   const double maximum = resource->getMaximum();
+  if (resource->getCategory() == "人员") {
+    vector<pair<Date, double>> events;
+    vector<Date> points{start, end};
+    for (const auto& event : resource->getLoadPlans()) {
+      const auto* plan = event.getOperationPlan();
+      if (event.getEventType() != 1 || event.getQuantity() >= 0 || !plan ||
+          own.count(plan)) continue;
+      for (const auto& w : capacityWindows(resource, plan, plan->getStart(), plan->getEnd())) {
+        events.emplace_back(w.getStart(), -event.getQuantity());
+        events.emplace_back(w.getEnd(), event.getQuantity());
+        if (w.getStart() > start && w.getStart() < end) points.push_back(w.getStart());
+        if (w.getEnd() > start && w.getEnd() < end) points.push_back(w.getEnd());
+      }
+    }
+    if (calendar) {
+      Calendar::EventIterator change(calendar, start, true);
+      Date previous = change.getDate();
+      for (unsigned int n = 0; n < 10000 && change.getDate() < end; ++n) {
+        if (change.getDate() > start) points.push_back(change.getDate());
+        ++change;
+        if (change.getDate() <= previous) break;
+        previous = change.getDate();
+      }
+    }
+    sort(events.begin(), events.end());
+    sort(points.begin(), points.end());
+    points.erase(unique(points.begin(), points.end()), points.end());
+    size_t index = 0;
+    double used = 0;
+    for (size_t p = 0; p + 1 < points.size(); ++p) {
+      while (index < events.size() && events[index].first <= points[p])
+        used += events[index++].second;
+      const double capacity = calendar ? calendar->getValue(points[p]) : maximum;
+      if (capacity <= ROUNDING_ERROR || used + required <= capacity + ROUNDING_ERROR)
+        continue;
+      for (size_t e = index; e < events.size(); ++e)
+        if (events[e].second < -ROUNDING_ERROR) return events[e].first;
+      return Date::infiniteFuture;
+    }
+    return Date::infiniteFuture;
+  }
   // Capacity already taken when the candidate would start. The timeline holds
   // a positive event when a load starts and a matching negative event when it
   // releases, so summing them yields the used capacity of an interval. Setup
@@ -2077,6 +2684,7 @@ Date SolverFAS::probeAlternateCompletion(OperationPlan* root) {
   Date firstCompletion = Date::infiniteFuture;
   Duration firstDuration(0L);
   Duration contention(0L);
+  bool pooledPersonnel = false;
   for (size_t index = 0; index < leaves.size(); ++index) {
     OperationPlan* leaf = leaves[index];
     Duration duration;
@@ -2098,6 +2706,13 @@ Date SolverFAS::probeAlternateCompletion(OperationPlan* root) {
           load->getQuantity() >= -ROUNDING_ERROR)
         continue;
       unordered_set<const OperationPlan*> counted;
+      // Personnel pools run many jobs concurrently. Summing their durations
+      // as a serial queue hides the queue difference between eligible machines.
+      // The conflict probe below still enforces their actual shift capacity.
+      if (resource->getCategory() == "人员") {
+        pooledPersonnel = true;
+        continue;
+      }
       Duration queued(0L);
       for (const auto& event : resource->getLoadPlans()) {
         const OperationPlan* assigned = event.getOperationPlan();
@@ -2151,9 +2766,11 @@ Date SolverFAS::probeAlternateCompletion(OperationPlan* root) {
   // kFASQueueWeight==1 this is firstCompletion (+ contention tie-break).
   // Weight>1 would add extra multiples of firstDuration and prefer shorter
   // ops even when their queued finish is later.
+  // For personnel-backed routes, eligibility counts aren't occupied capacity:
+  // a large structural penalty can prefer a busy machine over an idle one.
   return firstCompletion +
          Duration((kFASQueueWeight - 1L) * firstDuration.getSeconds()) +
-         contention;
+         (pooledPersonnel ? Duration(0L) : contention);
 }
 
 Date SolverFAS::trialForwardNetwork(OperationPlan* root,

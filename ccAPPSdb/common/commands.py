@@ -1,5 +1,6 @@
 from datetime import datetime
 import io
+import json
 from importlib import import_module
 from operator import attrgetter
 import os
@@ -7,6 +8,27 @@ import sys
 import site
 import logging
 from threading import Thread
+
+
+def planning_success_status(message):
+    """Return the terminal status/message for a completed planner process.
+
+    Local CP can complete technically while rejecting its candidate.  Its
+    per-task outcome must survive the generic task finalizer and must be
+    reported as Failed when its boolean status is false.
+    """
+    message = message or ""
+    if not message.startswith("local_outcome="):
+        return "Done", ""
+    try:
+        outcome = json.loads(message[len("local_outcome=") :])
+    except Exception:
+        return "Failed", message
+    success = outcome.get("status")
+    if not isinstance(success, bool):
+        # Compatibility with outcomes persisted before status was unified.
+        success = outcome.get("local_ok") is True
+    return ("Done" if success else "Failed"), message
 
 
 if __name__ == "__main__":
@@ -244,10 +266,14 @@ class PlanTaskSequence(PlanTask):
 
             # Final task status
             if self.task:
+                # The CP step writes its result directly to the task row, so
+                # refresh the stale registry object before finalizing it.
+                self.task.refresh_from_db(using=database)
                 if not self.task.finished:
                     self.task.finished = datetime.now()
-                self.task.status = "Done"
-                self.task.message = ""
+                self.task.status, self.task.message = planning_success_status(
+                    self.task.message
+                )
                 self.task.save(using=database)
         except Exception as e:
             if self.task:
@@ -593,11 +619,12 @@ if __name__ == "__main__":
             task = Task.objects.all().using(database).filter(pk=task.id).first()
             if task:
                 task.processid = None
-                task.status = newstatus
+                if newstatus == "Done":
+                    task.status, task.message = planning_success_status(task.message)
+                else:
+                    task.status = newstatus
                 if not task.finished:
                     task.finished = datetime.now()
-                if newstatus == "Done" and task.message:
-                    task.message = ""
                 task.save(
                     update_fields=["processid", "status", "finished", "message"],
                     using=database,

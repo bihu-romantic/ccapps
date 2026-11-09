@@ -24,6 +24,60 @@ from ccAPPSdb.common.utils import get_databases
 from ccAPPSdb import __version__
 
 
+def clear_one_shot_local_reschedule(database):
+    """Clear an API reschedule trigger after its runplan attempt.
+
+    The engine normally clears this state itself.  Keeping the cleanup at the
+    management-command boundary also covers failures before the engine reaches
+    its CP cleanup block (candidate import, preflight, or child crash).
+    """
+    from ccAPPSdb.common.models import Parameter
+
+    truthy = ("1", "true", "yes", "on")
+    canonical_one_shot = Parameter.getValue(
+        "local.one_shot", database, "0"
+    ).lower() in truthy
+    legacy_one_shot = Parameter.getValue(
+        "cp.local_one_shot", database, "0"
+    ).lower() in truthy
+    if not (canonical_one_shot or legacy_one_shot):
+        return False
+    previous_solver = Parameter.getValue(
+        "local.previous_solver", database, ""
+    ).strip()
+    if previous_solver:
+        Parameter.objects.using(database).update_or_create(
+            name="plan.solver", defaults={"value": previous_solver}
+        )
+    for name, value in {
+        "plan.skip_supply": "0",
+        "local.reschedule": "0",
+        "local.insert_candidates": "0",
+        "local.one_shot": "0",
+        "local.new_demands": "",
+        "local.deleted_demands": "",
+        "local.changed_materials": "",
+        "local.changed_resources": "",
+        "local.scope_base": "",
+        "local.scope_relax": "",
+        "local.previous_solver": "",
+        "cp.local_reschedule": "0",
+        "cp.local_skip_supply": "0",
+        "cp.local_insert_candidates": "0",
+        "cp.local_one_shot": "0",
+        "cp.local_new_demands": "",
+        "cp.local_deleted_demands": "",
+        "cp.local_changed_materials": "",
+        "cp.local_changed_resources": "",
+        "cp.local_scope_base": "",
+        "cp.local_scope_relax": "",
+    }.items():
+        Parameter.objects.using(database).update_or_create(
+            name=name, defaults={"value": value}
+        )
+    return True
+
+
 def reload_webservice(database):
     """Replace the in-memory planning service with the plan just written."""
     if os.environ.get("CCAPPS_WEBSERVICE", "true").lower() == "false":
@@ -58,17 +112,22 @@ def parseConstraints(val):
     try:
         cstrnts = int(val)
     except Exception:
+        # Use bitwise OR. Adding flags with += double-counts when both
+        # "mfg_lt" and "lt" appear (16+16=32), which clears the mfg_lt bit
+        # and silently drops manufacturing lead time (seen as capa,po_lt).
         cstrnts = 0
         for v in val.split(","):
             c = v.strip().lower()
             if c == "capa":
-                cstrnts += 4
+                cstrnts |= 4
+            elif c == "fence":
+                cstrnts |= 8
             elif c == "lt":
-                cstrnts += 16 + 32
+                cstrnts |= 16 | 32
             elif c == "mfg_lt":
-                cstrnts += 16
+                cstrnts |= 16
             elif c == "po_lt":
-                cstrnts += 32
+                cstrnts |= 32
     return cstrnts
 
 
@@ -78,6 +137,8 @@ def constraintString(val):
     c = []
     if val & 4:
         c.append("capa")
+    if val & 8:
+        c.append("fence")
     if val & 16 or val & 1:
         c.append("mfg_lt")
     if val & 32 or val & 1:
@@ -365,6 +426,21 @@ class Command(BaseCommand):
             child_env["CCAPPS_PROCESSNAME"] = get_databases()[database][
                 "NAME"
             ].replace("demo", "")
+            # Local repair on a historical schedule: load proposed MOs
+            # (see loadOperationPlans) and skip FAS/MRP rebuild for any solver.
+            try:
+                from ccAPPSdb.common.models import Parameter as _Param
+
+                _skip = _Param.getValue(
+                    "plan.skip_supply",
+                    database,
+                    _Param.getValue("cp.local_skip_supply", database, "0"),
+                ).lower() in ("1", "true", "yes", "on")
+                if _skip:
+                    child_env["CP_LOCAL_SKIP_SUPPLY"] = "1"
+                    child_env["LOCAL_SKIP_SUPPLY"] = "1"
+            except Exception:
+                pass
             # Add the virtual environment's bin directory to PATH so the
             # ccAPPS binary's embedded Python can find Django and other packages.
             venv = os.path.join(settings.CCAPPS_APP, "venv")
@@ -492,12 +568,16 @@ class Command(BaseCommand):
                 # Reread the task from the database and update it
                 task = Task.objects.all().using(database).get(pk=task.id)
                 task.processid = None
-                task.status = "Done"
+                task.status, task.message = (
+                    ccAPPSdb.common.commands.planning_success_status(task.message)
+                )
                 task.finished = datetime.now()
                 task.save(
-                    update_fields=["processid", "status", "finished"], using=database
+                    update_fields=["processid", "status", "message", "finished"],
+                    using=database,
                 )
-                reload_webservice(database)
+                if task.status == "Done":
+                    reload_webservice(database)
 
         except Exception as e:
             if task:
@@ -510,6 +590,15 @@ class Command(BaseCommand):
             raise e
 
         finally:
+            try:
+                clear_one_shot_local_reschedule(database)
+            except Exception:
+                # Cleanup must never hide the original planner result.  A
+                # database outage will already make the task fail; logging the
+                # cleanup exception preserves that root cause for diagnosis.
+                self.stderr.write(
+                    "Failed to clear one-shot reschedule parameters"
+                )
             setattr(_thread_locals, "database", old_thread_locals)
 
     # accordion template

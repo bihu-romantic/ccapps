@@ -136,6 +136,7 @@ class FlowLineScheduler {
   }
 
   Result run_reschedule(const fs::path& previous_schedule, const fs::path& events_file, double now) {
+    reschedule_floor_ = now;
     const auto previous = read_schedule(previous_schedule);
     const auto events = read_events(events_file);
     std::set<std::string> affected;
@@ -173,7 +174,20 @@ class FlowLineScheduler {
       }
       if (affected.contains(task.demand) && !immutable) continue;
       preserved.push_back(task);
-      for (const auto& resource : task.resources) frozen_tasks_.push_back({resource, task.start, task.end});
+      // Preserved future work is immutable from this reschedule's point of
+      // view. Replay its material consumption and output too, otherwise an
+      // affected order can consume inventory already committed to it.
+      if (!immutable) historical_tasks_.push_back(task);
+      for (const auto& resource : task.resources) {
+        const auto cap = capacity_.find(resource);
+        // For unit-capacity resources preserve the actual occupied interval,
+        // including gaps between frozen jobs. The old next-available scalar
+        // incorrectly blocked the resource continuously until the last job.
+        if (cap != capacity_.end() && cap->second == 1)
+          outages_[resource].push_back({task.start, task.end});
+        else
+          frozen_tasks_.push_back({resource, task.start, task.end});
+      }
     }
     std::vector<int> order(demands_.size());
     std::iota(order.begin(), order.end(), 0);
@@ -217,6 +231,7 @@ class FlowLineScheduler {
   std::unordered_map<std::string, DeviceState> device_states_;
   std::vector<Scheduled> historical_tasks_;
   std::map<std::pair<std::string, std::string>, size_t> historical_batch_count_;
+  double reschedule_floor_ = 0;
 
   static std::vector<RescheduleEvent> read_events(const fs::path& path) {
     std::vector<RescheduleEvent> events;
@@ -492,18 +507,17 @@ class FlowLineScheduler {
           const double free_at = availability == available.end() ? 0 : *std::min_element(availability->second.begin(), availability->second.end());
           next_start = std::max(next_start, next_slot(resource, std::max(aligned_start, free_at), adjusted_duration, operations_.at(operation).allow_cross_shift));
         }
+        const double tentative_end = next_start + adjusted_duration;
+        for (const auto& resource : candidate)
+          next_start = std::max(
+              next_start,
+              outage_end(resource, next_start, tentative_end));
         if (next_start == aligned_start) break;
         aligned_start = next_start;
       }
       double candidate_end = aligned_start + adjusted_duration;
       for (const auto& resource : candidate)
         candidate_end = std::max(candidate_end, finish_slot(resource, aligned_start, adjusted_duration, operations_.at(operation).allow_cross_shift));
-      double blocked_until = 0;
-      for (const auto& resource : candidate) blocked_until = std::max(blocked_until, outage_end(resource, aligned_start, candidate_end));
-      if (blocked_until > 0) {
-        aligned_start = blocked_until;
-        continue;
-      }
       if (!found || candidate_end < earliest_end) {
         found = true;
         earliest_end = candidate_end;
@@ -542,7 +556,10 @@ class FlowLineScheduler {
     for (const auto& task : historical) {
       const auto flow_iter = flows_.find(task.operation);
       if (flow_iter == flows_.end()) continue;
-      const double available_at = task.status == "running" ? task.end : 0;
+      const double available_at =
+          (task.status == "completed" || task.end <= reschedule_floor_)
+              ? 0
+              : task.end;
       for (const auto& flow : flow_iter->second) {
         if (flow.quantity < 0) consume(flow.item, -flow.quantity * task.quantity);
         if (flow.quantity > 0) supplies[flow.item].push_back({available_at, flow.quantity * task.quantity, false});
@@ -567,7 +584,9 @@ class FlowLineScheduler {
       const auto& demand = demands_[index]; const auto route = route_for(demand);
       if (active_demands && !active_demands->contains(demand.id)) continue;
       if (route.empty()) { result.diagnostics.push_back(demand.id + ": route not found"); result.problems.push_back({"route_not_found", "error", demand.id, "", demand.item, "configure a manufacturing route"}); result.fitness += 1e9; continue; }
-      const double initial_release = backward && demand.due > 0 ? std::max(0.0, demand.due - route_duration(demand, route)) : 0;
+      const double initial_release = backward && demand.due > 0
+          ? std::max(reschedule_floor_, demand.due - route_duration(demand, route))
+          : reschedule_floor_;
       std::vector<double> predecessor_batch_ends;
       double demand_completion = initial_release;
       for (const auto& operation_id : route) {

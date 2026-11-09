@@ -376,7 +376,8 @@ void SolverCreate::solve(const Demand* salesorder, void* v) {
             Date next_date = data->state->a_date;
             bool broken_path = data->broken_path;
 
-            if (data->state->a_qty < ROUNDING_ERROR && plan_qty > minshipment &&
+            if (data->state->a_qty + ROUNDING_ERROR < plan_qty &&
+                plan_qty > minshipment &&
                 minshipment > 0 && policy != Demand::POLICY_ALLTOGETHER) {
               bool originalLogConstraints = data->logConstraints;
               data->logConstraints = false;
@@ -400,7 +401,7 @@ void SolverCreate::solve(const Demand* salesorder, void* v) {
                 deliveryoper->solve(*this, v);
                 if (data->state->a_date < next_date)
                   next_date = data->state->a_date;
-                if (data->state->a_qty > ROUNDING_ERROR) {
+                if (data->state->a_qty + ROUNDING_ERROR >= minshipment) {
                   // The minimum shipment quantity is feasible.
                   // Now try iteratively different quantities to find the best
                   // we can do.
@@ -434,7 +435,7 @@ void SolverCreate::solve(const Demand* salesorder, void* v) {
                     deliveryoper->solve(*this, v);
                     if (data->state->a_date < next_date)
                       next_date = data->state->a_date;
-                    if (data->state->a_qty > ROUNDING_ERROR)
+                    if (data->state->a_qty + ROUNDING_ERROR >= new_qty)
                       // Too small: new min
                       min_qty = new_qty;
                     else
@@ -793,6 +794,10 @@ void SolverCreate::scanExcess(CommandList* l) {
         // Detect excess operationplans and undo them
         auto createcmd = static_cast<CommandCreateOperationPlan*>(&cmd);
         if (createcmd->getOperationPlan()) {
+          if (createcmd->getOperationPlan()
+                  ->getOperation()
+                  ->getBoolProperty("fc_allow_coproduct_excess", false))
+            break;
           if (createcmd->getOperationPlan()->getQuantity() -
                   createcmd->getOperationPlan()->isExcess() <
               ROUNDING_ERROR) {
@@ -810,6 +815,11 @@ void SolverCreate::scanExcess(CommandList* l) {
                          ->getOperation()
                          ->getOperationPlans();
             while (o != OperationPlan::end()) {
+              if (o->getOperation()->getBoolProperty(
+                      "fc_allow_coproduct_excess", false)) {
+                ++o;
+                continue;
+              }
               if (createcmd->getOperationPlan()->getEnd() < o->getEnd() &&
                   o->getProposed() &&
                   (o->getQuantity() - o->isExcess() < ROUNDING_ERROR)) {

@@ -343,6 +343,15 @@ void OperatorDelete::solve(const Buffer* b, void*) {
         continue;
       }
 
+      // A co-production operation can be required by one output while
+      // another output already has inventory or no demand. That surplus is
+      // physically unavoidable and must not delete the shared operationplan.
+      if (fp->getOperationPlan()->getOperation()->getBoolProperty(
+              "fc_allow_coproduct_excess", false)) {
+        ++fiter;
+        continue;
+      }
+
       // Compute the excess quantity
       auto topopplan = fp->getOperationPlan();
       if (topopplan->getOwner() &&
@@ -368,6 +377,11 @@ void OperatorDelete::solve(const Buffer* b, void*) {
         newsize_opplan = 0.0;
       } else {
         // Resize the producer
+        // FC lot sizing intentionally leaves the rounded tail in stock.
+        // Trimming a full economic lot would turn it into a second tail.
+        if (fp->getOperationPlan()->getOperation()->getBoolProperty("fc_batch_policy", false) &&
+            !fp->getOperationPlan()->getOperation()->getBoolProperty("fc_exact_quantity", false))
+          continue;
         // We need to keep the operationplan start date constant during the
         // resize to avoid that a capacity consumption from a bucketized
         // resource moves to a different bucket.

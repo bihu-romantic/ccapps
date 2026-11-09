@@ -181,6 +181,7 @@ const Keyword Tags::period_of_cover("period_of_cover");
 const Keyword Tags::plan("plan");
 const Keyword Tags::planned("planned");
 const Keyword Tags::planned_quantity("planned_quantity");
+const Keyword Tags::algorithm("algorithm");
 const Keyword Tags::plantype("plantype");
 const Keyword Tags::policy("policy");
 const Keyword Tags::posttime("posttime");

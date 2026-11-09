@@ -174,6 +174,11 @@ CONTENT_SECURITY_POLICY = os.environ.get(
 )
 X_FRAME_OPTIONS = os.environ.get("CCAPPS_X_FRAME_OPTIONS", "SAMEORIGIN")
 CSRF_COOKIE_SAMESITE = os.environ.get("CCAPPS_CSRF_COOKIE_SAMESITE", "lax")
+# HTTPS reverse tunnels and proxies must explicitly opt their public origin in
+# through the environment.  Keep the default empty for normal local access.
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "CCAPPS_CSRF_TRUSTED_ORIGINS", ""
+).split()
 # Alternative: prohibit embedding in any frame
 #   CONTENT_SECURITY_POLICY = "frame-ancestors 'none'"
 #   X_FRAME_OPTIONS = "DENY"

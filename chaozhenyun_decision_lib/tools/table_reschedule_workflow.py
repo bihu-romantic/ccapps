@@ -194,6 +194,15 @@ def connect(db_path: Path) -> sqlite3.Connection:
         );
         """
     )
+    # Forward-compatible columns for databases created by earlier releases.
+    existing = {
+        row["name"] for row in conn.execute("pragma table_info(device_state_updates)")
+    }
+    if "processing_token" not in existing:
+        conn.execute("alter table device_state_updates add column processing_token text")
+    if "processing_seconds" not in existing:
+        conn.execute("alter table device_state_updates add column processing_seconds real")
+    conn.commit()
     return conn
 
 
@@ -376,6 +385,11 @@ def has_state_change(previous: sqlite3.Row | None, update: DeviceUpdate) -> bool
 
 def write_device_state(conn: sqlite3.Connection, update: DeviceUpdate) -> int | None:
     previous = latest_state(conn, update.device_id)
+    # Ignore duplicate and late telemetry. Applying an older state after a
+    # newer one creates an event whose timestamp disagrees with the exported
+    # current-state snapshot and can roll a valid plan backwards.
+    if previous is not None and update.write_seconds <= float(previous["write_seconds"]):
+        return None
     changed = has_state_change(previous, update)
     conn.execute(
         """
@@ -413,7 +427,9 @@ def write_device_state(conn: sqlite3.Connection, update: DeviceUpdate) -> int | 
             update.device_id,
             resource_id,
             update.write_seconds,
-            update.write_seconds if update.available else update.write_seconds + 86400,
+            # An unavailable state stays in force until a later recovery
+            # update. Do not invent a 24-hour repair duration.
+            update.write_seconds if update.available else 1.0e15,
             reason,
             update.write_seconds,
         ),
@@ -436,10 +452,15 @@ def export_runtime_device_files(conn: sqlite3.Connection, runtime_dir: Path) -> 
         select h.device_id, h.status, h.available, h.capacity_factor, h.risk_level
         from device_state_history h
         join (
-          select device_id, max(write_seconds) as max_write
+          select device_id, max(id) as max_id
           from device_state_history
+          where (device_id, write_seconds) in (
+            select device_id, max(write_seconds)
+            from device_state_history
+            group by device_id
+          )
           group by device_id
-        ) latest on latest.device_id = h.device_id and latest.max_write = h.write_seconds
+        ) latest on latest.max_id = h.id
         order by h.device_id
         """
     ).fetchall()

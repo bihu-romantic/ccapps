@@ -85,6 +85,29 @@ class CcappsClient:
         params = {"id": task_id} if task_id is not None else None
         return self.request("GET", path, params=params)
 
+    def cleanup_resources(
+        self,
+        scenario,
+        *,
+        idle_seconds=60,
+        stale_active_minutes=30,
+        cancel_stuck=True,
+        min_age_hours=0.5,
+        aggressive=False,
+        dry_run=False,
+    ):
+        """GET /<s>/execute/api/cleanup/ — free idle PG backends + stuck tasks."""
+        path = self.scen(scenario, "execute/api/cleanup/")
+        params = {
+            "idle_seconds": str(idle_seconds),
+            "stale_active_minutes": str(stale_active_minutes),
+            "cancel_stuck": "1" if cancel_stuck else "0",
+            "min_age_hours": str(min_age_hours),
+            "aggressive": "1" if aggressive else "0",
+            "dry_run": "1" if dry_run else "0",
+        }
+        return self.request("GET", path, params=params)
+
     def poll_task(self, scenario, task_id, interval=2.0, timeout=600.0):
         """Poll status until Done/Failed/Canceled. Returns task dict; on timeout
         returns {status, timed_out:True} WITHOUT raising."""

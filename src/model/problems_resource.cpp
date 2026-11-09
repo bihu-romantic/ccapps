@@ -55,6 +55,14 @@ void Resource::updateProblems() {
 
     // Check against maximum target
     auto delta = f->getOnhand() - curMax;
+    // A calendar-scheduled operation keeps its wall-clock load endpoints
+    // across a closed shift, but processing is paused there. Headcount can
+    // be zero during that pause without constituting a capacity overload.
+    const Date when = f->getDate();
+    if ((getAvailable() && getAvailable()->getValue(when) <= 0.0) ||
+        (getLocation() && getLocation()->getAvailable() &&
+         getLocation()->getAvailable()->getValue(when) <= 0.0))
+      delta = 0.0;
     if (delta > ROUNDING_ERROR) {
       if (!excessProblem) {
         excessProblemStart = f->getDate();

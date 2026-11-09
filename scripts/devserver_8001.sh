@@ -95,10 +95,13 @@ start() {
       # 注意：必须走 TCP 127.0.0.1，不能用 unix socket —— pg_hba 里 local 那条是 peer
       # 认证，要求 OS 用户名 == 角色名，而本机 OS 用户是 c，用 ccapps 走 socket 会
       # 直接 FATAL: Peer authentication failed。走 TCP 则命中 scram-sha-256，
-      # 口令取自 settings 默认的 frepple。
+      # 口令取自 settings 默认的 ccapps。
       export POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
       export POSTGRES_USER="${POSTGRES_USER:-ccapps}"
       export POSTGRES_DBNAME="${POSTGRES_DBNAME:-ccapps}"
+      # Public HTTPS tunnel used for temporary external review.  The login
+      # POST remains protected by Django CSRF and normal user authentication.
+      export CCAPPS_CSRF_TRUSTED_ORIGINS="${CCAPPS_CSRF_TRUSTED_ORIGINS:-https://4492d25abb7a64.lhr.life https://*.trycloudflare.com}"
       # libccAPPS.so 需要 libxerces-c-3.2.so + ICU 74（Ubuntu 26.04 源里没有，
       # 已从 175 的 ccapps-app 容器拷到该目录，见 db-backup 的 MANIFEST）。
       export LD_LIBRARY_PATH="/home/c/.local/lib/ccapps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"

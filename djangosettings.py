@@ -41,7 +41,7 @@ DATABASES = {
         # Role password when using md5 authentication.
         # Leave as an empty string when using peer or
         # ident authencation.
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "frepple"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "ccapps"),
         # When using TCP sockets specify the hostname,
         # the ip4 address or the ip6 address here.
         # Leave as an empty string to use Unix domain
@@ -82,7 +82,7 @@ DATABASES = {
     # Adjust the range to include extra scenarios in the list.
     # When changing this, your apache configuration file also needs a matching adjustment.
     # THE NEXT LINE IS AUTOMATICALLY UPDATED IN SCENARIO MANAGEMENT WIDGET!
-    for i in range(9)
+    for i in range(30)
 }
 
 # Google analytics code to report usage statistics to.
@@ -111,6 +111,7 @@ INSTALLED_APPS = (
     "ccAPPSdb.wizard",
     "ccAPPSdb.input",
     "ccAPPSdb.forecast",
+    "ccAPPSdb.safetystock",
     "ccAPPSdb.output",
     "ccAPPSdb.metrics",
     "ccAPPSdb.execute",
@@ -135,6 +136,7 @@ INSTALLABLE_APPS = (
     "ccAPPSdb.assistant",
     "ccAPPSdb.odoo",
     "ccAPPSdb.forecast",
+    "ccAPPSdb.safetystock",
     "ccAPPSdb.mlforecast",
     "ccAPPSdb.wizard",
     "ccAPPSdb.metrics",
@@ -232,6 +234,9 @@ SESSION_COOKIE_AGE = 3600 * 24 * 3  # 3 days
 SESSION_LOGOUT_IDLE_TIME = 60 * 24  # minutes
 
 MIDDLEWARE = (
+    # Planning-board Gantt responses are large JSON payloads. Compress them
+    # before sending through the public HTTPS tunnel.
+    "django.middleware.gzip.GZipMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

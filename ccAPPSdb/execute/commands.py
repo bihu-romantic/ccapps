@@ -217,18 +217,626 @@ class SupplyPlanning(PlanTask):
             constraint = parseConstraints(os.environ["CCAPPS_CONSTRAINT"])
         except Exception:
             constraint = 4 + 16 + 32  # Default is with all constraints enabled
-        solver_mode = Parameter.getValue("plan.solver", database, "mrp").lower()
+        solver_mode = Parameter.getValue("plan.solver", database, "mrp").lower().strip()
+        # CP and GA are second-stage schedulers. Their first stage creates the
+        # complete supply/manufacturing plan; the optimizer then sequences it.
+        #   plan.solver=cp + cp.baseline=fas|mrp
+        #   plan.solver=ga + ga.baseline=fas|mrp
+        #   plan.solver=fas|mrp          (first stage only)
+        cp_baseline = Parameter.getValue(
+            "cp.baseline", database, os.environ.get("CP_BASELINE", "fas")
+        ).lower().strip()
+        if cp_baseline not in ("mrp", "fas"):
+            logger.warning(
+                "Unsupported cp.baseline '%s'; falling back to fas", cp_baseline
+            )
+            cp_baseline = "fas"
+        ga_baseline = Parameter.getValue(
+            "ga.baseline", database, os.environ.get("GA_BASELINE", "mrp")
+        ).lower().strip()
+        if ga_baseline not in ("mrp", "fas"):
+            logger.warning(
+                "Unsupported ga.baseline '%s'; falling back to mrp", ga_baseline
+            )
+            ga_baseline = "mrp"
+        run_cp_after_supply = False
+        run_ga_after_supply = False
+        if solver_mode == "cp":
+            supply_solver = cp_baseline
+            run_cp_after_supply = True
+        elif solver_mode == "fas":
+            supply_solver = "fas"
+        elif solver_mode == "ga":
+            supply_solver = ga_baseline
+            run_ga_after_supply = True
+        else:
+            supply_solver = "mrp"
+            if solver_mode != "mrp":
+                # Unknown labels fall through to the validator below.
+                pass
+        is_fas = supply_solver == "fas"
+        policy_json = Parameter.getValue("fc_aps.batch_policy", database, "")
+        policy = {}
+        if policy_json:
+            import json
+
+            policy = json.loads(policy_json)
+            use_economic_batch = bool(
+                policy.get("objective_ordering", {}).get("use_economic_batch", False)
+            )
+            for op in ccAPPS.operations():
+                rule = policy["operations"].get(op.name)
+                if rule:
+                    op.fc_batch_policy = True
+                    # Economic lots are opt-in: when disabled they stay
+                    # reference-only and sizing falls back to SNP / exact.
+                    if use_economic_batch:
+                        try:
+                            op.fc_economic_batch = float(rule.get("economic") or 0)
+                        except (TypeError, ValueError):
+                            op.fc_economic_batch = 0.0
+                    else:
+                        op.fc_economic_batch = 0.0
+                    op.fc_snp = float(rule["snp"])
+                    op.fc_exact_quantity = bool(rule["exact"])
+                    op.fc_allow_coproduct_excess = bool(rule.get("coproduct", False))
+                    op.size_multiple = 0
+                    # Older imported datasets stored the economic batch as a
+                    # hard maximum.  Remove that limit in memory as well.
+                    op.size_maximum = 1.0e30
+                    if rule["exact"]:
+                        op.size_minimum = 0
+            for buf in ccAPPS.buffers():
+                if buf.item.name in policy["limits"]:
+                    buf.fc_production_limit = float(policy["limits"][buf.item.name])
+            logger.info(
+                "Applied FC SNP/lifecycle policy to %s operations "
+                "(%s)",
+                len(policy["operations"]),
+                (
+                    "economic batch enabled"
+                    if use_economic_batch
+                    else "economic batch is reference only"
+                ),
+            )
+        else:
+            use_economic_batch = False
+        # Apply a scenario's configured horizon from UI and CLI runs alike.
+        # A one-run environment override still takes precedence. Database
+        # demand due dates remain unchanged.
+        from ccAPPSdb.execute.planning_window import (
+            demand_category_tier,
+            estimate_processing_seconds,
+            exact_piece_shipment,
+            exact_processing_over_hours,
+            item_matches_split_scope,
+            longest_processing_profile,
+            load_items_for_resources,
+            planning_window_end,
+            split_is_worthwhile,
+            unit_split_shipment,
+        )
+
+        window_end = planning_window_end(
+            ccAPPS.settings.current,
+            explicit_end=os.environ.get("supply_plan_end"),
+            configured_end=Parameter.getValue("plan.horizon_end", database, None),
+        )
+        # Complete-first applies only inside this nearer priority window.
+        # Later orders may be SNP-split to fill leftover capacity. Defaults to
+        # the first three days when unset, and never exceeds the plan horizon.
+        priority_window_end = planning_window_end(
+            ccAPPS.settings.current,
+            explicit_end=os.environ.get("fc_aps_priority_window_end"),
+            configured_end=Parameter.getValue(
+                "fc_aps.priority_window_end", database, None
+            ),
+        )
+        if priority_window_end is None and window_end is not None:
+            from datetime import timedelta
+
+            priority_window_end = ccAPPS.settings.current + timedelta(days=3)
+        if (
+            priority_window_end is not None
+            and window_end is not None
+            and priority_window_end > window_end
+        ):
+            priority_window_end = window_end
+        rolling_enabled = False
+        original_demand_due = {}
+        original_demand_policy = {}
+        fill_pulled = 0
+        item_policies = policy.get("items", {}) if policy_json else {}
+        # Only a finite planning window ranks or preserves demand priority.
+        # FAS and an ordinary MRP run have no window, so this stays off.
+        preserve_demand_priority = False
+        # plan.lot_split / PLAN_LOT_SPLIT: shared by FAS and MRP supply.
+        # Legacy aliases: fas.lot_split / FAS_LOT_SPLIT.
+        # Gates exact>8h, eco>2n, C++ eco/SNP sizing, partial-shipment loops.
+        # Window SNP fillers still need a planning window (below).
+        def _lot_split_on():
+            raw = os.environ.get("PLAN_LOT_SPLIT")
+            if raw is None or str(raw).strip() == "":
+                raw = os.environ.get("FAS_LOT_SPLIT")
+            if raw is None or str(raw).strip() == "":
+                raw = Parameter.getValue(
+                    "plan.lot_split",
+                    database,
+                    Parameter.getValue("fas.lot_split", database, None),
+                )
+            if raw is None or str(raw).strip() == "":
+                return False
+            return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+        lot_split = _lot_split_on()
+        objective_rule = policy.get("objective_ordering", {}) if policy else {}
+        try:
+            exact_split_over_hours = float(
+                objective_rule.get("exact_split_over_hours", 8) or 8
+            )
+        except (TypeError, ValueError):
+            exact_split_over_hours = 8.0
+
+        def _seconds(value):
+            if value is None:
+                return 0.0
+            if hasattr(value, "total_seconds"):
+                return float(value.total_seconds())
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
+
+        all_operations = list(ccAPPS.operations())
+        item_duration = {}
+        operation_item = {}
+        for op in all_operations:
+            item = getattr(op, "item", None)
+            owner = getattr(op, "owner", None)
+            seen = set()
+            while (
+                (item is None or not getattr(item, "name", None))
+                and owner is not None
+                and id(owner) not in seen
+            ):
+                seen.add(id(owner))
+                item = getattr(owner, "item", None)
+                owner = getattr(owner, "owner", None)
+            if item is None or not getattr(item, "name", None):
+                continue
+            operation_item[op] = item.name
+            fixed = _seconds(getattr(op, "duration", None))
+            per = _seconds(getattr(op, "duration_per", None))
+            if fixed > 0 or per > 0:
+                item_duration.setdefault(item.name, []).append((fixed, per))
+        open_demands = [
+            demand
+            for demand in ccAPPS.demands()
+            if demand.status in ("open", "quote")
+        ]
+        economic_split_items = set()
+        if lot_split:
+            for demand in open_demands:
+                rule = item_policies.get(demand.item.name, {})
+                try:
+                    economic = float(rule.get("economic", 0) or 0)
+                except (TypeError, ValueError):
+                    economic = 0.0
+                remaining = max(0.0, demand.quantity - demand.planned_quantity)
+                if economic > 1.0 and split_is_worthwhile(
+                    remaining, snp=rule.get("snp", 1), economic=economic
+                ):
+                    economic_split_items.add(demand.item.name)
+        for op in all_operations:
+            if not getattr(op, "fc_batch_policy", False):
+                continue
+            op.fc_lot_split = bool(lot_split)
+            # Legacy alias kept for older engine builds.
+            op.fc_fas_lot_split = bool(lot_split)
+            item_name = operation_item.get(op)
+            if lot_split and item_name in economic_split_items:
+                try:
+                    eco = float(
+                        item_policies.get(item_name, {}).get("economic", 0) or 0
+                    )
+                except (TypeError, ValueError):
+                    eco = 0.0
+                if eco <= 1.0:
+                    eco = float(getattr(op, "fc_economic_batch", 0.0) or 0)
+                op.fc_lot_economic_batch = eco
+                op.fc_fas_economic_batch = eco
+            else:
+                op.fc_lot_economic_batch = 0.0
+                op.fc_fas_economic_batch = 0.0
+        for demand in open_demands:
+            original_demand_due[demand.name] = demand.due
+            # Off: forbid partial-shipment remainder loops after a capacity cut.
+            if not lot_split:
+                original_demand_policy[demand.name] = getattr(
+                    demand, "policy", None
+                )
+                demand.policy = "alltogether"
+
+        def _assign_lot_split_minshipment(demand, *, allow_window_snp=False):
+            """Shared FAS/MRP shipment sizing under plan.lot_split."""
+            item_name = demand.item.name
+            item_rule = item_policies.get(item_name, {})
+            remaining = max(0.0, demand.quantity - demand.planned_quantity)
+            try:
+                snp_size = float(item_rule.get("snp", 1) or 1)
+            except (TypeError, ValueError):
+                snp_size = 1.0
+            if snp_size < 1:
+                snp_size = 1.0
+            try:
+                economic_size = float(item_rule.get("economic", 0) or 0)
+            except (TypeError, ValueError):
+                economic_size = 0.0
+            has_economic = economic_size > 1.0
+            if not lot_split:
+                demand.minshipment = remaining
+                return "whole"
+            if item_rule.get("exact", False):
+                fixed, per = longest_processing_profile(
+                    remaining, item_duration.get(item_name, ())
+                )
+                proc = estimate_processing_seconds(
+                    remaining, duration=fixed, duration_per=per
+                )
+                if exact_processing_over_hours(proc, exact_split_over_hours):
+                    demand.minshipment = exact_piece_shipment(
+                        remaining,
+                        duration=fixed,
+                        duration_per=per,
+                        threshold_hours=exact_split_over_hours,
+                    )
+                    return "exact_long"
+                demand.minshipment = remaining
+                return "exact_whole"
+            if has_economic:
+                if split_is_worthwhile(
+                    remaining, snp=snp_size, economic=economic_size
+                ):
+                    demand.minshipment = unit_split_shipment(
+                        remaining, snp=snp_size, economic=economic_size
+                    )
+                    return "economic_split"
+                demand.minshipment = remaining
+                return "economic_whole"
+            if allow_window_snp and split_is_worthwhile(
+                remaining, snp=snp_size, economic=0.0
+            ):
+                demand.minshipment = snp_size
+                return "window_snp_split"
+            demand.minshipment = remaining
+            return "complete"
+
+        if not window_end and lot_split:
+            assign_kind_counts = {}
+            for demand in open_demands:
+                kind = _assign_lot_split_minshipment(
+                    demand, allow_window_snp=False
+                )
+                assign_kind_counts[kind] = assign_kind_counts.get(kind, 0) + 1
+            logger.info(
+                "plan.lot_split on for %s (no plan window): exact>8h / eco>2n "
+                "minshipment kinds=%s",
+                supply_solver.upper(),
+                assign_kind_counts,
+            )
+        elif not window_end:
+            logger.info(
+                "plan.lot_split off for %s (whole-order / alltogether)",
+                supply_solver.upper(),
+            )
+
+        if window_end:
+            # Generic partial-shipment granularity. Normal materials search
+            # and repeat in SNP-sized lots (invalid SNP defaults to one).
+            # Spare/discontinued demands use their exact remaining demand.
+            complete_first = objective_rule.get("enabled", False) and objective_rule.get(
+                "complete_orders_first", False
+            )
+            pull_fillers_into_window = bool(
+                objective_rule.get("pull_fillers_into_window", True)
+            )
+            # Economic batch sizes on ops remain available for CP diagnostics
+            # when the policy loads them; truncation follows plan.lot_split.
+            use_economic_batch = bool(
+                objective_rule.get("use_economic_batch", use_economic_batch)
+            )
+            split_prefixes = [
+                str(p)
+                for p in objective_rule.get("window_split_item_prefixes", ["01.52"])
+                if p
+            ]
+            split_resources = [
+                str(r)
+                for r in objective_rule.get(
+                    "window_split_resources",
+                    ["PERSON_制造部2工段", "2工段装配线"],
+                )
+                if r
+            ]
+            split_scope_items = load_items_for_resources(database, split_resources)
+            first_pass_partial_search = 0
+            window_split_armed = 0
+            filler_skipped_scope = 0
+            stock_fillers = 0
+            assign_kind_counts = {}
+            # Rank: 预警 > 未入库 > 备库, then near-term before later within
+            # each class. 备库 is an idle-capacity filler only.
+            if complete_first and priority_window_end is not None:
+                ordered = sorted(
+                    open_demands,
+                    key=lambda d: (
+                        demand_category_tier(
+                            d.name, getattr(d, "category", None)
+                        ),
+                        int(getattr(d, "priority", 0) or 0),
+                        0
+                        if original_demand_due[d.name] <= priority_window_end
+                        else 1,
+                        original_demand_due[d.name],
+                        d.name,
+                    ),
+                )
+                for rank, demand in enumerate(ordered, 1):
+                    demand.priority = rank
+            for demand in open_demands:
+                original_due = original_demand_due[demand.name]
+                item_name = demand.item.name
+                item_rule = item_policies.get(item_name, {})
+                tier = demand_category_tier(
+                    demand.name, getattr(demand, "category", None)
+                )
+                is_stock = tier == 2
+                due_in_priority = (
+                    priority_window_end is not None
+                    and original_due <= priority_window_end
+                    and not is_stock
+                )
+                in_split_scope = item_matches_split_scope(
+                    item_name,
+                    item_codes=split_scope_items,
+                    prefixes=split_prefixes,
+                )
+                # Shared FAS/MRP minshipment under plan.lot_split:
+                # exact>8h / eco>2n / window SNP (in-scope).
+                allow_window_snp = bool(
+                    lot_split
+                    and in_split_scope
+                    and (
+                        due_in_priority
+                        or (complete_first and not due_in_priority)
+                    )
+                )
+
+                # 备库: only after 预警/未入库, soaking idle slots in the
+                # priority window. Its database due is restored after solving.
+                if is_stock and priority_window_end is not None:
+                    demand.due = priority_window_end
+                    demand.maxlateness = 0
+                    kind = _assign_lot_split_minshipment(
+                        demand, allow_window_snp=allow_window_snp
+                    )
+                    if kind == "window_snp_split" and due_in_priority:
+                        window_split_armed += 1
+                    assign_kind_counts[kind] = assign_kind_counts.get(kind, 0) + 1
+                    first_pass_partial_search += 1
+                    stock_fillers += 1
+                    continue
+
+                demand.due = min(original_due, window_end)
+                demand.maxlateness = max(0, (window_end - demand.due).total_seconds())
+                kind = _assign_lot_split_minshipment(
+                    demand, allow_window_snp=allow_window_snp
+                )
+                if kind == "window_snp_split" and due_in_priority:
+                    window_split_armed += 1
+                assign_kind_counts[kind] = assign_kind_counts.get(kind, 0) + 1
+                first_pass_partial_search += 1
+                # Exact: do not pull as window fillers.
+                if item_rule.get("exact", False):
+                    continue
+                if (
+                    complete_first
+                    and pull_fillers_into_window
+                    and not due_in_priority
+                    and priority_window_end is not None
+                ):
+                    # Keep bottleneck-workshop fillers on their own due so
+                    # they do not crowd the priority window.
+                    if in_split_scope:
+                        filler_skipped_scope += 1
+                    else:
+                        demand.due = priority_window_end
+                        # The priority window is only where these orders are
+                        # tried first. A zero allowance dropped whatever did
+                        # not fit. The remainder may finish any time up to
+                        # the planning horizon.
+                        demand.maxlateness = max(
+                            0,
+                            (
+                                window_end - priority_window_end
+                            ).total_seconds(),
+                        )
+                        fill_pulled += 1
+            logger.info("Supply planning window ends at %s", window_end)
+            if assign_kind_counts:
+                logger.info(
+                    "FAS minshipment assign kinds: %s",
+                    ", ".join(
+                        "%s=%s" % (k, assign_kind_counts[k])
+                        for k in sorted(assign_kind_counts)
+                    ),
+                )
+            if priority_window_end is not None:
+                logger.info(
+                    "Complete-order priority window ends at %s; later "
+                    "bottleneck-scope orders may split%s%s%s",
+                    priority_window_end,
+                    (
+                        f" ({fill_pulled} pulled into window as fillers"
+                        + (
+                            f", {filler_skipped_scope} bottleneck fillers kept later"
+                            if filler_skipped_scope
+                            else ""
+                        )
+                        + (
+                            f", {stock_fillers} 备库 idle fillers"
+                            if stock_fillers
+                            else ""
+                        )
+                        + ")"
+                        if fill_pulled or filler_skipped_scope or stock_fillers
+                        else " (fillers not pulled into window)"
+                    ),
+                    (
+                        "; plan.lot_split=on for %s (exact>8h / eco>2n / window SNP; "
+                        "near-term SNP floor %s demands, %s items / prefixes %s)"
+                        % (
+                            supply_solver.upper(),
+                            window_split_armed,
+                            len(split_scope_items),
+                            ",".join(split_prefixes) or "-",
+                        )
+                        if lot_split
+                        else "; plan.lot_split=off (whole-order)"
+                    ),
+                    "; demand rank 预警>未入库>备库",
+                )
+            logger.info(
+                "Loaded generic SNP partial-shipment policy for %s materials "
+                "(%s due-date searches)",
+                len(item_policies),
+                first_pass_partial_search,
+            )
+            rolling_enabled = bool(policy.get("rolling", {}).get("enabled", False))
+            preserve_demand_priority = objective_rule.get(
+                "preserve_demand_priority", False
+            )
+            if (
+                objective_rule.get("enabled", False)
+                and not rolling_enabled
+                and not preserve_demand_priority
+            ):
+                try:
+                    due_bucket_seconds = max(
+                        3600.0,
+                        float(objective_rule.get("due_bucket_hours", 24)) * 3600.0,
+                    )
+                except (TypeError, ValueError):
+                    due_bucket_seconds = 86400.0
+                objective_metadata = policy.get("rolling", {}).get("items", {})
+                ranked_demands = []
+                for demand in ccAPPS.demands():
+                    if demand.status not in ("open", "quote") or demand.quantity <= 0:
+                        continue
+                    labor = objective_metadata.get(demand.item.name, {}).get(
+                        "labor_hours_per_unit", {}
+                    )
+                    total_hours = sum(
+                        max(0.0, float(value or 0))
+                        for value in labor.values()
+                    ) * float(demand.quantity)
+                    due = original_demand_due.get(demand.name, demand.due)
+                    due_bucket = int(
+                        max(
+                            0.0,
+                            (due - ccAPPS.settings.current).total_seconds(),
+                        )
+                        // due_bucket_seconds
+                    )
+                    ranked_demands.append(
+                        (
+                            due_bucket,
+                            total_hours,
+                            due,
+                            demand.name,
+                            demand,
+                        )
+                    )
+                ranked_demands.sort(key=lambda row: row[:-1])
+                for rank, row in enumerate(ranked_demands, 1):
+                    row[-1].priority = rank
+                logger.info(
+                    "Ranked %s demands by %sh delivery buckets, then total "
+                    "labor hours; complete orders are attempted first",
+                    len(ranked_demands),
+                    due_bucket_seconds / 3600.0,
+                )
+            elif preserve_demand_priority:
+                logger.info(
+                    "Preserving imported demand priority; complete orders "
+                    "are attempted first"
+                )
         if solver_mode not in ("mrp", "fas", "ga", "cp"):
             logger.warning(
                 "Unsupported plan.solver '%s'; falling back to mrp", solver_mode
             )
             solver_mode = "mrp"
-        # FAS: MRP creates the supply network, then C++ SolverFAS owns the
-        # forward finite-capacity dates/resources. Standalone SolverFAS
-        # (expand+forward) remains available when the model has no planned
-        # open demand yet; the post-MRP path below invokes it in forward-only
-        # mode after this MRP expansion.
-        cls.solver = ccAPPS.solver_mrp(
+            supply_solver = "mrp"
+            is_fas = False
+            run_cp_after_supply = False
+            run_ga_after_supply = False
+        # Local repair on an existing schedule: shared scope (triggers +
+        # hot/freeze) then the chosen solver repairs only the movable set.
+        # Params: local.* (canonical) or legacy cp.local_*.
+        def _local_param(name, legacy, default="0"):
+            return Parameter.getValue(
+                name,
+                database,
+                Parameter.getValue(legacy, database, default),
+            )
+
+        local_enabled = (
+            _local_param("local.reschedule", "cp.local_reschedule", "0").lower()
+            in ("1", "true", "yes", "on")
+            or os.environ.get("LOCAL_RESCHEDULE", "").lower()
+            in ("1", "true", "yes", "on")
+            or os.environ.get("CP_LOCAL_RESCHEDULE", "").lower()
+            in ("1", "true", "yes", "on")
+        )
+        local_skip_supply = local_enabled and (
+            _local_param("plan.skip_supply", "cp.local_skip_supply", "1").lower()
+            in ("1", "true", "yes", "on")
+            or os.environ.get("LOCAL_SKIP_SUPPLY", "").lower()
+            in ("1", "true", "yes", "on")
+            or os.environ.get("CP_LOCAL_SKIP_SUPPLY", "").lower()
+            in ("1", "true", "yes", "on")
+        )
+        local_solver = solver_mode if local_enabled else ""
+        if local_skip_supply:
+            logger.info(
+                "Local skip-supply: keeping loaded plan; shared scope + "
+                "solver=%s (no FAS/MRP rebuild)",
+                local_solver or solver_mode,
+            )
+            if solver_mode in ("cp", "ga"):
+                logger.info(
+                    "Local %s reschedule uses the existing plan directly; "
+                    "%s.baseline=%s is ignored for supply planning",
+                    solver_mode.upper(),
+                    solver_mode,
+                    cp_baseline if solver_mode == "cp" else ga_baseline,
+                )
+            # CP has its dedicated local pass; GA/FAS/MRP use the shared local
+            # repair block below without rebuilding their supply baseline.
+            run_cp_after_supply = solver_mode == "cp"
+            run_ga_after_supply = False
+        mrp_algorithm = (
+            Parameter.getValue("plan.algorithm", database, "heuristic")
+            .lower()
+            .strip()
+        )
+        if mrp_algorithm not in ("heuristic", "heuristic_2"):
+            logger.warning(
+                "Unsupported plan.algorithm '%s'; falling back to heuristic",
+                mrp_algorithm,
+            )
+            mrp_algorithm = "heuristic"
+        solver_kwargs = dict(
             constraints=constraint,
             plantype=plantype,
             loglevel=loglevel,
@@ -247,14 +855,53 @@ class SupplyPlanning(PlanTask):
             autofence=86400
             * float(Parameter.getValue("plan.autoFenceOperations", database, "0")),
         )
-        direct_ga = solver_mode == "ga" and Parameter.getValue(
-            "ga.direct", database, os.environ.get("GA_DIRECT", "")
-        ).lower() in ("1", "true", "yes")
-        if direct_ga:
-            # The complete previous plan is loaded by loadOperationPlans.
-            # Never let the MRP base solver erase it before the GA pass.
+        if not is_fas:
+            # MRP heuristic variant: heuristic (default) or heuristic_2
+            # (backward sweep + forward repair). Ignored by FAS/CP/GA engines.
+            solver_kwargs["algorithm"] = mrp_algorithm
+        cls.solver = (
+            ccAPPS.solverFAS(**solver_kwargs)
+            if is_fas
+            else ccAPPS.solver_mrp(**solver_kwargs)
+        )
+        if local_skip_supply and solver_mode != "mrp":
+            # CP/FAS/GA: keep loaded plans; their engines move the hot set.
+            # MRP keeps its built-in erase-proposed-then-replan (see below).
             cls.solver.erasepreviousfirst = False
-            logger.info("GA direct rescheduling: preserving existing operationplans")
+        if is_fas:
+            os.environ["FAS_JOB_ORDER"] = Parameter.getValue(
+                "plan.fas_job_order", database, "lpt"
+            ).lower()
+            os.environ["FAS_IMPROVE_SECONDS"] = str(
+                Parameter.getValue("plan.fas_improve_seconds", database, "10")
+            )
+            # Cap forward placement at the reporting horizon when set.
+            if window_end:
+                os.environ["FAS_HORIZON_END"] = window_end.isoformat()
+            else:
+                os.environ.pop("FAS_HORIZON_END", None)
+            if local_skip_supply:
+                # The FAS object is only an unused compatibility holder on the
+                # skip-supply path.  The loaded operationplans are the input to
+                # the selected local solver; don't describe them as a newly
+                # generated FAS baseline.
+                pass
+            elif run_cp_after_supply:
+                logger.info(
+                    "FAS baseline for CP: expanding demand supply and scheduling forward"
+                )
+            elif run_ga_after_supply:
+                logger.info(
+                    "FAS baseline for GA: expanding demand supply and scheduling forward"
+                )
+            else:
+                logger.info(
+                    "Standalone FAS: expanding demand supply and scheduling forward"
+                )
+        if solver_mode == "ga" and local_skip_supply:
+            logger.info(
+                "GA reschedule: preserving operationplans (plan.skip_supply)"
+            )
         if hasattr(cls, "debugResource"):
             cls.solver.userexit_resource = cls.debugResource
         if hasattr(cls, "debugDemand"):
@@ -263,9 +910,13 @@ class SupplyPlanning(PlanTask):
             cls.solver.userexit_operation = cls.debugOperation
         # Timed demand feeder is installed below after the deadline is known.
         logger.info("Plan type: %s" % plantype)
+        if not is_fas:
+            logger.info("Plan algorithm: %s" % mrp_algorithm)
         constraint_str = []
         if constraint & 4:
             constraint_str.append("capa")
+        if constraint & 8:
+            constraint_str.append("fence")
         if constraint & 16:
             constraint_str.append("mfg_lt")
         if constraint & 32:
@@ -325,6 +976,167 @@ class SupplyPlanning(PlanTask):
 
             solver_error = []
 
+            rolling_original_quantities = {}
+            rolling_state = None
+
+            if solver_mode == "mrp" and window_end and rolling_enabled:
+                rolling_rule = policy.get("rolling", {})
+                rolling_metadata = rolling_rule.get("items", {})
+                try:
+                    rolling_parts = max(1, int(rolling_rule.get("parts", 1)))
+                except (TypeError, ValueError):
+                    rolling_parts = 1
+                rolling_demands = [
+                    demand
+                    for demand in ccAPPS.demands()
+                    if demand.status in ("open", "quote") and demand.quantity > 0
+                ]
+                rolling_original_quantities = {
+                    demand.name: float(demand.quantity)
+                    for demand in rolling_demands
+                }
+                max_unlock = max(
+                    (
+                        float(rule.get("unlock_orders", 1) or 1)
+                        for rule in rolling_metadata.values()
+                    ),
+                    default=1.0,
+                )
+                max_depth = max(
+                    (
+                        float(rule.get("bom_depth", 0) or 0)
+                        for rule in rolling_metadata.values()
+                    ),
+                    default=1.0,
+                ) or 1.0
+                horizon_seconds = max(
+                    1.0, (window_end - ccAPPS.settings.current).total_seconds()
+                )
+                rolling_state = {
+                    "active": None,
+                    "before": 0.0,
+                    "progress": 0,
+                    "blocked": {},
+                    "attempted": set(),
+                    "lots": 0,
+                }
+
+                def next_rolling_demand(cluster):
+                    # The previous capped demand has just been solved. Restore
+                    # its true quantity and use the observed delivery increase
+                    # to refresh the candidate set for this same MRP sweep.
+                    active = rolling_state["active"]
+                    if active is not None:
+                        active.quantity = rolling_original_quantities[active.name]
+                        rolling_state["attempted"].add(active.name)
+                        after = float(active.planned_quantity)
+                        if after > rolling_state["before"] + 1e-6:
+                            rolling_state["progress"] += 1
+                            rolling_state["lots"] += 1
+                        else:
+                            rolling_state["blocked"][active.name] = rolling_state[
+                                "progress"
+                            ]
+                        rolling_state["active"] = None
+
+                    candidates = []
+                    for demand in rolling_demands:
+                        if demand.name in rolling_state["attempted"]:
+                            continue
+                        original_quantity = rolling_original_quantities[demand.name]
+                        planned = float(demand.planned_quantity)
+                        remaining = original_quantity - planned
+                        if remaining <= 1e-6:
+                            continue
+                        if rolling_state["blocked"].get(demand.name) == rolling_state[
+                            "progress"
+                        ]:
+                            continue
+
+                        metadata = rolling_metadata.get(demand.item.name, {})
+                        due = original_demand_due.get(demand.name, demand.due)
+                        slack = (due - ccAPPS.settings.current).total_seconds()
+                        urgency = 1.0 - min(max(slack, 0.0), horizon_seconds) / horizon_seconds
+                        completion = min(1.0, planned / original_quantity)
+                        unlock = float(metadata.get("unlock_orders", 1) or 1) / max_unlock
+                        depth = float(metadata.get("bom_depth", 0) or 0) / max_depth
+                        # Delivery dominates, while shared/deep BOM supply and
+                        # nearly completed orders receive enough weight to
+                        # release capacity and finish more order lines.
+                        score = (
+                            0.50 * urgency
+                            + 0.20 * unlock
+                            + 0.20 * completion
+                            + 0.10 * depth
+                        )
+                        candidates.append((score, due, demand.name, demand, remaining))
+
+                    if not candidates:
+                        return None
+                    _score, _due, _name, demand, remaining = min(
+                        candidates,
+                        key=lambda row: (-row[0], row[1], row[2]),
+                    )
+                    item_rule = item_policies.get(demand.item.name, {})
+                    if item_rule.get("exact", False):
+                        chunk = remaining
+                    else:
+                        try:
+                            snp = max(1.0, float(item_rule.get("snp", 1) or 1))
+                        except (TypeError, ValueError):
+                            snp = 1.0
+                        import math
+
+                        chunk = min(
+                            remaining,
+                            math.ceil((remaining / rolling_parts) / snp - 1e-9) * snp,
+                        )
+                        chunk = max(min(remaining, snp), chunk)
+                    rolling_state["active"] = demand
+                    rolling_state["before"] = float(demand.planned_quantity)
+                    demand.quantity = min(
+                        rolling_original_quantities[demand.name],
+                        float(demand.planned_quantity) + chunk,
+                    )
+                    return demand
+
+                # A callback owns the global selection order, so run the one
+                # FC network cluster synchronously instead of starting an
+                # empty callback loop for every model cluster.
+                cls.solver.userexit_nextdemand = next_rolling_demand
+                logger.info(
+                    "Enabled single-pass rolling MRP for %s demands (%s-way lots)",
+                    len(rolling_demands),
+                    rolling_parts,
+                )
+
+            global_priority_queue = None
+            if preserve_demand_priority and not rolling_enabled and not is_fas:
+                global_priority_queue = sorted(
+                    (
+                        demand
+                        for demand in ccAPPS.demands()
+                        if demand.status in ("open", "quote")
+                        and demand.quantity > 0
+                    ),
+                    key=lambda demand: (
+                        demand.priority,
+                        demand.due,
+                        demand.name,
+                    ),
+                )
+
+                def next_global_priority_demand(_cluster):
+                    if global_priority_queue:
+                        return global_priority_queue.pop(0)
+                    return None
+
+                cls.solver.userexit_nextdemand = next_global_priority_demand
+                logger.info(
+                    "Enabled one global MRP priority queue for %s demands",
+                    len(global_priority_queue),
+                )
+
             def solve_with_optional_unlock():
                 # The solver runs in a worker thread.  Django's scenario
                 # router is thread-local, so propagate the selected database
@@ -336,11 +1148,157 @@ class SupplyPlanning(PlanTask):
                 previous_database = getattr(_thread_locals, "database", None)
                 setattr(_thread_locals, "database", database)
                 try:
-                    if not direct_ga:
+                    if is_fas:
+                        # Single FAS pass. No mop-up / tail retry — lot
+                        # sizing is handled by plan.lot_split paths and the
+                        # solver's own constrained quantity search.
                         cls.solver.solve()
+                    elif rolling_enabled or global_priority_queue is not None:
+                        cls.solver.solve(cluster=0)
+                    else:
+                        cls.solver.solve()
+                    # A finite FC window gets a second, non-destructive
+                    # fill pass.  The first pass remains anchored on the
+                    # real due dates.  For quantities it couldn't finish,
+                    # the second pass plans backwards from the window end.
+                    # This lets the normal constrained quantity search
+                    # fall back from a rejected economic lot to the largest
+                    # feasible SNP-sized lot and repeat on the remainder.
+                    # Existing on-time operationplans are preserved.
+                    # CP must receive the exact same completed MRP window
+                    # plan that is exported in MRP-only mode.  Skipping
+                    # this fill pass gave CP a weaker seed and allowed the
+                    # comparison baseline to differ between both modes.
+                    # FAS is strictly single-pass. This fill pass belongs
+                    # only to the ordinary MRP baseline.
+                    if (
+                        solver_mode in ("mrp", "cp")
+                        and not is_fas
+                        and window_end
+                        and not rolling_enabled
+                    ):
+                        remaining = []
+                        for demand in ccAPPS.demands():
+                            if demand.status not in ("open", "quote"):
+                                continue
+                            if demand.planned_quantity + 1e-6 >= demand.quantity:
+                                continue
+                            remaining.append(
+                                (
+                                    demand,
+                                    demand.due,
+                                    demand.maxlateness,
+                                    demand.priority,
+                                )
+                            )
+                        if remaining:
+                            logger.info(
+                                "FC window fill pass for %s remaining demands",
+                                len(remaining),
+                            )
+                            # Freeze the first-pass proposal while filling
+                            # the unused tail of the window.  Otherwise a
+                            # second MRP solve can replace an on-time lot
+                            # with a larger lot ending at the window edge.
+                            frozen_opplans = [
+                                opplan
+                                for opplan in ccAPPS.operationplans()
+                                if opplan.status == "proposed"
+                            ]
+                            for opplan in frozen_opplans:
+                                opplan.status = "approved"
+                            # The preferred economic lots have already
+                            # been attempted in the first pass.  Remove
+                            # only that preference during the fill pass so
+                            # constrained quantity search can select the
+                            # largest feasible SNP multiple.  Exact
+                            # lifecycle items remain exact and bounded by
+                            # their production limit.
+                            fallback_operations = []
+                            for operation in ccAPPS.operations():
+                                if not getattr(operation, "fc_batch_policy", False):
+                                    continue
+                                economic = getattr(
+                                    operation, "fc_economic_batch", 0.0
+                                )
+                                if economic > 0:
+                                    fallback_operations.append(
+                                        (operation, economic)
+                                    )
+                                    operation.fc_economic_batch = 0.0
+                            # All fill-pass due dates become the window
+                            # end. Preserve the original priority/due order
+                            # explicitly, so later orders don't take the
+                            # resource gaps needed by earlier orders.
+                            remaining.sort(
+                                key=lambda row: (
+                                    row[3],
+                                    row[1],
+                                    row[0].name,
+                                )
+                            )
+                            for rank, (
+                                demand,
+                                _due,
+                                _maxlateness,
+                                _priority,
+                            ) in enumerate(remaining, 1):
+                                demand.due = window_end
+                                demand.maxlateness = 0
+                                demand.priority = rank
+                                item_rule = item_policies.get(
+                                    demand.item.name, {}
+                                )
+                                leftover = max(
+                                    0.0,
+                                    demand.quantity
+                                    - demand.planned_quantity,
+                                )
+                                if item_rule.get("exact", False) or not lot_split:
+                                    # plan.lot_split off / exact: no SNP chunking.
+                                    partial_size = leftover
+                                else:
+                                    try:
+                                        partial_size = float(
+                                            item_rule.get("snp", 1) or 1
+                                        )
+                                    except (TypeError, ValueError):
+                                        partial_size = 1.0
+                                    if partial_size <= 0:
+                                        partial_size = 1.0
+                                demand.minshipment = partial_size
+                            cls.solver.erasepreviousfirst = False
+                            try:
+                                if preserve_demand_priority:
+                                    global_priority_queue.extend(
+                                        row[0] for row in remaining
+                                    )
+                                    cls.solver.solve(cluster=0)
+                                else:
+                                    cls.solver.solve()
+                            finally:
+                                for operation, economic in fallback_operations:
+                                    operation.fc_economic_batch = economic
+                                for opplan in frozen_opplans:
+                                    opplan.status = "proposed"
+                                for demand, due, maxlateness, priority in remaining:
+                                    demand.due = due
+                                    demand.maxlateness = maxlateness
+                                    demand.priority = priority
                 except Exception as exc:
                     solver_error.append(exc)
                 finally:
+                    if rolling_state is not None:
+                        active = rolling_state["active"]
+                        if active is not None:
+                            active.quantity = rolling_original_quantities[active.name]
+                        cls.solver.userexit_nextdemand = None
+                        logger.info(
+                            "Single-pass rolling MRP created %s progressing lots",
+                            rolling_state["lots"],
+                        )
+                    elif preserve_demand_priority and not is_fas:
+                        cls.solver.userexit_nextdemand = None
                     if previous_database is None:
                         delattr(_thread_locals, "database")
                     else:
@@ -370,212 +1328,1616 @@ class SupplyPlanning(PlanTask):
                 )
             except Exception:
                 pass
-            logger.info(
-                "Supply solve timeout: hard=%ss (loglimit=%s)",
-                hard_timeout,
-                getattr(ccAPPS.settings, "loglimit", None),
-            )
-
-            thread = Thread(target=solve_with_optional_unlock)
-            thread.start()
-            thread.join(timeout=hard_timeout)
-            solver_timed_out = thread.is_alive()
-            if solver_timed_out:
-                logger.warning(
-                    "Skipping solver.solve(): call timed out after %s seconds",
-                    hard_timeout,
+            if local_skip_supply:
+                logger.info(
+                    "Supply solve skipped (plan.skip_supply); "
+                    "existing operationplans kept for local repair"
                 )
-                # C++ MRP keeps running in the worker thread; do not export a
-                # half-built plan. Exit the planner process so the OS reclaims it.
-                os._exit(124)
-            elif solver_error:
-                # Never export or commit a partial FAS command stream after a
-                # C++ solver failure.  The previous implementation let a
-                # thread exception pass unnoticed and reported a false commit.
-                if solver_mode == "fas":
-                    cls.solver.rollback()
-                raise solver_error[0]
             else:
-                logger.info("Solver completed")
+                logger.info(
+                    "Supply solve timeout: hard=%ss (loglimit=%s)",
+                    hard_timeout,
+                    getattr(ccAPPS.settings, "loglimit", None),
+                )
+
+                thread = Thread(target=solve_with_optional_unlock)
+                thread.start()
+                thread.join(timeout=hard_timeout)
+                solver_timed_out = thread.is_alive()
+                if solver_timed_out:
+                    logger.warning(
+                        "Skipping solver.solve(): call timed out after %s seconds",
+                        hard_timeout,
+                    )
+                    # C++ MRP keeps running in the worker thread; do not export a
+                    # half-built plan. Exit the planner process so the OS reclaims it.
+                    os._exit(124)
+                elif solver_error:
+                    # Never export or commit a partial FAS command stream after a
+                    # C++ solver failure.  The previous implementation let a
+                    # thread exception pass unnoticed and reported a false commit.
+                    if is_fas:
+                        cls.solver.rollback()
+                    raise solver_error[0]
+                else:
+                    logger.info("Solver completed")
+            # Restore demand.policy after supply solve (alltogether was only
+            # a plan.lot_split=0 search control for FAS/MRP).
+            if original_demand_policy:
+                for demand in ccAPPS.demands():
+                    if demand.name in original_demand_policy:
+                        demand.policy = original_demand_policy[demand.name]
+            if policy_json:
+                from collections import defaultdict
+
+                produced = defaultdict(float)
+                for opplan in ccAPPS.operationplans():
+                    if opplan.operation.name not in policy["operations"]:
+                        continue
+                    for flowplan in opplan.flowplans:
+                        if flowplan.quantity > 0:
+                            produced[flowplan.buffer.item.name] += flowplan.quantity
+                # Native local MRP deletes and rebuilds proposed plans below.
+                # Loop variables otherwise keep the last C++ plan/flow alive
+                # as Python references after their native objects are freed.
+                # Release them while the loaded plan is still valid.
+                opplan = flowplan = None
+                violations = {
+                    code: (produced[code], limit)
+                    for code, limit in policy["limits"].items()
+                    if produced[code] > limit + 1e-5
+                }
+                if violations:
+                    raise ValueError("Lifecycle production limits exceeded: %s" % violations)
+                logger.info("Lifecycle production limits verified for %s materials", len(policy["limits"]))
             # Run ACO/Exact/AutoFix after MRP if enabled
-            if solver_mode == "mrp":
+            run_cp_pass = run_cp_after_supply
+            run_ga_pass = run_ga_after_supply
+            if local_skip_supply:
+                logger.info(
+                    "Skip-supply path: no FAS/MRP commit; shared local scope + "
+                    "solver=%s will repair the loaded schedule",
+                    solver_mode,
+                )
+            elif solver_mode == "mrp":
                 logger.info("MRP-only planning mode: skipping post-MRP optimization")
-            elif solver_mode == "fas":
+            elif is_fas:
+                cls.solver.commit()
+                logger.info(
+                    "%s plan committed",
+                    (
+                        "FAS (CP baseline)"
+                        if run_cp_after_supply
+                        else "FAS (GA baseline)"
+                        if run_ga_after_supply
+                        else "Standalone SolverFAS"
+                    ),
+                )
+                # Solver due dates are temporary search controls. Restore the
+                # imported promises before export so filler demands don't show
+                # artificial lateness against the three-day search window.
+                for demand in ccAPPS.demands():
+                    original_due = original_demand_due.get(demand.name)
+                    if original_due is not None:
+                        demand.due = original_due
+            if run_ga_pass:
+                ga_environment = {
+                    "GA_SEED": Parameter.getValue(
+                        "ga.seed", database, "123456"
+                    ),
+                    "GA_POPULATION": os.environ.get("GA_POPULATION", "500"),
+                    "GA_GENERATIONS": os.environ.get("GA_GENERATIONS", "50"),
+                    "GA_STAGNATION_LIMIT": Parameter.getValue(
+                        "ga.stagnation_limit",
+                        database,
+                        os.environ.get("GA_STAGNATION_LIMIT", "10"),
+                    ),
+                    "GA_ENABLE_VNS": os.environ.get("GA_ENABLE_VNS", "true"),
+                    "GA_VNS_RATIO": os.environ.get("GA_VNS_RATIO", "0.02"),
+                    "GA_TIME_LIMIT_SECONDS": os.environ.get(
+                        "GA_TIME_LIMIT_SECONDS", "60"
+                    ),
+                    "GA_OBJECTIVE_PROFILE": Parameter.getValue(
+                        "ga.objective_profile", database, "due_date"
+                    ),
+                    "GA_MATERIAL_MODE": Parameter.getValue(
+                        "ga.material_mode", database, "postcheck"
+                    ),
+                    "GA_LOGLEVEL": os.environ.get("GA_LOGLEVEL", "0"),
+                }
+                previous_ga_environment = {
+                    key: os.environ.get(key) for key in ga_environment
+                }
                 try:
-                    # FAS = MRP supply + C++ SolverFAS forward (calendar,
-                    # material FIFO, pool search, job-order improve).
-                    commit_solver_state()
-                    fas_job_order = Parameter.getValue(
-                        "plan.fas_job_order", database, "lpt"
-                    ).lower()
-                    os.environ["FAS_JOB_ORDER"] = fas_job_order
-                    fas_improve = Parameter.getValue(
-                        "plan.fas_improve_seconds", database, "10"
+                    os.environ.update(
+                        {key: str(value) for key, value in ga_environment.items()}
                     )
-                    os.environ["FAS_IMPROVE_SECONDS"] = str(fas_improve)
-                    fas_kwargs = {
-                        "constraints": constraint,
-                        "plantype": plantype,
-                        "loglevel": loglevel,
-                        "lazydelay": int(
-                            Parameter.getValue("lazydelay", database, "86400")
-                        ),
-                        "minimumdelay": int(
-                            Parameter.getValue(
-                                "plan.minimumdelay", database, "3600"
-                            )
-                        ),
-                        "rotateresources": (
-                            Parameter.getValue(
-                                "plan.rotateResources", database, "true"
-                            ).lower()
-                            == "true"
-                        ),
-                        "administrativeleadtime": 86400
-                        * float(
-                            Parameter.getValue(
-                                "plan.administrativeLeadtime", database, "0"
-                            )
-                        ),
-                        "autofence": 86400
-                        * float(
-                            Parameter.getValue(
-                                "plan.autoFenceOperations", database, "0"
-                            )
-                        ),
-                        "iterationmax": int(
-                            Parameter.getValue(
-                                "plan.iterationmax", database, "0"
-                            )
-                        ),
-                        "resourceiterationmax": int(
-                            Parameter.getValue(
-                                "plan.resourceiterationmax", database, "500"
-                            )
-                        ),
-                    }
-                    fas_solver = ccAPPS.solverFAS(**fas_kwargs)
                     logger.info(
-                        "Running SolverFAS forward schedule on MRP supply "
-                        "(job_order=%s, improve_seconds=%s)",
-                        fas_job_order,
-                        fas_improve,
+                        "Starting GA on the %s manufacturing plan",
+                        "FAS" if is_fas else "MRP",
                     )
-                    fas_solver.solve()
-                    fas_solver.commit()
-                    logger.info("SolverFAS forward schedule committed")
-                except Exception:
-                    logger.error(
-                        "Exception caught during FAS forward schedule",
-                        exc_info=True,
-                    )
-                    raise
-            elif solver_mode == "ga":
-                try:
-                    # GA is a second-stage forward optimizer.  Its C++
-                    # decoder must see the complete MRP-created MO/PO/DO
-                    # network (and therefore the real FlowPlan quantities),
-                    # not the partial command stream still owned by the MRP
-                    # solver.  Commit the supply expansion before GA starts;
-                    # this is especially required for CCPL WIP flow lines
-                    # where OP-01..OP-N are independently split MOs.
-                    commit_solver_state()
-                    # NSGA-II keeps the Pareto front. This profile selects
-                    # the customer-facing representative plan from it.
-                    # Core search size is solver-owned. CCPL requests select
-                    # only the GA objective profile; population/generations
-                    # are stable C++ defaults rather than payload controls.
-                    ga_environment = {
-                        "GA_DIRECT": Parameter.getValue("ga.direct", database, "false"),
-                        "GA_SEED": Parameter.getValue("ga.seed", database, "123456"),
-                        # Aligned with D:\test Numba ga_runner defaults.
-                        "GA_POPULATION": os.environ.get("GA_POPULATION", "500"),
-                        "GA_GENERATIONS": os.environ.get("GA_GENERATIONS", "50"),
-                        # Early stop: halt when best score has not improved for
-                        # this many consecutive generations.
-                        "GA_STAGNATION_LIMIT": Parameter.getValue(
-                            "ga.stagnation_limit",
+                    ga_timeout = int(
+                        Parameter.getValue(
+                            "ga.timeout_seconds",
                             database,
-                            os.environ.get("GA_STAGNATION_LIMIT", "10"),
-                        ),
-                        "GA_ENABLE_VNS": os.environ.get("GA_ENABLE_VNS", "true"),
-                        "GA_VNS_RATIO": os.environ.get("GA_VNS_RATIO", "0.02"),
-                        "GA_TIME_LIMIT_SECONDS": os.environ.get(
-                            "GA_TIME_LIMIT_SECONDS", "60"
-                        ),
-                        # How many Pareto solutions are sent to stage 2.
-                        "GA_STAGE2_SOLUTIONS": Parameter.getValue(
-                            "ga.stage2_solutions",
-                            database,
-                            os.environ.get("GA_STAGE2_SOLUTIONS", "1"),
-                        ),
-                        "GA_OBJECTIVE_PROFILE": Parameter.getValue("ga.objective_profile", database, "due_date"),
-                        "GA_MATERIAL_MODE": Parameter.getValue("ga.material_mode", database, "postcheck"),
-                        "GA_LOGLEVEL": os.environ.get("GA_LOGLEVEL", "0"),
-                        # Diagnostic exports are opt-in and remain entirely
-                        # outside the solver algorithm. They make it
-                        # possible to verify that a rejected chromosome was
-                        # rejected by the decode-time WIP gate, rather than
-                        # mistaking the retained MRP plan for a GA result.
-                        "GA_DUMP_APPLY_DECISION": os.environ.get("GA_DUMP_APPLY_DECISION", ""),
-                        "GA_DUMP_SOLUTION": os.environ.get("GA_DUMP_SOLUTION", ""),
-                        # Forward-only diagnostic for internal WIP FIFO.  It is
-                        # intentionally opt-in so normal GA runs remain quiet.
-                        "GA_WIP_TRACE": os.environ.get("GA_WIP_TRACE", ""),
-                        # Opt-in trace of the exported chromosome's internal
-                        # material gate decisions and final FIFO ledger.
-                        "GA_GATE_TRACE": os.environ.get("GA_GATE_TRACE", ""),
-                    }
-                    previous_ga_environment = {key: os.environ.get(key) for key in ga_environment}
-                    try:
-                        os.environ.update(ga_environment)
-                        # Outer thread kill must exceed the internal GA time
-                        # limit so evolution can finish and apply the best plan.
-                        ga_timeout = int(Parameter.getValue(
-                            "ga.timeout_seconds", database,
                             os.environ.get("GA_TIMEOUT_SECONDS", "70"),
-                        ))
-                        if run_threaded(
+                        )
+                    )
+                    run_threaded(
+                        ccAPPS.run_ga,
+                        ga_timeout,
+                        "Full GA optimization...",
+                        "Full GA optimization completed",
+                        "Full GA optimization timed out after %s seconds",
+                    )
+                finally:
+                    for key, value in previous_ga_environment.items():
+                        if value is None:
+                            os.environ.pop(key, None)
+                        else:
+                            os.environ[key] = value
+            # Local repair for FAS / MRP / GA: shared scope in C++
+            # (LocalScopeGuard), then the chosen solver only moves the
+            # movable set. CP uses the dedicated run_cp_pass path below.
+            if local_skip_supply and solver_mode in ("fas", "mrp", "ga"):
+                def _lp(name, legacy, default=""):
+                    return Parameter.getValue(
+                        name,
+                        database,
+                        Parameter.getValue(legacy, database, default),
+                    )
+
+                local_repair_env = {
+                    # Keep constraint mode aligned for FAS/GA/CP entry points
+                    # that re-read CCAPPS_* instead of the Python solver object.
+                    "CCAPPS_CONSTRAINT": os.environ.get(
+                        "CCAPPS_CONSTRAINT",
+                        "capa,mfg_lt,po_lt",
+                    ),
+                    "CCAPPS_PLANTYPE": str(plantype),
+                    "LOCAL_RESCHEDULE": "1",
+                    "CP_LOCAL_RESCHEDULE": "1",
+                    "LOCAL_RESCHEDULE_TYPE": _lp(
+                        "local.reschedule_type", "cp.local_reschedule_type", "order"
+                    ),
+                    "CP_LOCAL_RESCHEDULE_TYPE": _lp(
+                        "local.reschedule_type", "cp.local_reschedule_type", "order"
+                    ),
+                    "LOCAL_RESCHEDULE_LEVEL": _lp(
+                        "local.reschedule_level", "cp.local_reschedule_level", "auto"
+                    ),
+                    "CP_LOCAL_RESCHEDULE_LEVEL": _lp(
+                        "local.reschedule_level", "cp.local_reschedule_level", "auto"
+                    ),
+                    "LOCAL_SCOPE_BASE": _lp(
+                        "local.scope_base", "cp.local_scope_base", "1"
+                    ),
+                    "CP_LOCAL_SCOPE_BASE": _lp(
+                        "local.scope_base", "cp.local_scope_base", "1"
+                    ),
+                    "LOCAL_SCOPE_RELAX": _lp(
+                        "local.scope_relax", "cp.local_scope_relax", ""
+                    ),
+                    "CP_LOCAL_SCOPE_RELAX": _lp(
+                        "local.scope_relax", "cp.local_scope_relax", ""
+                    ),
+                    "LOCAL_CHANGED_RESOURCES": _lp(
+                        "local.changed_resources",
+                        "cp.local_changed_resources",
+                        "",
+                    ),
+                    "CP_LOCAL_CHANGED_RESOURCES": _lp(
+                        "local.changed_resources",
+                        "cp.local_changed_resources",
+                        "",
+                    ),
+                    "LOCAL_CHANGED_MATERIALS": _lp(
+                        "local.changed_materials",
+                        "cp.local_changed_materials",
+                        "",
+                    ),
+                    "CP_LOCAL_CHANGED_MATERIALS": _lp(
+                        "local.changed_materials",
+                        "cp.local_changed_materials",
+                        "",
+                    ),
+                    "LOCAL_NEW_DEMANDS": _lp(
+                        "local.new_demands", "cp.local_new_demands", ""
+                    ),
+                    "CP_LOCAL_NEW_DEMANDS": _lp(
+                        "local.new_demands", "cp.local_new_demands", ""
+                    ),
+                    "LOCAL_DELETED_DEMANDS": _lp(
+                        "local.deleted_demands", "cp.local_deleted_demands", ""
+                    ),
+                    "CP_LOCAL_DELETED_DEMANDS": _lp(
+                        "local.deleted_demands", "cp.local_deleted_demands", ""
+                    ),
+                    "CP_HORIZON_DAYS": Parameter.getValue(
+                        "cp.horizon_days", database, "3"
+                    ),
+                }
+                if solver_mode == "ga":
+                    local_repair_env.update(
+                        {
+                            "GA_SEED": Parameter.getValue(
+                                "ga.seed", database, "123456"
+                            ),
+                            "GA_POPULATION": os.environ.get("GA_POPULATION", "500"),
+                            "GA_GENERATIONS": os.environ.get("GA_GENERATIONS", "50"),
+                            "GA_STAGNATION_LIMIT": Parameter.getValue(
+                                "ga.stagnation_limit",
+                                database,
+                                os.environ.get("GA_STAGNATION_LIMIT", "10"),
+                            ),
+                            "GA_ENABLE_VNS": os.environ.get("GA_ENABLE_VNS", "true"),
+                            "GA_VNS_RATIO": os.environ.get("GA_VNS_RATIO", "0.02"),
+                            "GA_TIME_LIMIT_SECONDS": os.environ.get(
+                                "GA_TIME_LIMIT_SECONDS", "60"
+                            ),
+                            "GA_OBJECTIVE_PROFILE": Parameter.getValue(
+                                "ga.objective_profile", database, "due_date"
+                            ),
+                            "GA_MATERIAL_MODE": Parameter.getValue(
+                                # postcheck sequences capacity first. External
+                                # purchase shortages are reported afterwards.
+                                # Internal WIP stays a hard decode constraint.
+                                # Set ga.material_mode=precheck to reject a
+                                # chromosome that is short any fixed supply.
+                                "ga.material_mode", database, "postcheck"
+                            ),
+                            "GA_LOGLEVEL": os.environ.get("GA_LOGLEVEL", "0"),
+                        }
+                    )
+                prev_env = {k: os.environ.get(k) for k in local_repair_env}
+                try:
+                    os.environ.update(
+                        {k: str(v) for k, v in local_repair_env.items()}
+                    )
+                    logger.info(
+                        "Local %s entry: shared scope + repair "
+                        "(type=%s level=%s)",
+                        solver_mode.upper(),
+                        local_repair_env["LOCAL_RESCHEDULE_TYPE"],
+                        local_repair_env["LOCAL_RESCHEDULE_LEVEL"],
+                    )
+                    def _supply_expansion_names(env):
+                        """Orders allowed to receive new supply on this run.
+
+                        Resource and material repairs, deletes, and priority
+                        changes return nothing. Inserts and quantity increases
+                        return only the names in local.new_demands. all follows
+                        the same rule.
+                        """
+                        mode = str(
+                            env.get("LOCAL_RESCHEDULE_TYPE") or "order"
+                        ).strip().lower()
+                        if mode in ("combined", "mixed"):
+                            mode = "all"
+                        if mode not in ("order", "all"):
+                            return set()
+
+                        def split(key):
+                            return {
+                                part.strip()
+                                for part in str(env.get(key) or "").replace(
+                                    ";", ","
+                                ).split(",")
+                                if part.strip()
+                            }
+
+                        new_names = split("LOCAL_NEW_DEMANDS")
+                        deleted_names = split("LOCAL_DELETED_DEMANDS")
+                        supplied = {}
+                        for plan in ccAPPS.operationplans():
+                            demand = getattr(plan, "demand", None)
+                            if (
+                                demand is None
+                                or demand.name not in new_names
+                                or str(
+                                    getattr(plan, "ordertype", "") or ""
+                                ).upper()
+                                != "DLVR"
+                            ):
+                                continue
+                            supplied[demand.name] = supplied.get(
+                                demand.name, 0.0
+                            ) + max(0.0, float(plan.quantity or 0))
+                        by_name = {
+                            demand.name: demand
+                            for demand in ccAPPS.demands()
+                            if demand.name in new_names
+                        }
+                        allow = set()
+                        for name in new_names:
+                            if name not in deleted_names:
+                                allow.add(name)
+                                continue
+                            demand = by_name.get(name)
+                            if demand is None:
+                                continue
+                            planned = max(
+                                supplied.get(name, 0.0),
+                                float(
+                                    getattr(demand, "planned_quantity", 0) or 0
+                                ),
+                            )
+                            if float(demand.quantity or 0) > planned + 1e-6:
+                                allow.add(name)
+                        return allow
+
+                    expansion_names = _supply_expansion_names(local_repair_env)
+                    # MRP and FAS may create work orders. GA and CP may not.
+                    os.environ["LOCAL_SUPPLY_REGEN"] = (
+                        "1" if solver_mode in ("mrp", "fas") else "0"
+                    )
+                    if solver_mode == "fas":
+                        ccAPPS.run_fas()
+                    elif solver_mode == "ga":
+                        ga_quantity_audit = {
+                            p.reference: float(p.quantity)
+                            for p in ccAPPS.operationplans()
+                        }
+                        logger.info(
+                            "Local GA: sequencing existing work orders; "
+                            "not producing new ones"
+                        )
+                        ga_timeout = int(
+                            Parameter.getValue(
+                                "ga.timeout_seconds",
+                                database,
+                                os.environ.get("GA_TIMEOUT_SECONDS", "70"),
+                            )
+                        )
+                        run_threaded(
                             ccAPPS.run_ga,
                             ga_timeout,
-                            "Running GA optimization...",
-                            "GA completed",
-                            "GA timed out after %s seconds",
+                            "Local GA repair...",
+                            "Local GA completed",
+                            "Local GA timed out after %s seconds",
+                        )
+                        for audit_plan in ccAPPS.operationplans():
+                            old_quantity = ga_quantity_audit.get(audit_plan.reference)
+                            if old_quantity is not None and abs(old_quantity - float(audit_plan.quantity)) > 1e-6:
+                                logger.warning("GA quantity audit: ref=%s operation=%s before=%s after=%s", audit_plan.reference, audit_plan.operation.name, old_quantity, audit_plan.quantity)
+                        audit_plan = None
+                    else:
+                        # Hot plans stay proposed and are rebuilt. Frozen plans
+                        # were confirmed by the scope, so this erase leaves
+                        # them locked.
+                        # Must use cluster=0 when userexit_nextdemand is set
+                        # (global priority queue): default solve() fans out
+                        # one thread per cluster against the same Python
+                        # queue and segfaults under concurrent pop.
+                        cls.solver.erasepreviousfirst = True
+                        logger.info(
+                            "Local MRP: frozen plans kept; remaining "
+                            "proposed cleared and rebuilt"
+                        )
+                        if getattr(cls.solver, "userexit_nextdemand", None):
+                            cls.solver.solve(cluster=0)
+                        else:
+                            cls.solver.solve()
+                    local_outcome = {}
+                    try:
+                        raw_outcome = ccAPPS.cp_last_local_outcome()
+                        if isinstance(raw_outcome, dict):
+                            local_outcome = dict(raw_outcome)
+                    except Exception:
+                        local_outcome = {
+                            "local_ok": bool(ccAPPS.cp_last_local_ok()),
+                            "stage": str(ccAPPS.cp_last_run_stage()),
+                            "applied": int(ccAPPS.cp_last_run_applied()),
+                        }
+                    local_outcome["solver"] = solver_mode
+                    local_outcome["status"] = bool(
+                        local_outcome.pop("local_ok", False)
+                    )
+                    if solver_mode == "fas":
+                        # FAS completion is represented by the task status and
+                        # boolean outcome status. It has no CP-style
+                        # multi-stage lifecycle.
+                        local_outcome.pop("stage", None)
+                        logger.info(
+                            "Local FAS result: status=%s applied=%s",
+                            local_outcome.get("status"),
+                            local_outcome.get("applied"),
+                        )
+                    else:
+                        logger.info(
+                            "Local %s result: status=%s stage=%s applied=%s",
+                            solver_mode.upper(),
+                            local_outcome.get("status"),
+                            local_outcome.get("stage"),
+                            local_outcome.get("applied"),
+                        )
+                    try:
+                        import json as _json
+
+                        outcome_json = _json.dumps(
+                            local_outcome, ensure_ascii=False
+                        )
+                        Parameter.objects.using(database).update_or_create(
+                            name="cp.local_last_outcome",
+                            defaults={"value": outcome_json},
+                        )
+                        Parameter.objects.using(database).update_or_create(
+                            name="local.last_outcome",
+                            defaults={"value": outcome_json},
+                        )
+                        task_id = os.environ.get("CCAPPS_TASKID")
+                        if task_id:
+                            from ccAPPSdb.execute.models import Task
+
+                            Task.objects.using(database).filter(
+                                id=int(task_id)
+                            ).update(
+                                message="local_outcome="
+                                + _json.dumps(
+                                    local_outcome,
+                                    ensure_ascii=False,
+                                    separators=(",", ":"),
+                                )
+                            )
+                    except Exception:
+                        logger.exception("Failed to persist local.last_outcome")
+                    # A local solver works on the in-memory copy loaded from
+                    # the database.  Do not let the following export steps
+                    # replace the last valid plan when the final outcome gate
+                    # rejects that copy.  The diagnostic parameter above is
+                    # written directly and remains available to the API.
+                    if not local_outcome.get("status", False):
+                        raise RuntimeError(
+                            "%s local reschedule failed final validation: %s"
+                            % (solver_mode.upper(), local_outcome)
+                        )
+                finally:
+                    for key, value in prev_env.items():
+                        if value is None:
+                            os.environ.pop(key, None)
+                        else:
+                            os.environ[key] = value
+            # Pre-CP checks:
+            #   soft → ccAPPS.problems() (always advisory)
+            #   model preflight (C++): hard for seed continue-optimize;
+            #     soft for local reschedule (never blocks repair entry)
+            if run_cp_pass:
+                soft_counts = {}
+                for problem in ccAPPS.problems():
+                    name = str(getattr(problem, "name", "") or "")
+                    if not name:
+                        continue
+                    soft_counts[name] = soft_counts.get(name, 0) + 1
+                problem = None
+                soft_schedule = {
+                    k: v
+                    for k, v in soft_counts.items()
+                    if k != "invalid data"
+                }
+                if soft_schedule:
+                    logger.warning(
+                        "CP soft preflight: engine problems before CP: %s "
+                        "(advisory; hard gate is model preflight)",
+                        soft_schedule,
+                    )
+                else:
+                    logger.info(
+                        "CP soft preflight: no schedule problems before CP%s",
+                        (
+                            " (invalid data=%s)"
+                            % soft_counts.get("invalid data")
+                            if soft_counts.get("invalid data")
+                            else ""
+                        ),
+                    )
+                try:
+                    if local_skip_supply:
+                        logger.info(
+                            "Starting CP-SAT local reschedule on the existing plan"
+                        )
+                    else:
+                        logger.info(
+                            "Starting CP-SAT on the %s manufacturing plan",
+                            "FAS" if is_fas else "MRP",
+                        )
+                    cp_baseline_plans = []
+                    candidate_solver = None
+                    expanded_plan_count = 0
+                    insert_delivery_placeholders = []
+                    insert_original_demand_qty = {}
+                    generate_candidates = Parameter.getValue(
+                        "cp.generate_candidates", database, "false"
+                    ).lower() in ("1", "true", "yes")
+                    # Order-local framework: NEW ∪ DELETED seed the same
+                    # L1/L2/L3 freeze. 增=new; 删=deleted; 凡改(量/优先级/
+                    # 属性)=同一张单先删再增 (同名进 deleted+new).
+                    # Insert-candidates gated ONLY on cp.local_new_demands —
+                    # pure-delete must not lock baseline.
+                    insert_only_raw = (
+                        Parameter.getValue(
+                            "cp.local_new_demands", database, ""
+                        )
+                        or os.environ.get("CP_LOCAL_NEW_DEMANDS", "")
+                        or ""
+                    )
+                    insert_only = {
+                        n.strip()
+                        for n in insert_only_raw.replace(";", ",").split(",")
+                        if n.strip()
+                    }
+                    deleted_only_raw = (
+                        Parameter.getValue(
+                            "cp.local_deleted_demands", database, ""
+                        )
+                        or os.environ.get("CP_LOCAL_DELETED_DEMANDS", "")
+                        or ""
+                    )
+                    deleted_only = {
+                        n.strip()
+                        for n in deleted_only_raw.replace(";", ",").split(",")
+                        if n.strip()
+                    }
+                    pure_insert_names = insert_only - deleted_only
+                    # NEW is the rescheduling trigger, not necessarily a need
+                    # for fresh MRP supply.  A same-name NEW+DELETED demand is
+                    # a change.  Reuse its complete existing tree when supply
+                    # quantity still matches (priority/due changes); quantity
+                    # changes and true inserts still require candidate MRP.
+                    supplied_by_demand = {}
+                    for plan in ccAPPS.operationplans():
+                        demand = getattr(plan, "demand", None)
+                        if (
+                            demand is not None
+                            and demand.name in insert_only
+                            and str(getattr(plan, "ordertype", "") or "").upper()
+                            == "DLVR"
                         ):
-                            # GA writes through its own command manager. The MRP
-                            # stream was already committed above.
-                            pass
+                            supplied_by_demand[demand.name] = (
+                                supplied_by_demand.get(demand.name, 0.0)
+                                + max(0.0, float(plan.quantity or 0))
+                            )
+                    demand_by_name = {
+                        demand.name: demand for demand in ccAPPS.demands()
+                        if demand.name in insert_only
+                    }
+                    candidate_insert_names = set(insert_only - deleted_only)
+                    for name in insert_only & deleted_only:
+                        demand = demand_by_name.get(name)
+                        if demand is None:
+                            continue
+                        supplied = max(
+                            supplied_by_demand.get(name, 0.0),
+                            float(getattr(demand, "planned_quantity", 0) or 0),
+                        )
+                        if float(demand.quantity or 0) > supplied + 1e-6:
+                            candidate_insert_names.add(name)
+                    candidate_expansion_blocked = False
+                    active_local_type = (
+                        os.environ.get("CP_LOCAL_RESCHEDULE_TYPE")
+                        or Parameter.getValue(
+                            "cp.local_reschedule_type", database, "order"
+                        )
+                    ).strip().lower()
+                    local_includes_order = active_local_type in (
+                        "order",
+                        "all",
+                        "combined",
+                        "mixed",
+                    )
+                    # CP reschedule only moves work orders that already exist.
+                    if local_skip_supply:
+                        generate_candidates = False
+                        logger.info(
+                            "CP local: sequencing existing work orders; "
+                            "not producing new ones"
+                        )
+                    if generate_candidates and window_end:
+                        # Preserve the accepted finite-capacity MRP plan as
+                        # locked work. Build unconstrained proposal trees only
+                        # for its remaining demand, so CP can add throughput
+                        # without sacrificing the baseline.
+                        cp_baseline_plans = [
+                            plan for plan in ccAPPS.operationplans()
+                            if plan.status == "proposed"
+                        ]
+                        for plan in cp_baseline_plans:
+                            plan.status = "approved"
+                        # A newly inserted order can arrive with a standalone
+                        # DLVR placeholder. Its quantity makes planned_quantity
+                        # look complete even though no manufacturing tree
+                        # exists. Temporarily release that placeholder so MRP
+                        # expands the inserted order's BOM. Restore it if CP
+                        # fails; on success the newly expanded delivery/tree
+                        # replaces it.
+                        if candidate_insert_names:
+                            for plan in cp_baseline_plans:
+                                demand = getattr(plan, "demand", None)
+                                if (
+                                    demand is not None
+                                    and demand.name in candidate_insert_names
+                                    and str(
+                                        getattr(plan, "ordertype", "") or ""
+                                    ).upper() == "DLVR"
+                                    and float(plan.quantity or 0) > 0
+                                ):
+                                    insert_delivery_placeholders.append(
+                                        (plan, float(plan.quantity))
+                                    )
+                            if insert_delivery_placeholders:
+                                # Make the placeholder quantity look newly
+                                # unmet while MRP expands candidates. After
+                                # expansion the old placeholder is zeroed and
+                                # the new delivery/tree takes its place.
+                                extra_by_demand = {}
+                                for plan, quantity in insert_delivery_placeholders:
+                                    demand = plan.demand
+                                    extra_by_demand[demand] = (
+                                        extra_by_demand.get(demand, 0.0)
+                                        + quantity
+                                    )
+                                for demand, quantity in extra_by_demand.items():
+                                    insert_original_demand_qty[demand] = float(
+                                        demand.quantity
+                                    )
+                                    demand.quantity = float(demand.quantity) + quantity
+                                logger.info(
+                                    "CP local insert: exposed %s delivery "
+                                    "placeholder(s) as unmet for BOM expansion",
+                                    len(insert_delivery_placeholders),
+                                )
+                        candidate_demands = []
+                        # When insert_only is set, fence every other open/quote
+                        # demand so unconstrained MRP cannot grow unrelated
+                        # trees (e.g. window-incomplete UNIN orders).
+                        fenced_demands = []
+                        for demand in ccAPPS.demands():
+                            if demand.status not in ("open", "quote"):
+                                continue
+                            if (
+                                candidate_insert_names
+                                and demand.name not in candidate_insert_names
+                            ):
+                                fenced_demands.append(
+                                    (demand, demand.status)
+                                )
+                                demand.status = "closed"
+                                continue
+                            if demand.planned_quantity + 1e-6 >= demand.quantity:
+                                continue
+                            candidate_demands.append(
+                                (demand, demand.due, demand.maxlateness,
+                                 demand.priority, demand.minshipment)
+                            )
+                            demand.due = window_end
+                            demand.maxlateness = 0
+                            demand.minshipment = max(
+                                1.0, demand.quantity - demand.planned_quantity
+                            )
+                        if fenced_demands:
+                            logger.info(
+                                "CP local insert: fenced %s non-insert "
+                                "open/quote demand(s) during candidate MRP",
+                                len(fenced_demands),
+                            )
+                        if candidate_demands:
+                            os.environ["CP_LOCAL_NEW_DEMANDS"] = ",".join(
+                                d[0].name for d in candidate_demands
+                            )
+                            logger.info(
+                                "CP local insert demands: %s",
+                                os.environ["CP_LOCAL_NEW_DEMANDS"],
+                            )
+                        plans_before_candidates = list(ccAPPS.operationplans())
+                        before_candidate_ids = {
+                            id(plan) for plan in plans_before_candidates
+                        }
+                        before_candidates = len(plans_before_candidates)
+                        candidate_solver = ccAPPS.solver_mrp(
+                            constraints=0,
+                            plantype=plantype,
+                            loglevel=loglevel,
+                            lazydelay=int(Parameter.getValue(
+                                "lazydelay", database, "86400"
+                            )),
+                            minimumdelay=0,
+                            rotateresources=True,
+                            iterationmax=0,
+                            resourceiterationmax=50,
+                        )
+                        candidate_solver.erasepreviousfirst = False
+                        try:
+                            candidate_solver.solve()
+                        finally:
+                            for demand, quantity in insert_original_demand_qty.items():
+                                demand.quantity = quantity
+                            for plan, _quantity in insert_delivery_placeholders:
+                                plan.quantity = 0
+                            for demand, due, lateness, priority, shipment in candidate_demands:
+                                demand.due = due
+                                demand.maxlateness = lateness
+                                demand.priority = priority
+                                demand.minshipment = shipment
+                            for demand, status in fenced_demands:
+                                demand.status = status
+                        added_candidates = [
+                            plan
+                            for plan in ccAPPS.operationplans()
+                            if id(plan) not in before_candidate_ids
+                        ]
+                        # Belt-and-suspenders: drop any newly created trees
+                        # that peg to a demand outside the insert allow-list.
+                        if candidate_insert_names and added_candidates:
+                            stray_roots = []
+                            for plan in added_candidates:
+                                dem = getattr(plan, "demand", None)
+                                if (
+                                    dem is None
+                                    or dem.name in candidate_insert_names
+                                ):
+                                    continue
+                                root = plan
+                                while getattr(root, "owner", None) is not None:
+                                    root = root.owner
+                                if root not in stray_roots:
+                                    stray_roots.append(root)
+                            for root in stray_roots:
+                                try:
+                                    root.delete()
+                                except Exception:
+                                    pass
+                            if stray_roots:
+                                logger.info(
+                                    "CP local insert: deleted %s stray "
+                                    "candidate root(s) outside named demands",
+                                    len(stray_roots),
+                                )
+                            added_candidates = [
+                                plan
+                                for plan in ccAPPS.operationplans()
+                                if id(plan) not in before_candidate_ids
+                            ]
+                        after_candidates = len(list(ccAPPS.operationplans()))
+                        expanded_plan_count = after_candidates
+                        logger.info(
+                            "CP candidate expansion added %s operation plans for %s incomplete demands",
+                            max(0, after_candidates - before_candidates),
+                            len(candidate_demands),
+                        )
+                        insert_item_names = {
+                            demand.item.name
+                            for demand, *_rest in candidate_demands
+                            if demand.item is not None
+                        }
+                        tagged_insert_roots = set()
+                        tagged_insert_items = set()
+                        for plan in added_candidates:
+                            root = plan
+                            while getattr(root, "owner", None) is not None:
+                                root = root.owner
+                            operation = getattr(root, "operation", None)
+                            item = getattr(operation, "item", None)
+                            if (
+                                item is not None
+                                and item.name in insert_item_names
+                            ):
+                                root.cp_local_insert = True
+                                tagged_insert_roots.add(id(root))
+                                tagged_insert_items.add(item.name)
+                        logger.info(
+                            "CP local insert: tagged %s manufacturing root(s)",
+                            len(tagged_insert_roots),
+                        )
+                        shortage_items = set()
+                        for problem in ccAPPS.problems():
+                            if str(problem.name) != "material shortage":
+                                continue
+                            owner = getattr(problem, "owner", None)
+                            item = getattr(owner, "item", None)
+                            if item is not None:
+                                shortage_items.add(item.name)
+                        problem = owner = item = None
+                        blocked_demands = [
+                            demand.name
+                            for demand, *_rest in candidate_demands
+                            if (
+                                demand.name in (insert_only - deleted_only)
+                                and demand.item is not None
+                                and demand.item.name not in tagged_insert_items
+                                and demand.item.name in shortage_items
+                            )
+                        ]
+                        if blocked_demands:
+                            candidate_expansion_blocked = True
+                            logger.error(
+                                "CP local insert rejected after candidate "
+                                "expansion: no manufacturing path and "
+                                "insufficient inventory for %s",
+                                blocked_demands,
+                            )
+                        if len(added_candidates) <= 20:
+                            for plan in added_candidates:
+                                owner = getattr(plan, "owner", None)
+                                logger.info(
+                                    "CP candidate detail: ref=%s op=%s "
+                                    "demand=%s owner=%s owner_demand=%s",
+                                    getattr(plan, "reference", ""),
+                                    getattr(
+                                        getattr(plan, "operation", None),
+                                        "name",
+                                        "",
+                                    ),
+                                    getattr(
+                                        getattr(plan, "demand", None),
+                                        "name",
+                                        "",
+                                    ),
+                                    getattr(owner, "reference", ""),
+                                    getattr(
+                                        getattr(owner, "demand", None),
+                                        "name",
+                                        "",
+                                    ),
+                                )
+                        all_candidates_variable = Parameter.getValue(
+                            "cp.all_candidates_variable", database, "false"
+                        ).lower() in ("1", "true", "yes")
+                        if all_candidates_variable:
+                            logger.info(
+                                "CP marked the MRP baseline and exposed all baseline and supplemental operations as decision variables"
+                            )
+                        else:
+                            all_candidates_variable = False
+                    else:
+                        all_candidates_variable = False
+                    # Supply (MRP or FAS) has already materialized manufacturing
+                    # orders. Don't call solver.commit() here on the MRP stream:
+                    # on the FC network that commit re-expands the proposal graph
+                    # before CP reads it. FAS already committed above.
+                    #
+                    # Same CP knobs for either baseline — throughput/auto packs
+                    # the early window (personnel); no separate all-mode path.
+                    # Lot-split (whole XOR head+tail) in the same CP model.
+                    # Single switch: common_parameter cp.lot_split (0/1).
+                    # Eligibility details stay as C++ defaults (exact>8h, economic).
+                    # Prefer a process env override when set (shell / warm scripts);
+                    # otherwise fall back to common_parameter, then default.
+                    def _cp_env(env_key, db_key, default):
+                        raw = os.environ.get(env_key)
+                        if raw is not None and str(raw).strip() != "":
+                            return str(raw).strip()
+                        return Parameter.getValue(db_key, database, default)
+
+                    cp_environment = {
+                        "CCAPPS_CONSTRAINT": os.environ.get(
+                            "CCAPPS_CONSTRAINT", "capa,mfg_lt,po_lt"
+                        ),
+                        "CCAPPS_PLANTYPE": str(plantype),
+                        "CP_OBJECTIVE_METHOD": _cp_env(
+                            "CP_OBJECTIVE_METHOD",
+                            "cp.objective_method",
+                            "weighted",
+                        ),
+                        # Default throughput so lex uses util window
+                        # (current .. +horizon_days, e.g. 16 08:00→19 08:00).
+                        "CP_PLANNING_MODE": _cp_env(
+                            "CP_PLANNING_MODE",
+                            "cp.planning_mode",
+                            "throughput",
+                        ),
+                        "CP_MATERIAL_MODE": _cp_env(
+                            "CP_MATERIAL_MODE",
+                            "cp.material_mode",
+                            "all",
+                        ),
+                        "CP_HORIZON_DAYS": _cp_env(
+                            "CP_HORIZON_DAYS",
+                            "cp.horizon_days",
+                            "3",
+                        ),
+                        "CP_THROUGHPUT_OBJECTIVE": _cp_env(
+                            "CP_THROUGHPUT_OBJECTIVE",
+                            "cp.throughput_objective",
+                            "personnel",
+                        ),
+                        "CP_TIME_LIMIT_SECONDS": _cp_env(
+                            "CP_TIME_LIMIT_SECONDS",
+                            "cp.time_limit_seconds",
+                            "60",
+                        ),
+                        "CP_LOT_SPLIT": _cp_env(
+                            "CP_LOT_SPLIT", "cp.lot_split", "0"
+                        ),
+                        # earlyPersonnel / util objective scope: resource name,
+                        # or "all" for every 人员 workshop (PERSON_1..5).
+                        "CP_EARLY_PERSONNEL_RESOURCE": _cp_env(
+                            "CP_EARLY_PERSONNEL_RESOURCE",
+                            "cp.early_personnel_resource",
+                            "all",
+                        ),
+                        # Optional lots in the short util window (needed when
+                        # XOR split would otherwise force a hard all-mode model).
+                        "CP_WINDOW_SELECT": _cp_env(
+                            "CP_WINDOW_SELECT",
+                            "cp.window_select",
+                            "0",
+                        ),
+                        "CP_DUE_FIRST": _cp_env(
+                            "CP_DUE_FIRST", "cp.due_first", "0"
+                        ),
+                        "CP_WEIGHT_MAKESPAN": _cp_env(
+                            "CP_WEIGHT_MAKESPAN",
+                            "cp.weight_makespan",
+                            "80",
+                        ),
+                        "CP_WEIGHT_LOAD": _cp_env(
+                            "CP_WEIGHT_LOAD", "cp.weight_load", "10"
+                        ),
+                        "CP_WEIGHT_TARDINESS": _cp_env(
+                            "CP_WEIGHT_TARDINESS",
+                            "cp.weight_tardiness",
+                            "10",
+                        ),
+                        "CP_EARLY_DAYS": _cp_env(
+                            "CP_EARLY_DAYS", "cp.early_days", "3"
+                        ),
+                        # Lex/tardiness primary: only demands due in this many
+                        # days (default follow CP_EARLY_DAYS / 3). 0 = all-horizon.
+                        "CP_TARDY_WINDOW_DAYS": _cp_env(
+                            "CP_TARDY_WINDOW_DAYS",
+                            "cp.tardy_window_days",
+                            "-1",
+                        ),
+                        "CP_WEIGHT_PERSONNEL": _cp_env(
+                            "CP_WEIGHT_PERSONNEL",
+                            "cp.weight_personnel",
+                            "0",
+                        ),
+                        "CP_SEED_MRP": _cp_env(
+                            "CP_SEED_MRP", "cp.seed_mrp", "1"
+                        ),
+                        # Hard model preflight: INFEASIBLE seed → block CP.
+                        "CP_PREFLIGHT_ABORT_ON_CONFLICT": _cp_env(
+                            "CP_PREFLIGHT_ABORT_ON_CONFLICT",
+                            "cp.abort_on_conflict",
+                            "1",
+                        ),
+                        # Fix any baseline seed; ask CP-SAT feasibility.
+                        "CP_PREFLIGHT_MODEL": _cp_env(
+                            "CP_PREFLIGHT_MODEL",
+                            "cp.preflight_model",
+                            "1",
+                        ),
+                        "CP_PREFLIGHT_SECONDS": _cp_env(
+                            "CP_PREFLIGHT_SECONDS",
+                            "cp.preflight_seconds",
+                            "60",
+                        ),
+                        "CP_LEX_STAGES": _cp_env(
+                            "CP_LEX_STAGES", "cp.lex_stages", "1"
+                        ),
+                        "CP_REPAIR_HINT": _cp_env(
+                            "CP_REPAIR_HINT", "cp.repair_hint", "0"
+                        ),
+                        # Schedule-stability/change-rate is an on-demand
+                        # feature.  Master switch defaults off so ordinary CP
+                        # runs don't build deviation variables or score it.
+                        "CP_CHANGE_RATE_ENABLED": _cp_env(
+                            "CP_CHANGE_RATE_ENABLED",
+                            "cp.change_rate_enabled",
+                            "0",
+                        ),
+                        # When the master switch is on, this controls the
+                        # soft-lex tertiary start-time anchor.
+                        "CP_ANCHOR_SEED": _cp_env(
+                            "CP_ANCHOR_SEED", "cp.anchor_seed", "1"
+                        ),
+                        # A root work order counts as changed only when at
+                        # least one anchored leaf moves by more than this.
+                        "CP_CHANGE_TOLERANCE_SECONDS": _cp_env(
+                            "CP_CHANGE_TOLERANCE_SECONDS",
+                            "cp.change_tolerance_seconds",
+                            "60",
+                        ),
+                        "CP_CHANGE_MEDIUM_SECONDS": _cp_env(
+                            "CP_CHANGE_MEDIUM_SECONDS",
+                            "cp.change_medium_seconds",
+                            "900",
+                        ),
+                        "CP_CHANGE_MAJOR_SECONDS": _cp_env(
+                            "CP_CHANGE_MAJOR_SECONDS",
+                            "cp.change_major_seconds",
+                            "7200",
+                        ),
+                        # 重调度: freeze proposed/approved trees outside
+                        # the short window; only reoptimize in-window / late
+                        # / demand-pegged work (pairs with anchor-seed).
+                        "CP_LOCAL_RESCHEDULE": _cp_env(
+                            "CP_LOCAL_RESCHEDULE",
+                            "cp.local_reschedule",
+                            "0",
+                        ),
+                        "CP_LOCAL_RESCHEDULE_TYPE": _cp_env(
+                            "CP_LOCAL_RESCHEDULE_TYPE",
+                            "cp.local_reschedule_type",
+                            "order",
+                        ),
+                        "CP_LOCAL_RESCHEDULE_LEVEL": _cp_env(
+                            "CP_LOCAL_RESCHEDULE_LEVEL",
+                            "cp.local_reschedule_level",
+                            "auto",
+                        ),
+                        # level=custom: starting freeze (1|2|3) + optional
+                        # customer 松绑 tokens (neighbors,personnel,window,all).
+                        "CP_LOCAL_SCOPE_BASE": _cp_env(
+                            "CP_LOCAL_SCOPE_BASE",
+                            "cp.local_scope_base",
+                            "1",
+                        ),
+                        "CP_LOCAL_SCOPE_RELAX": _cp_env(
+                            "CP_LOCAL_SCOPE_RELAX",
+                            "cp.local_scope_relax",
+                            "",
+                        ),
+                        # Resource-change 统一口径: 点名设备/人员/模具
+                        # (e.g. "H01,PERSON_制造部4工段"). 数据侧用
+                        # maximum_calendar 容量×时段.
+                        "CP_LOCAL_CHANGED_RESOURCES": _cp_env(
+                            "CP_LOCAL_CHANGED_RESOURCES",
+                            "cp.local_changed_resources",
+                            "",
+                        ),
+                        # Material-change 统一口径: 点名物料/buffer
+                        # (e.g. "04.09.00289"). 数据侧改 STCK/PO 到货/数量.
+                        "CP_LOCAL_CHANGED_MATERIALS": _cp_env(
+                            "CP_LOCAL_CHANGED_MATERIALS",
+                            "cp.local_changed_materials",
+                            "",
+                        ),
+                        # Order-local named seeds (one framework, two lists):
+                        #   new     = 插单 / 凡改重插
+                        #   deleted = 删单残留 / 凡改先删
+                        # 凡改: same demand name in both lists.
+                        "CP_LOCAL_NEW_DEMANDS": _cp_env(
+                            "CP_LOCAL_NEW_DEMANDS",
+                            "cp.local_new_demands",
+                            os.environ.get("CP_LOCAL_NEW_DEMANDS", ""),
+                        ),
+                        "CP_LOCAL_DELETED_DEMANDS": _cp_env(
+                            "CP_LOCAL_DELETED_DEMANDS",
+                            "cp.local_deleted_demands",
+                            os.environ.get("CP_LOCAL_DELETED_DEMANDS", ""),
+                        ),
+                        # L3/local: proposed DLVR are realigned after solve;
+                        # do not pin their old drains as lockedMaterial while
+                        # manufacturing is globally free. Closed/confirmed
+                        # stay locked. Set 0 to keep deliveries fixed in CP.
+                        "CP_LOCAL_FREE_DELIVERY_MATERIAL": _cp_env(
+                            "CP_LOCAL_FREE_DELIVERY_MATERIAL",
+                            "cp.local_free_delivery_material",
+                            "1",
+                        ),
+                        # L1/L2: frozen trees are capacity floors (appendAfter);
+                        # do not re-encode their material as lockedMaterial or
+                        # later insert slots prove INFEASIBLE. Set 0 for strict.
+                        "CP_LOCAL_SKIP_FROZEN_MATERIAL": _cp_env(
+                            "CP_LOCAL_SKIP_FROZEN_MATERIAL",
+                            "cp.local_skip_frozen_material",
+                            "1",
+                        ),
+                        # Extra seconds past latest frozen use + hot durations
+                        # so a new lot can start after a full util window.
+                        "CP_LOCAL_INSERT_SLACK_SECONDS": _cp_env(
+                            "CP_LOCAL_INSERT_SLACK_SECONDS",
+                            "cp.local_insert_slack_seconds",
+                            "86400",
+                        ),
+                        # When local repair is on, default-enable change-rate
+                        # + FAS seed anchor unless explicitly set to 0.
+                        "CP_LOCAL_CHANGE_RATE": _cp_env(
+                            "CP_LOCAL_CHANGE_RATE",
+                            "cp.local_change_rate",
+                            "1",
+                        ),
+                        # L2 neighbor links: equipment/mold only by default.
+                        "CP_LOCAL_L2_INCLUDE_PERSONNEL": _cp_env(
+                            "CP_LOCAL_L2_INCLUDE_PERSONNEL",
+                            "cp.local_l2_include_personnel",
+                            "0",
+                        ),
+                        # Soft cap: L2 may add at most factor × L1 roots.
+                        "CP_LOCAL_L2_MAX_FACTOR": _cp_env(
+                            "CP_LOCAL_L2_MAX_FACTOR",
+                            "cp.local_l2_max_factor",
+                            "5",
+                        ),
+                        "CP_LOCAL_AUTO_MAX_ROOTS": _cp_env(
+                            "CP_LOCAL_AUTO_MAX_ROOTS",
+                            "cp.local_auto_max_roots",
+                            "1500",
+                        ),
+                        "CP_LOCAL_AUTO_MAX_TASKS": _cp_env(
+                            "CP_LOCAL_AUTO_MAX_TASKS",
+                            "cp.local_auto_max_tasks",
+                            "2500",
+                        ),
+                        "CP_LOCAL_AUTO_MAX_VARS": _cp_env(
+                            "CP_LOCAL_AUTO_MAX_VARS",
+                            "cp.local_auto_max_vars",
+                            "60000",
+                        ),
+                        # Keep the supply baseline unless CP covers it. Name is
+                        # historical (MRP); applies equally to an FAS baseline.
+                        "CP_PROTECT_MRP_BASELINE": (
+                            "0" if generate_candidates else "1"
+                        ),
+                        "CP_BASELINE_LOCKED": (
+                            "1" if generate_candidates and not all_candidates_variable else "0"
+                        ),
+                        "CP_BASELINE_VARIABLE": (
+                            "1" if generate_candidates and all_candidates_variable else "0"
+                        ),
+                        "CP_KEEP_MRP": (
+                            "1" if all_candidates_variable or not generate_candidates else "0"
+                        ),
+                    }
+                    # Do not freeze FAS lots past the CP window. All proposed
+                    # lots stay movable; throughput may drop some, and
+                    # CP_KEEP_MRP keeps the FAS baseline when CP covers less.
+                    previous_cp_environment = {
+                        key: os.environ.get(key) for key in cp_environment
+                    }
+                    os.environ.update(cp_environment)
+                    logger.info(
+                        "%s (%s, horizon %s days, objective %s, "
+                        "throughput=%s, lot_split=%s)",
+                        (
+                            "Running CP-SAT local reschedule on existing plan"
+                            if local_skip_supply
+                            else "Running CP-SAT after %s"
+                            % ("FAS" if is_fas else "MRP")
+                        ),
+                        cp_environment["CP_PLANNING_MODE"],
+                        cp_environment["CP_HORIZON_DAYS"],
+                        cp_environment["CP_OBJECTIVE_METHOD"],
+                        cp_environment["CP_THROUGHPUT_OBJECTIVE"],
+                        cp_environment["CP_LOT_SPLIT"],
+                    )
+                    try:
+                        # Default: single CP solve.
+                        # CP_PARTITION=1 → workshop-parallel run_cp_partitioned.
+                        # CP_ALNS=1 → ALNS lot structure; CP workers stay
+                        # partitioned (seed / LNS / final all use partition).
+                        use_alns = os.environ.get(
+                            "CP_ALNS", ""
+                        ).lower() in ("1", "true", "yes")
+                        use_partition = os.environ.get(
+                            "CP_PARTITION", ""
+                        ).lower() in ("1", "true", "yes")
+                        local_enabled = cp_environment[
+                            "CP_LOCAL_RESCHEDULE"
+                        ].lower() in ("1", "true", "yes", "on")
+                        local_level = cp_environment[
+                            "CP_LOCAL_RESCHEDULE_LEVEL"
+                        ].strip().lower()
+                        if candidate_expansion_blocked:
+                            ccAPPS.cp_mark_candidate_no_supply()
+                        elif use_alns:
+                            # Ensure ALNS CP workers see partition mode.
+                            os.environ.setdefault("CP_PARTITION", "1")
+                            logger.info(
+                                "CP entry: run_cp_alns (partitioned CP workers)"
+                            )
+                            ccAPPS.run_cp_alns()
+                        elif use_partition:
+                            logger.info("CP entry: run_cp_partitioned")
+                            ccAPPS.run_cp_partitioned()
+                        else:
+                            if local_enabled and local_level == "auto":
+                                # Smallest repair first. Stop when CP has a
+                                # solution that clears the trigger. Capacity is
+                                # hard inside CP; local_ok judges the trigger.
+                                ccAPPS.cp_local_snapshot()
+                                try:
+                                    for attempt_level in ("1", "2", "3"):
+                                        os.environ[
+                                            "CP_LOCAL_RESCHEDULE_LEVEL"
+                                        ] = attempt_level
+                                        logger.info(
+                                            "CP local cascade: trying level %s",
+                                            attempt_level,
+                                        )
+                                        ccAPPS.run_cp()
+                                        applied = int(
+                                            ccAPPS.cp_last_run_applied()
+                                        )
+                                        local_ok = bool(
+                                            ccAPPS.cp_last_local_ok()
+                                        )
+                                        terminal_stage = str(
+                                            ccAPPS.cp_last_run_stage()
+                                        )
+                                        delete_complete = (
+                                            terminal_stage
+                                            == "local_delete_complete"
+                                        )
+                                        if local_ok and (
+                                            applied or delete_complete
+                                        ):
+                                            logger.info(
+                                                "CP local cascade: level %s ok "
+                                                "(%s assignments, trigger cleared, "
+                                                "stage=%s)",
+                                                attempt_level,
+                                                applied,
+                                                terminal_stage,
+                                            )
+                                            break
+                                        if (
+                                            terminal_stage
+                                            == "local_delete_not_applied"
+                                        ):
+                                            logger.warning(
+                                                "CP local cascade stopped: "
+                                                "delete trigger demand still "
+                                                "exists"
+                                            )
+                                            break
+                                        if applied and not local_ok:
+                                            logger.info(
+                                                "CP local cascade: level %s "
+                                                "applied %s but trigger "
+                                                "unresolved; restoring baseline",
+                                                attempt_level,
+                                                applied,
+                                            )
+                                        else:
+                                            logger.info(
+                                                "CP local cascade: level %s "
+                                                "produced no solution; "
+                                                "restoring baseline",
+                                                attempt_level,
+                                            )
+                                        ccAPPS.cp_local_restore()
+                                finally:
+                                    ccAPPS.cp_local_snapshot_clear()
+                            else:
+                                logger.info("CP entry: run_cp (no partition)")
+                                # Fixed L1/L2/L3: snapshot so a trigger-failed
+                                # apply can be undone (cascade already does).
+                                # Snapshot any fixed-level order local run
+                                # (insert / change / delete) so a failed
+                                # trigger can restore in-memory plan.
+                                fixed_local_guard = (
+                                    local_enabled
+                                    and local_level in ("1", "2", "3", "custom")
+                                )
+                                if fixed_local_guard:
+                                    ccAPPS.cp_local_snapshot()
+                                try:
+                                    ccAPPS.run_cp()
+                                    if fixed_local_guard and not bool(
+                                        ccAPPS.cp_last_local_ok()
+                                    ):
+                                        logger.info(
+                                            "CP local fixed level=%s trigger "
+                                            "unresolved; restoring snapshot",
+                                            local_level,
+                                        )
+                                        ccAPPS.cp_local_restore()
+                                finally:
+                                    if fixed_local_guard:
+                                        ccAPPS.cp_local_snapshot_clear()
+                        # Report the in-memory CP result before noexport can
+                        # discard it. Invalid-data master-data warnings are
+                        # excluded; these counters describe schedule quality.
+                        cp_problem_counts = {}
+                        cp_problem_details = []
+                        for problem in ccAPPS.problems():
+                            name = str(problem.name)
+                            if name == "invalid data":
+                                continue
+                            cp_problem_counts[name] = (
+                                cp_problem_counts.get(name, 0) + 1
+                            )
+                            if name in ("material shortage", "overload"):
+                                owner = getattr(problem, "owner", None)
+                                cp_problem_details.append(
+                                    {
+                                        "type": name,
+                                        "owner": str(
+                                            getattr(owner, "name", owner)
+                                        ),
+                                        "start": str(
+                                            getattr(problem, "start", "")
+                                        ),
+                                        "end": str(
+                                            getattr(problem, "end", "")
+                                        ),
+                                        "description": str(
+                                            getattr(
+                                                problem, "description", ""
+                                            )
+                                        ),
+                                    }
+                                )
+                        # Export/truncation rebuilds native Problem objects.
+                        # Python loop locals otherwise retain the final native
+                        # problem/owner past its C++ deletion and corrupt the
+                        # interpreter during process teardown.
+                        problem = owner = None
+                        cp_stage = str(ccAPPS.cp_last_run_stage())
+                        logger.info(
+                            "CP result validation: applied=%s local_ok=%s "
+                            "stage=%s "
+                            "schedule_problems=%s",
+                            int(ccAPPS.cp_last_run_applied()),
+                            bool(ccAPPS.cp_last_local_ok()),
+                            cp_stage,
+                            cp_problem_counts or {},
+                        )
+                        if cp_stage == "preflight_blocked":
+                            try:
+                                conflicts = str(
+                                    ccAPPS.cp_last_preflight_conflicts() or ""
+                                )
+                            except Exception:
+                                conflicts = ""
+                            logger.error(
+                                "CP preflight hard blocked; conflicts: %s",
+                                conflicts or "(none mapped)",
+                            )
+                        if cp_problem_details:
+                            logger.info(
+                                "CP result problem details: %s",
+                                cp_problem_details,
+                            )
+                        # Persist level_used + outcome for API / task status
+                        # only on real reschedule runs (not full CP).
+                        if local_enabled and local_skip_supply:
+                            local_outcome = {}
+                            try:
+                                raw_outcome = ccAPPS.cp_last_local_outcome()
+                                if isinstance(raw_outcome, dict):
+                                    local_outcome = dict(raw_outcome)
+                            except Exception:
+                                local_outcome = {
+                                    "applied": int(
+                                        ccAPPS.cp_last_run_applied()
+                                    ),
+                                    "local_ok": bool(
+                                        ccAPPS.cp_last_local_ok()
+                                    ),
+                                    "stage": str(ccAPPS.cp_last_run_stage()),
+                                }
+                            local_outcome["status"] = bool(
+                                local_outcome.pop("local_ok", False)
+                            )
+                            local_outcome["schedule_problems"] = (
+                                cp_problem_counts or {}
+                            )
+                            try:
+                                import json as _json
+
+                                Parameter.objects.using(
+                                    database
+                                ).update_or_create(
+                                    name="cp.local_last_outcome",
+                                    defaults={
+                                        "value": _json.dumps(
+                                            local_outcome, ensure_ascii=False
+                                        )
+                                    },
+                                )
+                                Parameter.objects.using(
+                                    database
+                                ).update_or_create(
+                                    name="local.last_outcome",
+                                    defaults={
+                                        "value": _json.dumps(
+                                            {**local_outcome, "solver": "cp"},
+                                            ensure_ascii=False,
+                                        )
+                                    },
+                                )
+                            except Exception:
+                                logger.exception(
+                                    "Failed to persist cp.local_last_outcome"
+                                )
+                            task_id = os.environ.get("CCAPPS_TASKID")
+                            if task_id:
+                                try:
+                                    from ccAPPSdb.execute.models import Task
+
+                                    msg = "local_outcome=" + _json.dumps(
+                                        local_outcome,
+                                        ensure_ascii=False,
+                                        separators=(",", ":"),
+                                    )
+                                    Task.objects.using(database).filter(
+                                        id=int(task_id)
+                                    ).update(message=msg)
+                                except Exception:
+                                    logger.exception(
+                                        "Failed to write local outcome on task"
+                                    )
                     finally:
-                        for key, value in previous_ga_environment.items():
+                        # Roll back insert candidates when CP exported nothing
+                        # OR the local trigger stayed unresolved (e.g. late
+                        # fill). applied>0 alone is not success for local
+                        # order insert/change.
+                        cp_applied = 0
+                        cp_local_ok = False
+                        try:
+                            cp_applied = int(ccAPPS.cp_last_run_applied())
+                        except Exception:
+                            cp_applied = 0
+                        try:
+                            cp_local_ok = bool(ccAPPS.cp_last_local_ok())
+                        except Exception:
+                            cp_local_ok = False
+                        local_order_insert = bool(
+                            local_skip_supply
+                            and local_includes_order
+                            and insert_only
+                        )
+                        # Local path: keep candidates only when trigger ok.
+                        # Non-local CP: keep whenever applied > 0.
+                        keep_candidates = (
+                            candidate_solver is not None
+                            and cp_applied > 0
+                            and (cp_local_ok or not local_skip_supply)
+                        )
+                        if (
+                            candidate_solver is not None
+                            and expanded_plan_count
+                            and not keep_candidates
+                        ):
+                            candidate_solver.rollback()
+                            # A failed pure insert has no historical tree, so
+                            # remove any candidate remnants. A failed change
+                            # must retain its historical tree and restore the
+                            # temporarily exposed delivery placeholder.
+                            if pure_insert_names:
+                                cleared = 0
+                                for _ in range(8):
+                                    roots = []
+                                    for plan in list(ccAPPS.operationplans()):
+                                        dem = getattr(plan, "demand", None)
+                                        if (
+                                            dem is None
+                                            or dem.name not in pure_insert_names
+                                        ):
+                                            continue
+                                        root = plan
+                                        while (
+                                            getattr(root, "owner", None)
+                                            is not None
+                                        ):
+                                            root = root.owner
+                                        if root not in roots:
+                                            roots.append(root)
+                                    if not roots:
+                                        break
+                                    for root in roots:
+                                        try:
+                                            root.delete()
+                                            cleared += 1
+                                        except Exception:
+                                            pass
+                                if cleared:
+                                    logger.info(
+                                        "CP local insert: cleared %s leftover "
+                                        "plan root(s) after failed trigger",
+                                        cleared,
+                                    )
+                            for plan, quantity in insert_delivery_placeholders:
+                                try:
+                                    demand = getattr(plan, "demand", None)
+                                    if (
+                                        demand is not None
+                                        and demand.name in deleted_only
+                                    ):
+                                        plan.quantity = quantity
+                                except Exception:
+                                    pass
+                            logger.info(
+                                "Rolled back CP candidate expansion "
+                                "(applied=%s local_ok=%s)",
+                                cp_applied,
+                                cp_local_ok,
+                            )
+                        elif keep_candidates:
+                            logger.info(
+                                "Kept CP candidate expansion (%s assignments applied)",
+                                cp_applied,
+                            )
+                        # Failed local trigger: do not erase/export DB plan.
+                        # In-memory restore already happened; keep prior DB plan.
+                        if (
+                            local_skip_supply
+                            and Parameter.getValue(
+                                "cp.local_reschedule", database, "0"
+                            ).lower()
+                            in ("1", "true", "yes", "on")
+                            and not cp_local_ok
+                        ):
+                            os.environ["noexport"] = "1"
+                            logger.info(
+                                "CP local trigger unresolved "
+                                "(applied=%s); skipping plan export "
+                                "(noexport=1)",
+                                cp_applied,
+                            )
+                        # CP partial export may delete unselected baseline trees.
+                        # Never touch the pre-CP pointer list — those objects
+                        # can already be freed. Demote whatever approved work
+                        # is still alive after the solve.
+                        try:
+                            for plan in ccAPPS.operationplans():
+                                if plan.status == "approved":
+                                    plan.status = "proposed"
+                        except Exception:
+                            pass
+                        for key, value in previous_cp_environment.items():
                             if value is None:
                                 os.environ.pop(key, None)
                             else:
                                 os.environ[key] = value
-                except Exception as e:
-                    logger.warning("GA failed: %s" % e)
-            elif solver_mode == "cp":
-                try:
-                    # Same commit point as GA: CP-SAT reads the manufacturing
-                    # orders MRP has already created, then rewrites their
-                    # dates and resources.
-                    commit_solver_state()
-                    cp_method = Parameter.getValue(
-                        "cp.objective_method",
-                        database,
-                        os.environ.get("CP_OBJECTIVE_METHOD", "weighted"),
-                    )
-                    previous_cp_method = os.environ.get("CP_OBJECTIVE_METHOD")
-                    os.environ["CP_OBJECTIVE_METHOD"] = cp_method
-                    logger.info(
-                        "Running CP-SAT flexible job shop (%s)" % cp_method
-                    )
-                    try:
-                        ccAPPS.run_cp()
-                    finally:
-                        if previous_cp_method is None:
-                            os.environ.pop("CP_OBJECTIVE_METHOD", None)
-                        else:
-                            os.environ["CP_OBJECTIVE_METHOD"] = previous_cp_method
+                        # Dedicated reschedule API calls are one-shot.
+                        # Clear their persistent trigger after this engine run
+                        # so a later ordinary runplan can't accidentally reuse
+                        # the previous local scope. Keep local_last_outcome for
+                        # task/API observability.
+                        if (
+                            local_skip_supply
+                            and (
+                                Parameter.getValue(
+                                    "local.one_shot", database, "0"
+                                ).lower()
+                                in ("1", "true", "yes", "on")
+                                or Parameter.getValue(
+                                    "cp.local_one_shot", database, "0"
+                                ).lower()
+                                in ("1", "true", "yes", "on")
+                            )
+                        ):
+                            previous_solver = Parameter.getValue(
+                                "local.previous_solver", database, ""
+                            ).strip()
+                            if previous_solver:
+                                Parameter.objects.using(database).update_or_create(
+                                    name="plan.solver",
+                                    defaults={"value": previous_solver},
+                                )
+                            for name, value in {
+                                "plan.skip_supply": "0",
+                                "local.reschedule": "0",
+                                "local.insert_candidates": "0",
+                                "local.one_shot": "0",
+                                "local.new_demands": "",
+                                "local.deleted_demands": "",
+                                "local.changed_materials": "",
+                                "local.changed_resources": "",
+                                "local.scope_base": "",
+                                "local.scope_relax": "",
+                                "local.previous_solver": "",
+                                "cp.local_reschedule": "0",
+                                "cp.local_skip_supply": "0",
+                                "cp.local_insert_candidates": "0",
+                                "cp.local_one_shot": "0",
+                                "cp.local_new_demands": "",
+                                "cp.local_deleted_demands": "",
+                                "cp.local_changed_materials": "",
+                                "cp.local_changed_resources": "",
+                                "cp.local_scope_base": "",
+                                "cp.local_scope_relax": "",
+                            }.items():
+                                Parameter.objects.using(database).update_or_create(
+                                    name=name, defaults={"value": value}
+                                )
+                            logger.info(
+                                "Cleared one-shot reschedule trigger"
+                            )
                 except Exception:
                     logger.error(
                         "Exception caught during CP-SAT schedule",

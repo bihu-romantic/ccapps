@@ -29,6 +29,7 @@
 #include "ccAPPS/solverga.h"
 #include "ccAPPS/solverautofix.h"
 #include "ccAPPS/solverfas.h"
+#include "ccAPPS/solverlocal.h"
 #include "ccAPPS/solvervns.h"
 namespace ccAPPS {
 
@@ -145,6 +146,8 @@ SolverCreate::SolverData::SolverData(SolverCreate* s, int c, deque<Demand*>* d)
 
   // Delete operator
   operator_delete = new OperatorDelete();
+  operator_forward = new OperatorForward(this, c, mgr);
+  operator_backward = new OperatorBackward(this, c, mgr);
   operator_delete->setLogLevel(s->getLogLevel());
 }
 
@@ -152,11 +155,19 @@ void SolverCreate::SolverData::setCommandManager(CommandManager* a) {
   if (mgr == a) return;
   mgr = a;
   if (operator_delete) operator_delete->setCommandManager(a);
+  if (operator_forward) operator_forward->setCommandManager(a);
+  if (operator_backward) operator_backward->setCommandManager(a);
 }
 
-SolverCreate::SolverData::~SolverData() { delete operator_delete; };
+SolverCreate::SolverData::~SolverData() {
+  delete operator_delete;
+  delete operator_forward;
+  delete operator_backward;
+};
 
 bool SolverCreate::isLeadTimeConstrained(const Operation* oper) const {
+  // plantype 2/3: unconstrained — do not hard-block on lead time / fence.
+  if (plantype != 1) return false;
   if (oper && (oper->hasType<OperationItemSupplier>() ||
                oper->getCategory() == "subcontractor"))
     return (constrts & PO_LEADTIME) > 0;
@@ -260,6 +271,17 @@ void SolverCreate::SolverData::commit() {
   SolverCreate* solver = getSolver();
   if (!solver || (!demands && solver->getCreateDeliveries()))
     throw LogicException("Missing demands or solver.");
+  // Hot/freeze already ran. Frozen work orders are confirmed for this solve,
+  // so the normal MRP loop leaves them in place. GA and CP leave
+  // localSupplyRegen off and do not create work orders here.
+  const bool localReschedule = localRescheduleEnabled();
+  const bool blockRegen = localReschedule && !solver->getLocalSupplyRegen();
+  const unordered_set<string> expansionNames =
+      blockRegen ? localSupplyExpansionNames() : unordered_set<string>();
+  auto localDemandAllowed = [&](Demand* demand) {
+    return !blockRegen ||
+           (demand && expansionNames.count(demand->getName()));
+  };
 
   // Message
   if (solver->getLogLevel() > 0)
@@ -277,6 +299,7 @@ void SolverCreate::SolverData::commit() {
       solver->setBatchGrouping(true);
       if (solver->getCreateDeliveries()) {
         for (auto& demand : *demands) {
+          if (!localDemandAllowed(demand)) continue;
           if (solver->userexit_demand)
             solver->userexit_demand.call(demand,
                                          PythonData(constrainedPlanning));
@@ -340,12 +363,70 @@ void SolverCreate::SolverData::commit() {
         }
       }
 
-      // Step 3: Solve buffer by buffer, ordered by level
-      buffer_solve_shortages_only = false;
-      backward_sweep();
+      // Step 3: Solve buffer by buffer, ordered by level.
+      // With regeneration off and no named insert, there is nothing to propagate.
+      if (!blockRegen || !expansionNames.empty()) {
+        buffer_solve_shortages_only = blockRegen;
+        backward_sweep();
+      }
 
-      // Clean up excess inventory
-      scanExcess(false);
+      // Clean up excess inventory. A blocked reschedule must not delete
+      // loaded work orders that the excess scan treats as surplus.
+      if (!blockRegen) scanExcess(false);
+    } else if (solver->getAlgorithm() == "heuristic_2") {
+      // Create a delivery operationplan for all demands
+      unsigned short step = 0;
+      if (solver->getCreateDeliveries()) {
+        constrainedPlanning = true;
+        setPropagate(false);
+        createDeliveries();
+      }
+
+      // Backward sweep
+      if (solver->getLogLevel() > 0)
+        logger << "PLANNING STEP " << ++step << ": backward sweep\n";
+      constrainedPlanning = (solver->getPlanType() == 1);
+      setPropagate(false);
+      buffer_solve_shortages_only = blockRegen;
+      setBatchGrouping((solver->getPlanType() == 1) ? false : true);
+      if (!blockRegen || !expansionNames.empty()) backward_sweep();
+
+      if (solver->getPlanType() == 1 && !blockRegen) {
+        short loops = 0;
+        while (loops++ <= 5) {
+          // Forward sweep
+          if (solver->getLogLevel() > 0)
+            logger << "PLANNING STEP " << ++step << ": forward sweep\n";
+          constrainedPlanning = true;
+          operator_forward->clearMovedDeliveries();
+          operator_forward->setPropagate(false);
+          operator_forward->solve();
+          if (!operator_forward->getMovedDeliveries())
+            // The forward sweep didn't change any delivery date, we're done
+            break;
+
+          // Delete proposed operationplans, except deliveries
+          // This gives us feasible date to start a second run
+          for (auto& oper : Operation::all())
+            if (cluster == -1 || oper.getCluster() == cluster)
+              oper.deleteOperationPlans(false, false);
+
+          // Backward sweep again, with batch grouping enabled this time
+          // This coordinates the batches on their feasible date
+          if (solver->getLogLevel() > 0)
+            logger << "PLANNING STEP " << ++step << ": second backward sweep\n";
+          buffer_solve_shortages_only = blockRegen;
+          setBatchGrouping(true);
+          constrainedPlanning = true;
+          backward_sweep();
+        }
+
+        // Clean up excess inventory
+        if (solver->getLogLevel() > 0)
+          logger << "PLANNING STEP " << ++step
+                 << ": clean up excess inventory\n";
+        if (!blockRegen) scanExcess(false);
+      }
     } else {
       // Normal case: demand-per-demand loop
 
@@ -359,7 +440,7 @@ void SolverCreate::SolverData::commit() {
       constrainedPlanning = (solver->getPlanType() == 1);
       safety_stock_planning = true;
       buffer_solve_shortages_only = false;
-      solveSafetyStock(solver, true);
+      if (!blockRegen) solveSafetyStock(solver, true);
 
       // Loop through the list of all demands in this planning problem
       safety_stock_planning = false;
@@ -384,7 +465,9 @@ void SolverCreate::SolverData::commit() {
           ++iterdmd;
         }
 
-        // Plan the demand
+        // GA/CP reschedule blocks this loop. MRP plans every demand; frozen
+        // work orders stay because they are confirmed.
+        if (!localDemandAllowed(curdmd)) continue;
         iteration_count = 0;
         try {
           curdmd->solve(*solver, this);
@@ -416,7 +499,8 @@ void SolverCreate::SolverData::commit() {
         }
       } while (true);
 
-      // Completely recreate all purchasing operation plans
+      // Completely recreate all purchasing operation plans.
+      if (!blockRegen)
       for (auto o : purchase_buffers) {
         // Erase existing proposed purchases
         const_cast<Buffer*>(o)->getProducingOperation()->deleteOperationPlans(
@@ -450,7 +534,7 @@ void SolverCreate::SolverData::commit() {
       constrainedPlanning = (solver->getPlanType() == 1);
       safety_stock_planning = true;
       buffer_solve_shortages_only = false;
-      solveSafetyStock(solver, false);
+      if (!blockRegen) solveSafetyStock(solver, false);
     }
 
     // Operation batching postprocessing when constraints are active.
@@ -469,7 +553,7 @@ void SolverCreate::SolverData::commit() {
     demands->clear();
 
     // Clean up excess inventory
-    if (!solver->preserveRawMRPResult())
+    if (!blockRegen && !solver->preserveRawMRPResult())
       scanExcess(solver->getPlanType() == 1 && solver->getConstraints() > 0);
   } catch (...) {
     // We come in this exception handling code only if there is a problem with
@@ -605,6 +689,77 @@ void SolverCreate::SolverData::solveSelectedBufferShortages(
     }
   }
   safety_stock_planning = false;
+}
+
+void SolverCreate::SolverData::createDeliveries() {
+  auto* solver = getSolver();
+  for (auto& demand : *demands) {
+    if (solver->userexit_demand)
+      solver->userexit_demand.call(demand, PythonData(constrainedPlanning));
+
+    // Determine the quantity to be planned and the date for the planning
+    // loop.
+    double plan_qty = demand->getQuantity() - demand->getPlannedQuantity();
+    if (demand->getDue() == Date::infiniteFuture ||
+        demand->getDue() == Date::infinitePast)
+      continue;
+
+    // Select delivery operation.
+    Operation* deliveryoper = demand->getDeliveryOperation();
+    if (!deliveryoper) continue;
+
+    auto isGroupMember =
+        demand->getOwner() && demand->getOwner()->hasType<DemandGroup>() &&
+        static_cast<DemandGroup*>(demand->getOwner())->getPolicy() !=
+            Demand::POLICY_INDEPENDENT;
+    auto due = isGroupMember ? demand->getOwner()->getDue() : demand->getDue();
+    while (plan_qty > ROUNDING_ERROR) {
+      // Respect minimum shipment quantities.
+      auto m = demand->getMinShipment();
+      if (plan_qty < m) plan_qty = m;
+      state->curBuffer = nullptr;
+      state->q_qty = plan_qty;
+      state->q_date = due;
+      state->a_cost = 0.0;
+      state->a_penalty = 0.0;
+      state->curDemand = demand;
+      state->curOwnerOpplan = nullptr;
+      state->blockedOpplan = nullptr;
+      state->dependency = nullptr;
+      state->curBatch = demand->getBatch();
+      dependency_list.clear();
+      state->a_qty = 0;
+      try {
+        deliveryoper->solve(*solver, this);
+        getCommandManager()->commit();
+        plan_qty -= state->a_qty;
+        if (!state->a_qty) {
+          if (state->a_date == Date::infiniteFuture || state->a_date <= due)
+            break;
+          else
+            // Also unconstrained plan may need to repeat the loop.
+            // Can be caused with complete lack of any availability
+            // before the requirement date.
+            due = state->a_date;
+        }
+      } catch (const exception& e) {
+        logger << "Error creating delivery for '" << demand << "': " << e.what()
+               << '\n';
+        getCommandManager()->rollback();
+        break;
+      }
+    }
+  }
+}
+
+
+void SolverCreate::SolverData::collectResources(OperationPlan* opplan) {
+  if (!opplan) return;
+  auto loads = opplan->getLoadPlans();
+  while (LoadPlan* load = loads.next()) {
+    Resource* resource = load->getResource();
+    if (resource && resource->getConstrained()) resources.insert(resource);
+  }
 }
 
 void SolverCreate::SolverData::backward_sweep() {
@@ -751,6 +906,18 @@ void SolverCreate::update_user_exits() {
 }
 
 void SolverCreate::solve(void*) {
+  // Shared local scope (hot/freeze). When local.reschedule is on, MRP only
+  // repairs the movable set; confirmed / frozen trees stay pinned.
+  LocalScopeGuard localScope;
+  applyLocalRescheduleScope(localScope);
+  if (localScope.skipOptimization) {
+    if (localLastStage() != "local_l1_lock_all" &&
+        localLastStage() != "local_delete_complete" &&
+        localLastStage() != "local_delete_not_applied")
+      localSetStage("local_scope_empty");
+    return;
+  }
+
   // Configure user exits
   update_user_exits();
 
@@ -803,13 +970,48 @@ void SolverCreate::solve(void*) {
     }
   }
 
+  if (localRescheduleEnabled() && !getLocalSupplyRegen()) {
+    const auto allow = localSupplyExpansionNames();
+    size_t kept = 0;
+    size_t skipped = 0;
+    for (auto& bucket : demands_per_cluster) {
+      deque<Demand*> filtered;
+      for (Demand* demand : bucket) {
+        if (demand && allow.count(demand->getName())) {
+          filtered.push_back(demand);
+          ++kept;
+        } else {
+          ++skipped;
+        }
+      }
+      bucket.swap(filtered);
+    }
+    // Deleting every proposed plan and rebuilding it is a full supply
+    // expansion. Keep the loaded work orders and add quantity only for the
+    // names above.
+    if (getErasePreviousFirst()) setErasePreviousFirst(false);
+    logger << "Local reschedule supply rule: expand=";
+    if (allow.empty())
+      logger << "(none)";
+    else
+      for (const auto& name : allow) logger << ' ' << name;
+    logger << " kept=" << kept << " skipped=" << skipped
+           << " safety_stock=off\n"
+           << flush;
+  }
+
   // Delete of operationplans
   // This deletion is not multi-threaded... But on the other hand we need to
   // loop through the operations only once
   if (getErasePreviousFirst()) {
     if (getLogLevel() > 0) logger << "Deleting previous plan\n";
+    // The global priority queue solves with cluster=0, which would leave
+    // proposed work in every other cluster. Frozen plans are confirmed and
+    // are not deleted. Hot proposed plans are, in every cluster.
+    const int eraseCluster = localRescheduleEnabled() ? -1 : cluster;
     for (auto& e : Operation::all())
-      if (cluster == -1 || e.getCluster() == cluster) e.deleteOperationPlans();
+      if (eraseCluster == -1 || e.getCluster() == eraseCluster)
+        e.deleteOperationPlans();
   }
 
   // Solve in parallel threads.
@@ -838,6 +1040,9 @@ void SolverCreate::solve(void*) {
   }
   // Run the planning command threads and wait for them to exit
   threads.execute();
+
+  if (localRescheduleEnabled() && localLastApplied() == 0)
+    localSetLastApplied(1);
 }
 
 PyObject* SolverCreate::solve(PyObject* self, PyObject* args,

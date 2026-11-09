@@ -2079,10 +2079,11 @@ class OperationPlan : public Object,
    */
   bool getConsumeCapacity() const { return !(flags & CONSUME_CAPACITY); }
 
-  /* Deletes all operationplans of a certain operation. A boolean flag
-   * allows to specify whether locked operationplans are to be deleted too.
+  /* Deletes all operationplans of a certain operation. The flags control
+   * whether locked operationplans and demand delivery trees are deleted too.
    */
-  static void deleteOperationPlans(Operation* o, bool deleteLocked = false);
+  static void deleteOperationPlans(Operation* o, bool deleteLocked = false,
+                                   bool deleteDeliveries = true);
 
   /* Update the status to CONFIRMED, or back to PROPOSED. */
   void setConfirmed(bool b);
@@ -3257,10 +3258,11 @@ class Operation : public HasName<Operation>,
     return loaddata.find(r, d);
   }
 
-  /* Deletes all operationplans of this operation. The boolean parameter
-   * controls whether we delete also locked operationplans or not.
+  /* Deletes all operationplans of this operation. The flags control whether
+   * locked operationplans and demand delivery trees are deleted too.
    */
-  void deleteOperationPlans(bool deleteLockedOpplans = false);
+  void deleteOperationPlans(bool deleteLockedOpplans = false,
+                            bool deleteDeliveries = true);
 
   /* Sets the minimum size of operationplans.
    * The default value is 1.0
@@ -6646,7 +6648,9 @@ class Resource : public HasHierarchy<Resource>,
   bool getConstrained() const { return is_constrained; }
 
   void setConstrained(bool b) {
-    if (!hasType<ResourceInfinite>()) is_constrained = b;
+    // Infinite resources must remain unconstrained, including when their
+    // constructor or input fields first initialize the default true flag.
+    is_constrained = !hasType<ResourceInfinite>() && b;
   }
 
   bool getFrozenSetups() const { return frozen_setups; }

@@ -13,44 +13,78 @@ import argparse
 import sqlite3
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
-from table_reschedule_workflow import (
-    ROOT,
-    DeviceUpdate,
-    connect,
-    ensure_initial_schedule,
-    ensure_scheduler_built,
-    init_tables,
-    prepare_runtime_case_dir,
-    run_reschedule_from_latest,
-    write_device_state,
-)
+try:
+    from .table_reschedule_workflow import (
+        ROOT,
+        DeviceUpdate,
+        connect,
+        ensure_initial_schedule,
+        ensure_scheduler_built,
+        init_tables,
+        prepare_runtime_case_dir,
+        run_reschedule_from_latest,
+        write_device_state,
+    )
+except ImportError:  # Direct script execution.
+    from table_reschedule_workflow import (
+        ROOT,
+        DeviceUpdate,
+        connect,
+        ensure_initial_schedule,
+        ensure_scheduler_built,
+        init_tables,
+        prepare_runtime_case_dir,
+        run_reschedule_from_latest,
+        write_device_state,
+    )
 
 
-def pending_updates(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
-    return list(
-        conn.execute(
+def claim_pending_updates(
+    conn: sqlite3.Connection, limit: int, now_seconds: float
+) -> tuple[str, list[sqlite3.Row]]:
+    """Atomically claim queue rows, reclaiming abandoned claims after one hour."""
+    token = uuid.uuid4().hex
+    conn.execute("begin immediate")
+    try:
+        rows = list(conn.execute(
             """
             select id, device_id, status, available, capacity_factor, risk_level, write_seconds
             from device_state_updates
             where processed = 0
+               or (processed = 2 and coalesce(processing_seconds, 0) < ?)
             order by write_seconds, id
             limit ?
             """,
-            (limit,),
-        )
-    )
+            (now_seconds - 3600.0, limit),
+        ))
+        if rows:
+            placeholders = ",".join("?" for _ in rows)
+            conn.execute(
+                f"update device_state_updates set processed=2, processing_token=?, "
+                f"processing_seconds=? where id in ({placeholders})",
+                (token, now_seconds, *(int(row["id"]) for row in rows)),
+            )
+        conn.commit()
+        return token, rows
+    except Exception:
+        conn.rollback()
+        raise
 
 
-def mark_processed(conn: sqlite3.Connection, update_id: int, processed_seconds: float) -> None:
+def mark_processed(
+    conn: sqlite3.Connection, update_id: int, token: str, processed_seconds: float
+) -> None:
     conn.execute(
         """
         update device_state_updates
-        set processed = 1, processed_seconds = ?
-        where id = ?
+        set processed = 1, processed_seconds = ?, processing_token = null,
+            processing_seconds = null
+        where id = ? and processing_token = ?
         """,
-        (processed_seconds, update_id),
+        (processed_seconds, update_id, token),
     )
     conn.commit()
 
@@ -62,35 +96,47 @@ def process_once(
     limit: int,
     processed_seconds: float,
 ) -> tuple[int, int, int]:
-    updates = pending_updates(conn, limit)
+    token, updates = claim_pending_updates(conn, limit, processed_seconds)
     if not updates:
         return (0, 0, 0)
 
     processed = 0
     changed = 0
     rescheduled = 0
-    with tempfile.TemporaryDirectory(prefix="chaozhenyun_monitor_") as temp_name:
-        work_dir = Path(temp_name)
-        runtime_dir = prepare_runtime_case_dir(conn, case_dir, work_dir)
-        ensure_initial_schedule(conn, case_dir, runtime_dir, work_dir, mode)
-
-        for row in updates:
-            update = DeviceUpdate(
-                device_id=row["device_id"],
-                status=row["status"],
-                available=int(row["available"]),
-                capacity_factor=float(row["capacity_factor"]),
-                risk_level=row["risk_level"] or "",
-                write_seconds=float(row["write_seconds"]),
-            )
-            event_id = write_device_state(conn, update)
-            processed += 1
-            if event_id is not None:
-                changed += 1
-                runtime_dir = prepare_runtime_case_dir(conn, case_dir, work_dir)
-                run_reschedule_from_latest(conn, case_dir, runtime_dir, work_dir, event_id, mode)
-                rescheduled += 1
-            mark_processed(conn, int(row["id"]), processed_seconds)
+    try:
+        with tempfile.TemporaryDirectory(prefix="chaozhenyun_monitor_") as temp_name:
+            work_dir = Path(temp_name)
+            runtime_dir = prepare_runtime_case_dir(conn, case_dir, work_dir)
+            ensure_initial_schedule(conn, case_dir, runtime_dir, work_dir, mode)
+            for row in updates:
+                update = DeviceUpdate(
+                    device_id=row["device_id"],
+                    status=row["status"],
+                    available=int(row["available"]),
+                    capacity_factor=float(row["capacity_factor"]),
+                    risk_level=row["risk_level"] or "",
+                    write_seconds=float(row["write_seconds"]),
+                )
+                event_id = write_device_state(conn, update)
+                processed += 1
+                if event_id is not None:
+                    changed += 1
+                    runtime_dir = prepare_runtime_case_dir(conn, case_dir, work_dir)
+                    run_reschedule_from_latest(
+                        conn, case_dir, runtime_dir, work_dir, event_id, mode
+                    )
+                    rescheduled += 1
+                mark_processed(conn, int(row["id"]), token, processed_seconds)
+    except Exception:
+        # Return every unconsumed row from this batch to the queue. Rows
+        # already marked processed remain complete and won't duplicate.
+        conn.execute(
+            "update device_state_updates set processed=0, processing_token=null, "
+            "processing_seconds=null where processed=2 and processing_token=?",
+            (token,),
+        )
+        conn.commit()
+        raise
     return (processed, changed, rescheduled)
 
 

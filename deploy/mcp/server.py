@@ -46,6 +46,53 @@ def list_scenarios() -> dict:
 
 
 # ----------------------------- planning -----------------------------
+def _run_plan_impl(
+    scenario: str,
+    constraint: str,
+    plantype: int,
+    env: str,
+    poll_interval: float,
+    poll_timeout: float,
+) -> dict:
+    """Launch and monitor one runplan task."""
+    s = scenario or DEFAULT
+    t0 = time.time()
+    resp = client.launch_runplan(s, constraint, plantype, env)
+    taskid = resp.get("taskid") if isinstance(resp, dict) else None
+
+    # Background dedup: "No task was launched" if a Waiting runplan exists.
+    if not taskid:
+        all_tasks = client.task_status(s, None) or {}
+        for tid, info in all_tasks.items():
+            if (
+                isinstance(info, dict)
+                and info.get("name") == "runplan"
+                and info.get("status") not in ("Done", "Failed", "Canceled")
+            ):
+                taskid = tid
+                break
+        if not taskid:
+            return {
+                "status": "no_task",
+                "message": "No task was launched and none in-flight",
+                "response": resp,
+            }
+
+    final = client.poll_task(
+        s, taskid, interval=poll_interval, timeout=poll_timeout
+    )
+    summary = _result_summary(s) if final.get("status") == "Done" else {}
+    return {
+        "taskid": taskid,
+        "status": final.get("status"),
+        "message": final.get("message"),
+        "logfile": final.get("logfile"),
+        "elapsed_s": round(time.time() - t0, 1),
+        "timed_out": bool(final.get("timed_out")),
+        "summary": summary,
+    }
+
+
 @mcp.tool
 def run_plan(
     scenario: str | None = None,
@@ -64,28 +111,221 @@ def run_plan(
 
     Returns final task status + a small results summary (problem/constraint/late-demand counts).
     """
-    s = scenario or DEFAULT
-    t0 = time.time()
-    resp = client.launch_runplan(s, constraint, plantype, env)
-    taskid = resp.get("taskid") if isinstance(resp, dict) else None
+    return _run_plan_impl(
+        scenario or DEFAULT,
+        constraint,
+        plantype,
+        env,
+        poll_interval,
+        poll_timeout,
+    )
 
-    # Background dedup: "No task was launched" if a Waiting runplan exists -> adopt it.
-    if not taskid:
-        all_tasks = client.task_status(s, None) or {}
-        for tid, info in all_tasks.items():
-            if isinstance(info, dict) and info.get("name") == "runplan" and info.get("status") not in ("Done", "Failed", "Canceled"):
-                taskid = tid
-                break
-        if not taskid:
-            return {"status": "no_task", "message": "No task was launched and none in-flight", "response": resp}
 
-    final = client.poll_task(s, taskid, interval=poll_interval, timeout=poll_timeout)
-    summary = _result_summary(s) if final.get("status") == "Done" else {}
+def _local_reschedule_parameters(
+    category: str,
+    level: str,
+    new_orders: list[str] | None,
+    deleted_orders: list[str] | None,
+    materials: list[str] | None,
+    resources: list[str] | None,
+) -> dict[str, str]:
+    """Validate one trigger category and build a stale-safe parameter set."""
+    category = str(category or "").strip().lower()
+    aliases = {
+        "订单": "order",
+        "订单变化": "order",
+        "物料": "material",
+        "物料变化": "material",
+        "资源": "resource",
+        "资源变化": "resource",
+        "全部": "all", "一起": "all", "混合": "all",
+        "combined": "all", "mixed": "all",
+    }
+    category = aliases.get(category, category)
+    if category not in ("order", "material", "resource", "all"):
+        raise ValueError("category must be order, material, resource, or all")
+    level = str(level or "auto").strip().lower()
+    level = {"l1": "1", "l2": "2", "l3": "3"}.get(level, level)
+    if level not in ("auto", "1", "2", "3"):
+        raise ValueError("level must be auto, 1, 2, or 3; custom is not supported yet")
+
+    def clean(values):
+        return list(dict.fromkeys(str(v).strip() for v in (values or []) if str(v).strip()))
+
+    new_orders = clean(new_orders)
+    deleted_orders = clean(deleted_orders)
+    materials = clean(materials)
+    resources = clean(resources)
+    has_order = bool(new_orders or deleted_orders)
+    has_material = bool(materials)
+    has_resource = bool(resources)
+    if category == "all" and not (has_order or has_material or has_resource):
+        raise ValueError("category=all requires at least one trigger")
+    if category == "order" and not has_order:
+        raise ValueError("order rescheduling requires new_orders or deleted_orders")
+    if category == "material" and not has_material:
+        raise ValueError("material rescheduling requires materials")
+    if category == "resource" and not has_resource:
+        raise ValueError("resource rescheduling requires resources")
+    extras = [
+        name
+        for name, present in (
+            ("order", has_order),
+            ("material", has_material),
+            ("resource", has_resource),
+        )
+        if present and name != category
+    ]
+    if category != "all" and extras:
+        raise ValueError(
+            f"category={category} cannot include {', '.join(extras)} triggers; "
+            "use category=all to combine"
+        )
+
+    include_order = category in ("order", "all")
+    include_material = category in ("material", "all")
+    include_resource = category in ("resource", "all")
+    new_demands = ",".join(new_orders) if include_order else ""
+    deleted_demands = ",".join(deleted_orders) if include_order else ""
+    changed_materials = ",".join(materials) if include_material else ""
+    changed_resources = ",".join(resources) if include_resource else ""
+    # Always overwrite all three trigger families. This prevents values from
+    # an earlier resource/material/order repair leaking into the next run.
+    # Dual-write local.* (canonical) + cp.local_* (engine env mapping).
     return {
+        "plan.solver": "mrp",  # overwritten by caller with selected solver
+        "plan.skip_supply": "1",
+        "local.reschedule": "1",
+        "local.insert_candidates": "1",
+        "local.reschedule_type": category,
+        "local.reschedule_level": level,
+        "local.new_demands": new_demands,
+        "local.deleted_demands": deleted_demands,
+        "local.changed_materials": changed_materials,
+        "local.changed_resources": changed_resources,
+        "local.scope_base": "",
+        "local.scope_relax": "",
+        "cp.local_reschedule": "1",
+        "cp.local_skip_supply": "1",
+        "cp.local_insert_candidates": "1",
+        "cp.local_reschedule_type": category,
+        "cp.local_reschedule_level": level,
+        "cp.local_new_demands": new_demands,
+        "cp.local_deleted_demands": deleted_demands,
+        "cp.local_changed_materials": changed_materials,
+        "cp.local_changed_resources": changed_resources,
+        "cp.local_scope_base": "",
+        "cp.local_scope_relax": "",
+    }
+
+
+@mcp.tool
+def run_reschedule(
+    category: str,
+    scenario: str | None = None,
+    solver: str = "mrp",
+    level: str = "auto",
+    orders: list[dict] | None = None,
+    new_orders: list[str] | None = None,
+    deleted_orders: list[str] | None = None,
+    materials: list[str] | None = None,
+    resources: list[str] | None = None,
+    constraint: str = "capa,mfg_lt,po_lt",
+    poll_interval: float = 2.0,
+    poll_timeout: float = 600.0,
+) -> dict:
+    """Reschedule (shared scope + chosen solver). Master data must be ready.
+
+    Two actions:
+      1) write_order /api/input/demand/ — make insert/change/delete targets ready
+      2) this tool — validates names, atomically applies pure deletion, and schedules
+
+    solver: mrp (default)|cp|fas|ga — one entry for all algorithms; scope is shared.
+    category: order|material|resource|all. all combines multiple trigger types.
+    Order: pass orders=[{name, action}] with action insert|delete|change.
+    One call may mix actions. insert requires no existing operationplans;
+    delete captures the resource scope and removes the demand/plan tree;
+    change keeps the demand row and replans it.
+    new_orders/deleted_orders still work when orders is omitted.
+    Level: auto|1|2|3. Custom reschedule scope is not currently supported.
+    """
+    s = scenario or DEFAULT
+    expanded_new = list(new_orders or [])
+    expanded_deleted = list(deleted_orders or [])
+    if orders:
+        if expanded_new or expanded_deleted:
+            raise ValueError(
+                "pass orders, or new_orders/deleted_orders, not both"
+            )
+        for item in orders:
+            name = str((item or {}).get("name") or "").strip()
+            action = str((item or {}).get("action") or "").strip().lower()
+            if action in ("insert", "change", "插单", "新增"):
+                expanded_new.append(name)
+            if action in ("delete", "change", "删单", "删除"):
+                expanded_deleted.append(name)
+            if action in ("改单", "修改", "变更"):
+                expanded_new.append(name)
+                expanded_deleted.append(name)
+    parameters = _local_reschedule_parameters(
+        category,
+        level,
+        expanded_new,
+        expanded_deleted,
+        materials,
+        resources,
+    )
+    payload = {
+        "solver": solver,
+        "category": parameters["cp.local_reschedule_type"],
+        "level": parameters["cp.local_reschedule_level"],
+    }
+    if orders:
+        payload["orders"] = orders
+    else:
+        payload["new_orders"] = [
+            v for v in parameters["cp.local_new_demands"].split(",") if v
+        ]
+        payload["deleted_orders"] = [
+            v for v in parameters["cp.local_deleted_demands"].split(",") if v
+        ]
+    payload.update({
+        "materials": [
+            v for v in parameters["cp.local_changed_materials"].split(",") if v
+        ],
+        "resources": [
+            v for v in parameters["cp.local_changed_resources"].split(",") if v
+        ],
+        "constraint": constraint,
+    })
+    started = client.request(
+        "POST", client.scen(s, "api/reschedule/"), body=payload
+    )
+    taskid = started.get("taskid") if isinstance(started, dict) else None
+    if not taskid:
+        return {"scenario": s, "status": "no_task", "response": started}
+    t0 = time.time()
+    final = client.poll_task(
+        s, taskid, interval=poll_interval, timeout=poll_timeout
+    )
+    summary = _result_summary(s) if final.get("status") == "Done" else {}
+    local_outcome = final.get("local_outcome") or {}
+    task_status = final.get("status")
+    reschedule_status = (
+        "succeeded"
+        if task_status == "Done" and local_outcome.get("local_ok") is True
+        else "failed"
+        if task_status in ("Done", "Failed")
+        else "running"
+    )
+    return {
+        **started,
         "taskid": taskid,
-        "status": final.get("status"),
+        "status": task_status,
+        "reschedule_status": reschedule_status,
         "message": final.get("message"),
         "logfile": final.get("logfile"),
+        "local_outcome": local_outcome or None,
         "elapsed_s": round(time.time() - t0, 1),
         "timed_out": bool(final.get("timed_out")),
         "summary": summary,
@@ -107,6 +347,10 @@ def list_problems(
     if name_contains:
         rows = [r for r in rows if name_contains.lower() in str(r.get("name", "")).lower()]
     return {"records": jqgrid_records(payload), "problems": rows[:limit]}
+
+
+# Backward-compatible alias
+run_local_reschedule = run_reschedule
 
 
 @mcp.tool
@@ -465,12 +709,13 @@ def generate_quote_html(
     scenario: str | None = None,
     mcp_url: str | None = None,
 ) -> dict:
-    """Generate one standalone quote HTML file from live inquiry orders.
+    """Generate standalone quote HTML from live inquiry orders (return only, no disk write).
 
-    kind=batch writes 批量报价.html for all inquiry orders.
-    kind=card writes 单订单报价卡.html for one order.
-    Save returned html as filename. The page already contains current quote
-    numbers and can still refresh via MCP.
+    kind=batch → 批量报价.html for all inquiry orders.
+    kind=card → 单订单报价卡.html for one order.
+
+    Does not save on 175; response always includes html (+ suggested filename).
+    Callers that need a local file should write result['html'] themselves.
 
     order_number: used by card; default is the first inquiry order.
     mcp_url: MCP endpoint written into the HTML, default public /cc-apps-mcp/mcp.
@@ -492,14 +737,19 @@ def generate_quote_html(
         filename = "批量报价.html"
         html = render_batch(payload)
     else:
-        filename = "单订单报价卡.html"
+        order_id = (bundle["order"] or {}).get("order_number") or "card"
+        safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in str(order_id))
+        filename = f"单订单报价卡_{safe}.html"
         html = render_card(payload)
+
     return {
         "status": "ok",
         "scenario": bundle["scenario"],
         "kind": kind_norm,
         "order_count": len(bundle["orders"]),
-        "order_number": (bundle["order"] or {}).get("order_number") if kind_norm == "card" else None,
+        "order_number": (bundle["order"] or {}).get("order_number")
+        if kind_norm == "card"
+        else None,
         "filename": filename,
         "html": html,
     }
@@ -635,7 +885,7 @@ def write_order(
     scenario: str | None = None,
     confirmed: bool = False,
 ) -> dict:
-    """Create or update sales/quote orders in bulk.
+    """Create or update sales/quote orders (master data only; does not schedule).
 
     Prefer `orders`: a list of demand objects from an xlsx/import payload.
     Each item accepts: order_number/name, customer, item, location, quantity,
@@ -643,6 +893,8 @@ def write_order(
     Required to create: order_number, customer, item, location, quantity, due.
     New orders default quote_enabled=true. A single order can still be passed
     with the old top-level fields. Set confirmed=true after explicit approval.
+
+    After insert/change, call run_reschedule separately to repair the plan.
     """
     if not confirmed:
         return {

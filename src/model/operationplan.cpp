@@ -1697,7 +1697,8 @@ void OperationPlan::update() {
 }
 
 void OperationPlan::deleteOperationPlans(Operation* o,
-                                         bool deleteLockedOpplans) {
+                                         bool deleteLockedOpplans,
+                                         bool deleteDeliveries) {
   if (!o) return;
   for (auto opplan = o->first_opplan; opplan;) {
     OperationPlan* tmp = opplan;
@@ -1716,6 +1717,9 @@ void OperationPlan::deleteOperationPlans(Operation* o,
     if (!del && tmp->getProposed()) {
       del = tmp->getOwner() ? tmp->getOwner()->getProposed() : true;
     }
+    if (del && !deleteDeliveries &&
+        (tmp->getOwner() ? tmp->getOwner()->getDemand() : tmp->getDemand()))
+      del = false;
     if (del) delete tmp;
   }
 }

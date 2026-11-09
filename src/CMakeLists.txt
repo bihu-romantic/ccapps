@@ -63,6 +63,8 @@ add_dependencies(model utils)
 
 add_library(solver STATIC
   "solver/operatordelete.cpp"
+  "solver/operatorforward.cpp"
+  "solver/operatorbackward.cpp"
   "solver/solverbuffer.cpp"
   "solver/solverdemand.cpp"
   "solver/solverflow.cpp"
@@ -76,7 +78,10 @@ add_library(solver STATIC
   "solver/solverexact.cpp"
   "solver/solverautofix.cpp"
   "solver/solverfas.cpp"
+  "solver/solverlocal.cpp"
   "solver/solvercp.cpp"
+  "solver/solvercp_partition.cpp"
+  "solver/solvercp_alns.cpp"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solver.h"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solveraco.h"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solverga.h"
@@ -84,6 +89,7 @@ add_library(solver STATIC
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solverexact.h"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solverautofix.h"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solverfas.h"
+  "${CMAKE_SOURCE_DIR}/include/ccAPPS/solverlocal.h"
   "${CMAKE_SOURCE_DIR}/include/ccAPPS/solvercp.h"
 )
 add_dependencies(solver model)

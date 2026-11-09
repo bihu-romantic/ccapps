@@ -415,6 +415,44 @@ def get_task_log(scenario: str | None = None, task_id: int = 0, tail: int = 200)
     return {"task_id": task_id, "log": text}
 
 
+@mcp.tool
+def cleanup_db_resources(
+    scenario: str | None = None,
+    idle_seconds: int = 60,
+    stale_active_minutes: int = 30,
+    cancel_stuck: bool = True,
+    min_age_hours: float = 0.5,
+    aggressive: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Free PostgreSQL idle connections and cancel stuck execute tasks.
+
+    Use when workers fail with 'sorry, too many clients already' (e.g. max_connections=40).
+
+      idle_seconds: terminate idle / idle-in-transaction backends older than this
+        (ignored when aggressive=True, which kills all idle immediately).
+      stale_active_minutes: also terminate active queries older than this (0=skip).
+      cancel_stuck: cancel unfinished tasks older than min_age_hours (incl. zombie 0%).
+      aggressive: emergency mode — terminate ALL idle/idle-in-transaction on this DB.
+      dry_run: report candidates only, do not terminate/cancel.
+
+    Returns connection counts before/after, terminated PIDs, canceled task ids.
+    """
+    s = scenario or DEFAULT
+    try:
+        return client.cleanup_resources(
+            s,
+            idle_seconds=idle_seconds,
+            stale_active_minutes=stale_active_minutes,
+            cancel_stuck=cancel_stuck,
+            min_age_hours=min_age_hours,
+            aggressive=aggressive,
+            dry_run=dry_run,
+        )
+    except CcappsError as e:
+        return {"ok": False, "scenario": s, "error": str(e), "status": e.status}
+
+
 # ----------------------------- escape hatch -----------------------------
 @mcp.tool
 def ccapps_request(

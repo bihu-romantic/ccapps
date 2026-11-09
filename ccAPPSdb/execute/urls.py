@@ -56,6 +56,17 @@ if mode == "WSGI":
             name="execute_delete_log",
         ),
         re_path(r"^execute/api/(.+)/$", views.APITask, name="execute_api"),
+        re_path(
+            r"^api/reschedule/$",
+            views.RescheduleAPI,
+            name="reschedule_api",
+        ),
+        # Backward-compatible alias of api/reschedule/
+        re_path(
+            r"^api/local-reschedule/$",
+            views.RescheduleAPI,
+            name="local_reschedule_api",
+        ),
         # Public CCPL entry: import 13-table payload (+ optional runplan).
         # Path kept as /api/ccpl/plan/ (replaces former /api/ccpl/import/).
         re_path(

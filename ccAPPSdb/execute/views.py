@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from importlib import import_module
 from io import BytesIO
 import json
@@ -396,7 +396,7 @@ def APITask(request, action):
                     .exclude(status="Canceled")
                 )
             for t in tasks:
-                response[t.id] = {
+                row = {
                     "name": t.name,
                     "submitted": str(t.submitted),
                     "started": str(t.started),
@@ -407,6 +407,37 @@ def APITask(request, action):
                     "user": t.user.username if t.user else None,
                     "logfile": t.logfile,
                 }
+                # Local-reschedule observability: only attach when this task
+                # actually ran local CP (avoid stale param on full MRP).
+                if t.name == "runplan" and t.status in ("Done", "Failed"):
+                    try:
+                        message = t.message or ""
+                        raw = (
+                            message[len("local_outcome=") :]
+                            if message.startswith("local_outcome=")
+                            else ""
+                        )
+                        # Backward compatibility for tasks created before
+                        # per-task outcome storage was introduced.
+                        if not raw and message.startswith("local level_used="):
+                            raw = Parameter.getValue(
+                                "cp.local_last_outcome", request.database, ""
+                            )
+                        if raw:
+                            outcome = json.loads(raw)
+                            success = outcome.pop("status", None)
+                            if not isinstance(success, bool):
+                                # Compatibility with older stored outcomes.
+                                success = outcome.pop("local_ok", False) is True
+                            else:
+                                outcome.pop("local_ok", None)
+                            # Reschedule API exposes one terminal result only:
+                            # true=success, false=failure.
+                            row["status"] = success
+                            row["local_outcome"] = outcome
+                    except Exception:
+                        pass
+                response[t.id] = row
         elif action == "cancel":
             response = {}
             with transaction.atomic(using=request.database):
@@ -460,6 +491,9 @@ def APITask(request, action):
                     )
             except Exception as e:
                 return HttpResponseNotFound("Task or log file not found")
+        elif action == "cleanup":
+            msg = "cleaning up db connections / stuck tasks"
+            response = _cleanupDbResources(request)
         else:
             msg = "launching task"
             task = wrapTask(request, action)
@@ -470,6 +504,1063 @@ def APITask(request, action):
     except Exception:
         response = {"message": "Exception %s" % msg}
     return HttpResponse(json.dumps(response), content_type="application/json")
+
+
+_SCOPE_RELAX_ALIASES = {
+    "neighbors": "neighbors", "neighbor": "neighbors", "l2": "neighbors", "邻居": "neighbors",
+    "personnel": "personnel", "person": "personnel", "人员": "personnel",
+    "window": "window", "in_window": "window", "in-window": "window", "窗内": "window", "窗口": "window",
+    "all": "all", "global": "all", "l3": "all", "全局": "all",
+}
+
+
+def _parse_scope_relax(raw):
+    """Normalize customer relax tokens for custom local scope."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = raw.replace(";", ",").split(",")
+    if not isinstance(raw, (list, tuple)):
+        raise ValidationError("relax must be a list or comma-separated string")
+    out = []
+    for item in raw:
+        key = str(item).strip()
+        if not key:
+            continue
+        mapped = _SCOPE_RELAX_ALIASES.get(key.lower()) or _SCOPE_RELAX_ALIASES.get(key)
+        if not mapped:
+            raise ValidationError(f"unknown relax token '{item}'")
+        if mapped not in out:
+            out.append(mapped)
+    return out
+
+
+_ORDER_ACTION_ALIASES = {
+    "insert": "insert",
+    "new": "insert",
+    "add": "insert",
+    "插单": "insert",
+    "新增": "insert",
+    "delete": "delete",
+    "remove": "delete",
+    "删单": "delete",
+    "删除": "delete",
+    "change": "change",
+    "update": "change",
+    "改单": "change",
+    "修改": "change",
+    "变更": "change",
+}
+
+
+def _normalize_order_action(raw, name):
+    key = str(raw or "").strip()
+    mapped = _ORDER_ACTION_ALIASES.get(key.lower()) or _ORDER_ACTION_ALIASES.get(key)
+    if mapped not in ("insert", "delete", "change"):
+        raise ValidationError(
+            f"order {name or '(missing name)'} action must be insert, delete, or change"
+        )
+    return mapped
+
+
+def _order_actions_from_body(body, names):
+    """One action per order. A request may mix insert, delete, and change.
+
+    ``orders`` is ``[{name, action}, ...]``. The older ``new_orders`` /
+    ``deleted_orders`` lists remain accepted when ``orders`` is omitted:
+    name only in new → insert, only in deleted → delete, in both → change.
+    """
+    legacy_new = names("new_orders")
+    legacy_deleted = names("deleted_orders")
+    has_legacy = bool(legacy_new or legacy_deleted)
+    if "orders" not in body or body.get("orders") is None:
+        deleted_set = set(legacy_deleted)
+        actions = []
+        seen = set()
+        for name in legacy_new:
+            action = "change" if name in deleted_set else "insert"
+            if name not in seen:
+                actions.append({"name": name, "action": action})
+                seen.add(name)
+        for name in legacy_deleted:
+            if name not in seen:
+                actions.append({"name": name, "action": "delete"})
+                seen.add(name)
+        return actions
+    if has_legacy:
+        raise ValidationError(
+            "pass orders with an action on each order, "
+            "or new_orders/deleted_orders, not both"
+        )
+    raw = body.get("orders")
+    if isinstance(raw, str) or not isinstance(raw, (list, tuple)):
+        raise ValidationError("orders must be a list of {name, action}")
+    actions = []
+    seen = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValidationError("orders must be a list of {name, action}")
+        name = str(item.get("name") or item.get("order") or "").strip()
+        if not name:
+            raise ValidationError("each order needs a name")
+        action = _normalize_order_action(
+            item.get("action", item.get("type")), name
+        )
+        previous = seen.get(name)
+        if previous and previous != action:
+            raise ValidationError(
+                f"order {name} has conflicting actions {previous} and {action}"
+            )
+        if previous:
+            continue
+        seen[name] = action
+        row = {"name": name, "action": action}
+        quantity = _optional_number(item, "quantity", "qty")
+        due = _optional_text(item, "due")
+        item_name = _optional_text(item, "item")
+        if quantity is not None:
+            row["quantity"] = quantity
+        if due:
+            row["due"] = due
+        if item_name:
+            row["item"] = item_name
+        actions.append(row)
+    return actions
+
+
+def _optional_text(item, *keys):
+    for key in keys:
+        value = item.get(key)
+        if value not in (None, ""):
+            return str(value).strip()
+    return None
+
+
+def _optional_number(item, *keys):
+    for key in keys:
+        value = item.get(key)
+        if value not in (None, ""):
+            return str(value).strip()
+    return None
+
+
+def _parse_when(value, label):
+    from django.utils.dateparse import parse_datetime
+
+    text = str(value or "").strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    parsed = parse_datetime(text)
+    if parsed is None:
+        raise ValidationError(f"{label} must be an ISO datetime")
+    return parsed
+
+
+def _change_entries(body, key):
+    """Name strings stay seeds. Objects carry the values this request writes."""
+    value = body.get(key) or []
+    if isinstance(value, str):
+        value = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+    if not isinstance(value, (list, tuple)):
+        raise ValidationError(f"{key} must be a list")
+    entries = []
+    seen = set()
+    for item in value:
+        if isinstance(item, str):
+            name = item.strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            entries.append({"name": name})
+            continue
+        if not isinstance(item, dict):
+            raise ValidationError(f"{key} entries must be a name or an object")
+        name = _optional_text(item, "name", "item", "resource", "order")
+        if not name:
+            raise ValidationError(f"each {key} entry needs a name")
+        extra = {
+            field: item[field]
+            for field in item
+            if field != "name" and item[field] not in (None, "")
+        }
+        # A bare name is only a seed, so a repeat adds nothing. A second
+        # object for the same name is another change (on-hand plus a purchase
+        # order, or a second capacity window) and has to be applied too.
+        if name in seen and not extra:
+            continue
+        seen.add(name)
+        entries.append({"name": name, **extra})
+    return entries
+
+
+def _reschedule_values(body):
+    """Validate a reschedule request and return all trigger parameters."""
+    if body.get("new_resources"):
+        raise ValidationError(
+            "new_resources are not supported yet; resource rescheduling only "
+            "accepts existing resources whose capacity or calendar changed"
+        )
+    category = str(body.get("category") or "").strip().lower()
+    category = {
+        "订单": "order",
+        "订单变化": "order",
+        "物料": "material",
+        "物料变化": "material",
+        "资源": "resource",
+        "资源变化": "resource",
+        "全部": "all",
+        "一起": "all",
+        "混合": "all",
+        "combined": "all",
+        "mixed": "all",
+    }.get(category, category)
+    if category not in ("order", "material", "resource", "all"):
+        raise ValidationError("category must be order, material, resource, or all")
+    level = str(body.get("level") or "auto").strip().lower()
+    level = {"l1": "1", "l2": "2", "l3": "3"}.get(level, level)
+    if level not in ("auto", "1", "2", "3"):
+        raise ValidationError("level must be auto, 1, 2, or 3; custom is not supported yet")
+    if any(key in body for key in ("scope", "scope_base", "relax")):
+        raise ValidationError(
+            "custom reschedule scope is not supported yet; use level auto, 1, 2, or 3"
+        )
+
+    def names(key):
+        value = body.get(key) or []
+        if isinstance(value, str):
+            value = value.replace(";", ",").split(",")
+        if not isinstance(value, (list, tuple)):
+            raise ValidationError(f"{key} must be a list or comma-separated string")
+        return list(
+            dict.fromkeys(str(v).strip() for v in value if str(v).strip())
+        )
+
+    order_actions = _order_actions_from_body(body, names)
+    new_orders = [
+        row["name"] for row in order_actions if row["action"] in ("insert", "change")
+    ]
+    deleted_orders = [
+        row["name"] for row in order_actions if row["action"] in ("delete", "change")
+    ]
+    materials = _change_entries(body, "materials")
+    resources = _change_entries(body, "resources")
+    has_order = bool(new_orders or deleted_orders)
+    has_material = bool(materials)
+    has_resource = bool(resources)
+    if category == "all" and not (has_order or has_material or has_resource):
+        raise ValidationError("category=all requires at least one trigger")
+    if category == "order" and not has_order:
+        raise ValidationError(
+            "order rescheduling requires orders, or new_orders/deleted_orders"
+        )
+    if category == "material" and not has_material:
+        raise ValidationError("material rescheduling requires materials")
+    if category == "resource" and not has_resource:
+        raise ValidationError("resource rescheduling requires resources")
+    supplied = {"order": has_order, "material": has_material, "resource": has_resource}
+    ignored = [name for name, present in supplied.items() if present and name != category]
+    if category != "all" and ignored:
+        raise ValidationError(
+            f"category={category} cannot include {', '.join(ignored)} triggers; "
+            "use category=all to combine, or submit separately"
+        )
+
+    include_order = category in ("order", "all")
+    include_material = category in ("material", "all")
+    include_resource = category in ("resource", "all")
+    solver = str(body.get("solver") or "mrp").strip().lower()
+    solver = {
+        "cpsat": "cp",
+        "cp-sat": "cp",
+        "局部cp": "cp",
+        "fas": "fas",
+        "forward": "fas",
+        "heuristic": "mrp",
+        "solver_mrp": "mrp",
+        "nsga": "ga",
+        "genetic": "ga",
+    }.get(solver, solver)
+    if solver not in ("cp", "fas", "mrp", "ga"):
+        raise ValidationError("solver must be cp, fas, mrp, or ga")
+    new_demands = ",".join(new_orders) if include_order else ""
+    deleted_demands = ",".join(deleted_orders) if include_order else ""
+    material_names = list(dict.fromkeys(row["name"] for row in materials))
+    resource_names = list(dict.fromkeys(row["name"] for row in resources))
+    changed_materials = ",".join(material_names) if include_material else ""
+    changed_resources = ",".join(resource_names) if include_resource else ""
+    # plan.skip_supply is the skip-rebuild switch. Other triggers stay on
+    # local.* with a cp.local_* copy (engine still reads CP_LOCAL_*).
+    values = {
+        "plan.solver": solver,
+        "plan.skip_supply": "1",
+        "local.reschedule": "1",
+        "local.insert_candidates": "1",
+        "local.one_shot": "1",
+        "local.reschedule_type": category,
+        "local.reschedule_level": level,
+        "local.new_demands": new_demands,
+        "local.deleted_demands": deleted_demands,
+        "local.changed_materials": changed_materials,
+        "local.changed_resources": changed_resources,
+        "cp.local_reschedule": "1",
+        "cp.local_skip_supply": "1",
+        "cp.local_insert_candidates": "1",
+        "cp.local_one_shot": "1",
+        "cp.local_reschedule_type": category,
+        "cp.local_reschedule_level": level,
+        "cp.local_new_demands": new_demands,
+        "cp.local_deleted_demands": deleted_demands,
+        "cp.local_changed_materials": changed_materials,
+        "cp.local_changed_resources": changed_resources,
+        "_orders": order_actions if include_order else [],
+        "_new_orders": new_orders if include_order else [],
+        "_deleted_orders": deleted_orders if include_order else [],
+        "_materials": materials if include_material else [],
+        "_resources": resources if include_resource else [],
+        "_solver": solver,
+    }
+    values["local.scope_base"] = ""
+    values["local.scope_relax"] = ""
+    values["cp.local_scope_base"] = ""
+    values["cp.local_scope_relax"] = ""
+    return values
+
+
+def _validate_reschedule_refs(database, values):
+    """Reschedule assumes master data is already ready.
+
+    Callers write/update demands (or materials/resources) first; this API only
+    schedules. Trigger names must already resolve in DB:
+      - order insert/change: new_orders → Demand exists
+      - pure delete: Demand must exist; this API captures its affected scope
+        and deletes the demand/plan tree atomically before scheduling
+      - pure insert (in new_orders only): must NOT already have operationplans
+      - material → Item exists
+      - resource → Resource exists
+    """
+    category = values["cp.local_reschedule_type"]
+    parts = []
+    if category in ("order", "all"):
+        new_names = values.get("_new_orders") or []
+        deleted_names = values.get("_deleted_orders") or []
+        deleted_set = set(deleted_names)
+        names = list(dict.fromkeys([*new_names, *deleted_names]))
+        if names:
+            from ccAPPSdb.input.models.demand import Demand
+            from ccAPPSdb.input.models.operationplan import OperationPlan
+
+            found = set(
+                Demand.objects.using(database)
+                .filter(name__in=names)
+                .values_list("name", flat=True)
+            )
+            missing_new = [n for n in new_names if n not in found]
+            pure_deleted = [n for n in deleted_names if n not in set(new_names)]
+            missing_deleted = [n for n in pure_deleted if n not in found]
+            if missing_new:
+                parts.append(
+                    "new_orders not found in demand (write via /api/input/demand/ "
+                    "or write_order first): " + ", ".join(missing_new)
+                )
+            if missing_deleted:
+                parts.append(
+                    "deleted_orders not found in demand (nothing was deleted; "
+                    "check the order number): " + ", ".join(missing_deleted)
+                )
+            # Pure insert: demand ready, but historical plan must not already
+            # contain this order (use change = both lists if it does).
+            insert_only = [
+                n for n in new_names if n not in deleted_set and n in found
+            ]
+            if insert_only:
+                already = set(
+                    OperationPlan.objects.using(database)
+                    .filter(demand_id__in=insert_only)
+                    .values_list("demand_id", flat=True)
+                    .distinct()
+                )
+                if already:
+                    parts.append(
+                        "insert orders already present in historical plan "
+                        "(use action=change, or clear the plan first): "
+                        + ", ".join(
+                            n for n in insert_only if n in already
+                        )
+                    )
+    if category in ("material", "all"):
+        names = [row["name"] for row in (values.get("_materials") or []) if row.get("name")]
+        if names:
+            from ccAPPSdb.input.models.item import Item
+
+            found = set(
+                Item.objects.using(database)
+                .filter(name__in=names)
+                .values_list("name", flat=True)
+            )
+            missing = [n for n in names if n not in found]
+            if missing:
+                parts.append(
+                    "materials not found in item: " + ", ".join(missing)
+                )
+    if category in ("resource", "all"):
+        names = [row["name"] for row in (values.get("_resources") or []) if row.get("name")]
+        if names:
+            from ccAPPSdb.input.models.resource import Resource
+
+            found = set(
+                Resource.objects.using(database)
+                .filter(name__in=names)
+                .values_list("name", flat=True)
+            )
+            missing = [n for n in names if n not in found]
+            if missing:
+                parts.append(
+                    "resources not found in resource: " + ", ".join(missing)
+                )
+    if parts:
+        raise ValidationError("; ".join(parts))
+
+
+def _apply_reschedule_changes(database, values):
+    """Write this request's new quantities and windows before the solve.
+
+    Orders update the demand. Materials update on-hand or a purchase order.
+    Resources get a capacity-calendar window; capacity defaults to 0 (down).
+    """
+    _apply_order_changes(database, values.get("_orders") or [])
+    _apply_material_changes(database, values.get("_materials") or [])
+    _apply_resource_changes(database, values.get("_resources") or [])
+
+
+def _apply_order_changes(database, orders):
+    from decimal import Decimal
+
+    from ccAPPSdb.input.models.demand import Demand
+    from ccAPPSdb.input.models.item import Item
+
+    for row in orders:
+        if row.get("action") == "delete":
+            continue
+        fields = {}
+        if row.get("quantity") is not None:
+            fields["quantity"] = Decimal(str(row["quantity"]))
+        if row.get("due"):
+            fields["due"] = _parse_when(row["due"], f"order {row['name']} due")
+        if row.get("item"):
+            if not Item.objects.using(database).filter(name=row["item"]).exists():
+                raise ValidationError(f"order item not found: {row['item']}")
+            fields["item_id"] = row["item"]
+        if not fields:
+            continue
+        updated = Demand.objects.using(database).filter(name=row["name"]).update(**fields)
+        if not updated:
+            raise ValidationError(f"order not found in demand: {row['name']}")
+
+
+def _apply_material_changes(database, materials):
+    from decimal import Decimal
+
+    from ccAPPSdb.input.models.buffer import Buffer
+    from ccAPPSdb.input.models.operationplan import OperationPlan
+
+    for row in materials:
+        name = row["name"]
+        if row.get("onhand") not in (None, ""):
+            onhand = Decimal(str(row["onhand"]))
+            buffers = Buffer.objects.using(database).filter(item_id=name)
+            location = _optional_text(row, "location")
+            if location:
+                buffers = buffers.filter(location_id=location)
+            matched = list(buffers)
+            if not matched:
+                raise ValidationError(f"no buffer for material {name}")
+            if len(matched) > 1 and not location:
+                raise ValidationError(
+                    f"material {name} is in more than one location; pass location"
+                )
+            buffers.update(onhand=onhand)
+        has_po = any(row.get(key) not in (None, "") for key in ("po", "quantity", "arrival"))
+        if not has_po:
+            continue
+        po = _optional_text(row, "po")
+        quantity = row.get("quantity")
+        arrival = row.get("arrival")
+        if not po or quantity in (None, "") or not arrival:
+            raise ValidationError(
+                f"material {name} purchase change needs po, quantity, and arrival"
+            )
+        updated = (
+            OperationPlan.objects.using(database)
+            .filter(reference=po, type="PO", item_id=name)
+            .update(
+                quantity=Decimal(str(quantity)),
+                enddate=_parse_when(arrival, f"material {name} arrival"),
+            )
+        )
+        if not updated:
+            raise ValidationError(
+                f"purchase order {po} for material {name} was not found"
+            )
+
+
+def _apply_resource_changes(database, resources):
+    from datetime import datetime, time
+    from decimal import Decimal
+
+    from django.db.models import Min
+
+    from ccAPPSdb.input.models.calendar import Calendar, CalendarBucket
+    from ccAPPSdb.input.models.resource import Resource
+
+    def _bucket_days():
+        return {
+            "starttime": time(0, 0, 0),
+            "endtime": time(23, 59, 59),
+            "monday": True,
+            "tuesday": True,
+            "wednesday": True,
+            "thursday": True,
+            "friday": True,
+            "saturday": True,
+            "sunday": True,
+        }
+
+    for row in resources:
+        if not row.get("start") and not row.get("end") and row.get("capacity") in (None, ""):
+            continue
+        if not row.get("start") or not row.get("end"):
+            raise ValidationError(
+                f"resource {row['name']} needs start and end for a capacity window"
+            )
+        start = _parse_when(row["start"], f"resource {row['name']} start")
+        end = _parse_when(row["end"], f"resource {row['name']} end")
+        if end <= start:
+            raise ValidationError(f"resource {row['name']} end must be after start")
+        capacity = Decimal(str(row["capacity"])) if row.get("capacity") not in (None, "") else Decimal("0")
+        resource = Resource.objects.using(database).filter(name=row["name"]).first()
+        if resource is None:
+            raise ValidationError(f"resources not found in resource: {row['name']}")
+        normal = resource.maximum if resource.maximum is not None else Decimal("1")
+        calendar = resource.maximum_calendar
+        if calendar is None:
+            calendar, _created = Calendar.objects.using(database).get_or_create(
+                name=f"{resource.name} capacity",
+                defaults={
+                    "defaultvalue": normal,
+                    "description": "reschedule capacity",
+                },
+            )
+            resource.maximum_calendar = calendar
+            resource.save(using=database, update_fields=["maximum_calendar"])
+        buckets = CalendarBucket.objects.using(database).filter(calendar=calendar)
+        if not buckets.exists():
+            # Normal capacity for the whole horizon. A smaller priority on the
+            # downtime window overrides just that interval.
+            CalendarBucket.objects.using(database).create(
+                calendar=calendar,
+                startdate=datetime(1971, 1, 1),
+                enddate=datetime(2030, 12, 31),
+                priority=100,
+                value=normal,
+                **_bucket_days(),
+            )
+        # Smaller priority wins. 0 beats the baseline 100. An existing shift
+        # calendar already uses 0, so step one below its lowest.
+        lowest = buckets.aggregate(lowest=Min("priority"))["lowest"]
+        priority = 0 if lowest is None or int(lowest) > 0 else int(lowest) - 1
+        CalendarBucket.objects.using(database).update_or_create(
+            calendar=calendar,
+            startdate=start,
+            enddate=end,
+            priority=priority,
+            defaults={"value": capacity, **_bucket_days()},
+        )
+
+
+def _prepare_pure_order_deletes(database, values):
+    """Capture the released resource scope and atomically delete pure orders."""
+    if values.get("cp.local_reschedule_type") not in ("order", "all"):
+        return []
+    new_names = set(values.get("_new_orders") or [])
+    pure_deleted = [
+        name for name in (values.get("_deleted_orders") or []) if name not in new_names
+    ]
+    if not pure_deleted:
+        return []
+
+    from ccAPPSdb.input.models.demand import Demand
+
+    # Lock the rows after validation so a concurrent writer can't change or
+    # delete the tree between scope capture and deletion.
+    demands = list(
+        Demand.objects.using(database)
+        .select_for_update()
+        .filter(name__in=pure_deleted)
+    )
+    found = {d.name for d in demands}
+    missing = [name for name in pure_deleted if name not in found]
+    if missing:
+        raise ValidationError(
+            "deleted_orders disappeared before deletion: " + ", ".join(missing)
+        )
+
+    # A demand is normally attached to its DLVR root. Follow owner links down
+    # the complete tree to retain every machine, mold and personnel assignment.
+    with connections[database].cursor() as cursor:
+        cursor.execute(
+            """
+            WITH RECURSIVE deleted_tree(reference) AS (
+              SELECT reference
+              FROM operationplan
+              WHERE demand_id = ANY(%s)
+              UNION
+              SELECT child.reference
+              FROM operationplan child
+              JOIN deleted_tree parent ON child.owner_id = parent.reference
+            )
+            SELECT DISTINCT resource_id
+            FROM operationplanresource
+            WHERE operationplan_id IN (SELECT reference FROM deleted_tree)
+              AND resource_id IS NOT NULL
+            """,
+            [pure_deleted],
+        )
+        affected_resources = [row[0] for row in cursor.fetchall()]
+
+    for demand in demands:
+        demand.delete(using=database)
+    # Preserve the resources released by the deleted order for the order repair.
+    existing = [
+        name
+        for name in str(values.get("cp.local_changed_resources") or "").split(",")
+        if name.strip()
+    ]
+    merged = ",".join(dict.fromkeys([*existing, *affected_resources]))
+    values["cp.local_changed_resources"] = merged
+    values["local.changed_resources"] = merged
+    return affected_resources
+
+
+@csrf_exempt
+def RescheduleAPI(request):
+    """Enqueue one reschedule; pure deletion is handled atomically.
+
+    Two steps:
+      1) ready master data via existing APIs (``/api/input/demand/``, ``write_order``, …)
+      2) POST here. Each order carries action=insert|delete|change, and one
+         request may mix them.
+         insert → demand exists and has no operationplans;
+         delete → demand exists; this API captures its affected scope and
+                  deletes it atomically;
+         change → demand row stays (caller already updated it) and is replanned.
+         new_orders/deleted_orders remain accepted when orders is omitted.
+
+    Category: ``order`` | ``material`` | ``resource`` | ``all``.
+    ``all`` combines triggers from multiple problem types in one solve.
+
+    Solver: ``mrp`` (default) | ``cp`` | ``fas`` | ``ga``. Shared scope
+    (triggers + hot/freeze); the chosen solver only repairs the movable set.
+
+    Scope: ``level`` = auto|1|2|3. Custom scope is not currently supported.
+
+    After Done, ``GET .../execute/api/status/?id=<taskid>`` includes
+    boolean ``status`` plus ``local_outcome`` diagnostics (level_used, applied,
+    incomplete, named_late, window_late, stage, mode). A failed reschedule
+    trigger skips plan export.
+    """
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Only POST is allowed"}, status=405
+        )
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"status": "error", "message": "Authentication required"}, status=401
+        )
+    if not request.user.has_perm("auth.auth.generate_plan"):
+        return JsonResponse(
+            {"status": "error", "message": "Missing execution privileges"},
+            status=403,
+        )
+    try:
+        if "json" not in request.headers.get("content-type", "").lower():
+            raise ValidationError("Content-Type must be application/json")
+        body = json.loads(request.body or b"{}")
+        if not isinstance(body, dict):
+            raise ValidationError("JSON body must be an object")
+        values = _reschedule_values(body)
+        raw_constraint = body.get("constraint", "capa,mfg_lt,po_lt")
+        if isinstance(raw_constraint, (list, tuple)):
+            raw_constraint = ",".join(str(v) for v in raw_constraint)
+        constraint_text = str(raw_constraint).strip()
+        try:
+            int(constraint_text)
+        except ValueError:
+            allowed_constraints = {"capa", "fence", "lt", "mfg_lt", "po_lt"}
+            unknown_constraints = [
+                token.strip()
+                for token in constraint_text.split(",")
+                if token.strip().lower() not in allowed_constraints
+            ]
+            if unknown_constraints:
+                raise ValidationError(
+                    "unknown constraint token(s): "
+                    + ", ".join(unknown_constraints)
+                )
+        constraints = constraintString(parseConstraints(constraint_text))
+
+        with transaction.atomic(using=request.database):
+            # Serialize the empty-queue check and parameter/task creation.
+            # select_for_update alone locks no row when the queue is empty,
+            # allowing two simultaneous requests to overwrite each other's
+            # trigger parameters before either task starts.
+            with connections[request.database].cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                    ["ccapps.local_reschedule"],
+                )
+            active = (
+                Task.objects.using(request.database)
+                .select_for_update()
+                .filter(name="runplan", finished__isnull=True)
+                .exclude(status__in=("Done", "Failed", "Canceled"))
+                .first()
+            )
+            if active:
+                return JsonResponse(
+                    {
+                        "status": "conflict",
+                        "message": "A planning task is already active",
+                        "taskid": active.id,
+                    },
+                    status=409,
+                )
+            _validate_reschedule_refs(request.database, values)
+            _apply_reschedule_changes(request.database, values)
+            # Pure deletes record freed resources internally. Callers do not
+            # pass that set.
+            _prepare_pure_order_deletes(request.database, values)
+            # plan.solver is a scenario-wide setting, while a reschedule is a
+            # one-shot task. Preserve the ordinary planner choice so cleanup
+            # can restore it after success, failure, or a child-process crash.
+            values["local.previous_solver"] = Parameter.getValue(
+                "plan.solver", request.database, "mrp"
+            )
+            # Internal list helpers are not plan parameters.
+            solver = values.pop("_solver", "mrp")
+            orders = list(values.get("_orders") or [])
+            materials = list(values.get("_materials") or [])
+            resources = list(values.get("_resources") or [])
+            for key in (
+                "_orders",
+                "_new_orders",
+                "_deleted_orders",
+                "_materials",
+                "_resources",
+            ):
+                values.pop(key, None)
+            for name, value in values.items():
+                Parameter.objects.using(request.database).update_or_create(
+                    name=name, defaults={"value": value}
+                )
+            arguments = (
+                f"--constraint={constraints} --plantype=1 --env=supply"
+            )
+            if Parameter.getValue(
+                "plan.webservice", request.database, "true"
+            ).lower() == "true":
+                arguments += " --background"
+            task = Task(
+                name="runplan",
+                submitted=datetime.now(),
+                status="Waiting",
+                user=request.user,
+                arguments=arguments,
+            )
+            task.save(using=request.database)
+        launchWorker(database=request.database)
+        return JsonResponse(
+            {
+                "status": "accepted",
+                "taskid": task.id,
+                "scenario": request.database,
+                "trigger": {
+                    "solver": solver,
+                    "category": values["cp.local_reschedule_type"],
+                    "level": values["cp.local_reschedule_level"],
+                    "orders": orders,
+                    "materials": materials,
+                    "resources": resources,
+                },
+                "status_url": f"{request.prefix}/execute/api/status/?id={task.id}",
+                "log_url": f"{request.prefix}/execute/api/log/?id={task.id}",
+            },
+            status=202,
+        )
+    except (ValidationError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        message = exc.messages[0] if isinstance(exc, ValidationError) else str(exc)
+        return JsonResponse({"status": "error", "message": message}, status=400)
+
+
+# Backward-compatible alias
+LocalRescheduleAPI = RescheduleAPI
+
+
+def _truthy(val, default=False):
+    if val is None:
+        return default
+    return str(val).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _cleanupDbResources(request):
+    """Terminate idle Postgres backends and optionally cancel stuck execute tasks.
+
+    Used when max_connections is tight (e.g. 40) and workers fail with
+    "sorry, too many clients already". Called via GET/POST
+    ``/<scenario>/execute/api/cleanup/``.
+    """
+    if not request.user.is_authenticated:
+        return {
+            "ok": False,
+            "message": "Authentication required",
+        }
+    if not (
+        request.user.is_superuser
+        or request.user.has_perm("auth.run_db")
+        or request.user.has_perm("auth.auth.generate_plan")
+    ):
+        return {
+            "ok": False,
+            "message": "Missing cleanup privileges",
+        }
+
+    args = request.GET if request.method == "GET" else (request.POST or request.GET)
+    dry_run = _truthy(args.get("dry_run"), False)
+    aggressive = _truthy(args.get("aggressive"), False)
+    cancel_stuck = _truthy(args.get("cancel_stuck"), True)
+    try:
+        idle_seconds = max(0, int(args.get("idle_seconds", 60)))
+    except (TypeError, ValueError):
+        idle_seconds = 60
+    try:
+        stale_active_minutes = max(0, int(args.get("stale_active_minutes", 30)))
+    except (TypeError, ValueError):
+        stale_active_minutes = 30
+    try:
+        min_age_hours = max(0.0, float(args.get("min_age_hours", 0.5)))
+    except (TypeError, ValueError):
+        min_age_hours = 0.5
+
+    db = request.database
+    out = {
+        "ok": True,
+        "database": db,
+        "dry_run": dry_run,
+        "aggressive": aggressive,
+        "idle_seconds": idle_seconds,
+        "stale_active_minutes": stale_active_minutes,
+        "cancel_stuck": cancel_stuck,
+        "min_age_hours": min_age_hours,
+        "max_connections": None,
+        "connections_before": None,
+        "connections_after": None,
+        "by_state_before": {},
+        "by_state_after": {},
+        "terminated": [],
+        "canceled_tasks": [],
+        "message": "",
+    }
+
+    # --- Postgres connection cleanup (cluster view filtered to this DB) ---
+    try:
+        with connections[db].cursor() as cur:
+            cur.execute("SHOW max_connections")
+            out["max_connections"] = cur.fetchone()[0]
+
+            def _conn_stats():
+                cur.execute(
+                    """
+                    SELECT coalesce(state, 'null'), count(*)
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                    GROUP BY 1
+                    """
+                )
+                by_state = {r[0]: r[1] for r in cur.fetchall()}
+                cur.execute(
+                    """
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE datname = current_database()
+                    """
+                )
+                total = cur.fetchone()[0]
+                return total, by_state
+
+            before, by_before = _conn_stats()
+            out["connections_before"] = before
+            out["by_state_before"] = by_before
+
+            # Candidates: idle / idle-in-transaction (+ optional stale active)
+            if aggressive:
+                cur.execute(
+                    """
+                    SELECT pid, usename, application_name, state,
+                           extract(epoch from (now() - state_change))::int AS idle_s,
+                           left(coalesce(query, ''), 100) AS query
+                    FROM pg_stat_activity
+                    WHERE backend_type = 'client backend'
+                      AND pid <> pg_backend_pid()
+                      AND datname = current_database()
+                      AND (
+                        state IN ('idle', 'idle in transaction',
+                                  'idle in transaction (aborted)')
+                        OR (
+                          %s > 0
+                          AND state = 'active'
+                          AND state_change < now() - make_interval(mins => %s)
+                        )
+                      )
+                    ORDER BY state_change
+                    """,
+                    [stale_active_minutes, stale_active_minutes],
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT pid, usename, application_name, state,
+                           extract(epoch from (now() - state_change))::int AS idle_s,
+                           left(coalesce(query, ''), 100) AS query
+                    FROM pg_stat_activity
+                    WHERE backend_type = 'client backend'
+                      AND pid <> pg_backend_pid()
+                      AND datname = current_database()
+                      AND (
+                        (
+                          state IN ('idle', 'idle in transaction',
+                                    'idle in transaction (aborted)')
+                          AND state_change < now() - make_interval(secs => %s)
+                        )
+                        OR (
+                          %s > 0
+                          AND state = 'active'
+                          AND state_change < now() - make_interval(mins => %s)
+                        )
+                      )
+                    ORDER BY state_change
+                    """,
+                    [idle_seconds, stale_active_minutes, stale_active_minutes],
+                )
+
+            candidates = []
+            for pid, usename, app, state, idle_s, query in cur.fetchall():
+                candidates.append(
+                    {
+                        "pid": pid,
+                        "usename": usename,
+                        "application_name": app,
+                        "state": state,
+                        "idle_seconds": idle_s,
+                        "query": query,
+                    }
+                )
+
+            terminated = []
+            for c in candidates:
+                if dry_run:
+                    terminated.append({**c, "terminated": False})
+                    continue
+                cur.execute("SELECT pg_terminate_backend(%s)", [c["pid"]])
+                ok = bool(cur.fetchone()[0])
+                terminated.append({**c, "terminated": ok})
+            out["terminated"] = terminated
+
+            after, by_after = _conn_stats()
+            out["connections_after"] = after
+            out["by_state_after"] = by_after
+    except Exception as e:
+        out["ok"] = False
+        out["message"] = f"connection cleanup error: {type(e).__name__}: {e}"
+        logger.exception("cleanup connection error on %s", db)
+        return out
+
+    # --- Stuck / zombie execute tasks ---
+    if cancel_stuck:
+        cutoff = datetime.now() - timedelta(hours=min_age_hours)
+        canceled = []
+        try:
+            with transaction.atomic(using=db):
+                qs = (
+                    Task.objects.all()
+                    .using(db)
+                    .select_for_update()
+                    .filter(finished__isnull=True)
+                    .exclude(status__in=("Done", "Failed", "Canceled"))
+                )
+                for t in qs:
+                    age_ref = t.started or t.submitted
+                    if age_ref and age_ref > cutoff:
+                        continue
+                    if not (
+                        request.user.is_superuser or t.user_id == request.user.id
+                    ):
+                        continue
+                    entry = {
+                        "id": t.id,
+                        "name": t.name,
+                        "status": t.status,
+                        "processid": t.processid,
+                        "submitted": str(t.submitted) if t.submitted else None,
+                        "started": str(t.started) if t.started else None,
+                    }
+                    if dry_run:
+                        entry["canceled"] = False
+                        canceled.append(entry)
+                        continue
+                    try:
+                        # killProcess handles Waiting / live processid; zombies
+                        # with status like "0%" and no pid need a forced cancel.
+                        if t.processid or t.status == "Waiting":
+                            try:
+                                t.killProcess()
+                            except Exception:
+                                pass
+                        t.refresh_from_db()
+                        if t.status != "Canceled" or t.finished is None:
+                            t.processid = None
+                            t.status = "Canceled"
+                            t.message = (t.message or "") + " [canceled by cleanup]"
+                            t.finished = datetime.now()
+                            t.save(
+                                update_fields=[
+                                    "processid",
+                                    "status",
+                                    "message",
+                                    "finished",
+                                ],
+                                using=db,
+                            )
+                        entry["status"] = "Canceled"
+                        entry["canceled"] = True
+                    except Exception as e:
+                        entry["canceled"] = False
+                        entry["error"] = f"{type(e).__name__}: {e}"
+                    canceled.append(entry)
+            out["canceled_tasks"] = canceled
+        except Exception as e:
+            out["ok"] = False
+            out["message"] = (
+                out.get("message") or ""
+            ) + f"; task cleanup error: {type(e).__name__}: {e}"
+            logger.exception("cleanup task error on %s", db)
+
+    killed_n = sum(1 for x in out["terminated"] if x.get("terminated") or dry_run)
+    canceled_n = len(out["canceled_tasks"])
+    out["message"] = (
+        f"{'dry-run: would free' if dry_run else 'freed'} {killed_n} connection(s); "
+        f"{'would cancel' if dry_run else 'canceled'} {canceled_n} task(s); "
+        f"connections {out['connections_before']} → {out['connections_after']} "
+        f"(max={out['max_connections']})"
+    )
+    return out
 
 
 @staff_member_required
@@ -2436,6 +3527,13 @@ class PlanEdit(GridReport):
             from ccAPPSdb.input.models.operationplan import (
                 OperationPlanResource,
             )
+            from django.db.models import Exists, OuterRef, Q
+
+            personnel_loads = OperationPlanResource.objects.using(
+                request.database
+            ).filter(operationplan_id=OuterRef("operationplan_id")).filter(
+                Q(resource__category="人员") | Q(resource__name__startswith="PERSON_")
+            )
 
             opr_qs = (
                 OperationPlanResource.objects.using(request.database)
@@ -2451,6 +3549,11 @@ class PlanEdit(GridReport):
                     "operationplan__supplier",
                     "operationplan__demand",
                     "operationplan__operation",
+                )
+                .annotate(has_personnel=Exists(personnel_loads))
+                .exclude(
+                    Q(operationplan__type__in=("MO", "WO"))
+                    & Q(has_personnel=False)
                 )
                 .order_by(
                     "resource__owner_id",
@@ -2639,6 +3742,12 @@ class PlanEdit(GridReport):
                         }
                     )
 
+            personnel_for_plan = OperationPlanResource.objects.using(
+                request.database
+            ).filter(operationplan_id=OuterRef("reference")).filter(
+                Q(resource__category="人员") | Q(resource__name__startswith="PERSON_")
+            )
+
             # Alternate/routing parents have no loadplans by design; their
             # chosen time_per / step children already appear on 设备/人员/模具
             # rows. Keep them out of「未分配资源」so the board is not dominated
@@ -2652,7 +3761,8 @@ class PlanEdit(GridReport):
                     startdate__year__gte=2000,
                 )
                 .exclude(status="closed")
-                .filter(resources__isnull=True)
+                .annotate(has_personnel=Exists(personnel_for_plan))
+                .filter(has_personnel=False)
                 .exclude(operation__type__in=("alternate", "routing"))
                 .select_related(
                     "item", "location", "supplier", "demand", "operation"

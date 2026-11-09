@@ -62,19 +62,41 @@ class SolverFAS : public Solver {
   }
   short getConstraints() const { return constraints; }
   void setConstraints(short value) {
-    constraints = value & (SolverCreate::CAPACITY |
+    constraints = value & (SolverCreate::CAPACITY | SolverCreate::FENCE |
                            SolverCreate::MFG_LEADTIME |
                            SolverCreate::PO_LEADTIME);
     if (value & SolverCreate::LEADTIME)
       constraints |= SolverCreate::MFG_LEADTIME | SolverCreate::PO_LEADTIME;
+    // Keep expander lead-time bits in sync; capa is stripped again at expand.
+    supplyExpander.setConstraints(constraints);
   }
   bool isCapacityConstrained() const {
-    return constraints & SolverCreate::CAPACITY;
+    // plantype 2/3 = unconstrained search (still may report problems).
+    return planType == 1 && (constraints & SolverCreate::CAPACITY);
+  }
+  bool isFenceConstrained() const {
+    return planType == 1 && (constraints & SolverCreate::FENCE);
   }
   bool isLeadTimeConstrained(const Operation* operation) const {
-    // Delegate classification (purchase, subcontracting, alternates, etc.)
-    // to the exact same implementation used by the MRP supply expander.
-    return supplyExpander.isLeadTimeConstrained(operation);
+    if (planType != 1) return false;
+    // Purchases follow po_lt. Every other operation, including manufacturing,
+    // starts at currentdate whether or not mfg_lt was requested.
+    if (operation &&
+        (operation->hasType<OperationItemSupplier>() ||
+         operation->getCategory() == "subcontractor"))
+      return (constraints & SolverCreate::PO_LEADTIME) != 0;
+    if (operation && operation->hasType<OperationSplit, OperationAlternate>()) {
+      bool allPurchase = true;
+      for (auto& alternate : operation->getSubOperations())
+        if (alternate->getOperation()->getPriority() &&
+            !(alternate->getOperation()->hasType<OperationItemSupplier>() ||
+              alternate->getOperation()->getCategory() == "subcontractor")) {
+          allPurchase = false;
+          break;
+        }
+      if (allPurchase) return (constraints & SolverCreate::PO_LEADTIME) != 0;
+    }
+    return true;
   }
 
   void solve(void* v = nullptr) override;

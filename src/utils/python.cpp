@@ -713,7 +713,11 @@ bool Object::hasProperty(const string& name) const {
 void Object::deleteProperty(const string& name) {
   if (!dict) return;
   auto pythonstate = PyGILState_Ensure();
-  PyDict_DelItemString(dict, name.c_str());
+  // Missing keys must not leave a KeyError pending for the next Python call.
+  if (PyDict_GetItemString(dict, name.c_str()))
+    PyDict_DelItemString(dict, name.c_str());
+  else
+    PyErr_Clear();
   PyGILState_Release(pythonstate);
 }
 

@@ -28,6 +28,7 @@
 #define SOLVER_H
 
 #include <cmath>
+#include <cstdlib>
 #include <deque>
 
 #include "ccAPPS/model.h"
@@ -38,6 +39,11 @@ namespace ccAPPS {
  *
  * The class works in a single thread only.
  */
+class OperatorForward;
+class OperatorBackward;
+
+enum class direction { downstream, upstream, both, none };
+
 class OperatorDelete : public Solver {
  public:
   using Solver::solve;
@@ -138,6 +144,9 @@ class SolverCreate : public Solver {
     forwardTrialContext = context;
   }
 
+  // Used to indent the logfile in a readable way
+  indent indentlevel;
+
  protected:
   ForwardTrial forwardTrial = nullptr;
   void* forwardTrialContext = nullptr;
@@ -149,9 +158,6 @@ class SolverCreate : public Solver {
   bool create_deliveries = true;
 
   bool rotateResources = true;
-
-  // Used to indent the logfile in a readable way
-  indent indentlevel;
 
   /* Used to force the buffer safety stock solver method to resolve
    * only the material shortages. */
@@ -382,7 +388,7 @@ class SolverCreate : public Solver {
   virtual bool preserveRawMRPResult() const { return false; }
 
   /* Constructor. */
-  SolverCreate() : commands(this) {
+  SolverCreate() : algorithm("heuristic"), commands(this) {
     initType(metadata);
     commands.setCommandManager(&mgr);
   }
@@ -394,6 +400,7 @@ class SolverCreate : public Solver {
 
     // Copy fields
     plantype = other.plantype;
+    algorithm = other.algorithm;
     lazydelay = other.lazydelay;
     create_deliveries = other.create_deliveries;
     administrativeleadtime = other.administrativeleadtime;
@@ -412,6 +419,7 @@ class SolverCreate : public Solver {
     userexit_resource = other.userexit_resource;
     userexit_operation = other.userexit_operation;
     erasePreviousFirst = other.erasePreviousFirst;
+    localSupplyRegen = other.localSupplyRegen;
   }
 
   /* Copy assignment operator. */
@@ -435,6 +443,7 @@ class SolverCreate : public Solver {
     userexit_resource = other.userexit_resource;
     userexit_operation = other.userexit_operation;
     erasePreviousFirst = other.erasePreviousFirst;
+    localSupplyRegen = other.localSupplyRegen;
     return *this;
   }
 
@@ -449,6 +458,7 @@ class SolverCreate : public Solver {
   /* Static constant for constraint types. */
   static const short LEADTIME = 1;
   static const short CAPACITY = 4;
+  static const short FENCE = 8;
   static const short MFG_LEADTIME = 16;
   static const short PO_LEADTIME = 32;
 
@@ -459,9 +469,11 @@ class SolverCreate : public Solver {
   /* Update the constraints to be considered by this solver. This field may
    * not be applicable for all solvers. */
   void setConstraints(short i) {
-    constrts = i & (CAPACITY + PO_LEADTIME + MFG_LEADTIME);
+    constrts = i & (CAPACITY + FENCE + PO_LEADTIME + MFG_LEADTIME);
     if (i & LEADTIME) constrts |= PO_LEADTIME + MFG_LEADTIME;
   }
+
+  bool isFenceConstrained() const { return (constrts & FENCE) > 0; }
 
   /* Returns the constraints considered by the solve. */
   short getConstraints() const { return constrts; }
@@ -472,10 +484,12 @@ class SolverCreate : public Solver {
   bool isLeadTimeConstrained(const Operation* oper) const;
 
   /* Returns true if the solver respects capacity constraints. */
-  bool isCapacityConstrained() const { return (constrts & CAPACITY) > 0; }
+  bool isCapacityConstrained() const {
+    return plantype == 1 && (constrts & CAPACITY) > 0;
+  }
 
   /* Returns true if any constraint is relevant for the solver. */
-  bool isConstrained() const { return constrts > 0; }
+  bool isConstrained() const { return plantype == 1 && constrts > 0; }
 
   bool getCreateDeliveries() const { return create_deliveries; }
 
@@ -505,6 +519,16 @@ class SolverCreate : public Solver {
     if (b < 1 || b > 3) throw DataException("Invalid plan type");
     plantype = b;
   }
+
+  const string& getAlgorithm() const { return algorithm; }
+
+  void setAlgorithm(const string& s) {
+    if (s != "heuristic" && s != "heuristic_2")
+      throw DataException(
+          "Invalid algorithm: must be 'heuristic' or 'heuristic_2'");
+    algorithm = s;
+  }
+
 
   /* This function defines the order in which the demands are being
    * planned.
@@ -672,6 +696,17 @@ class SolverCreate : public Solver {
 
   void setErasePreviousFirst(bool b) { erasePreviousFirst = b; }
 
+  /* MRP and FAS may create work orders during a reschedule. GA and CP may not.
+     LOCAL_SUPPLY_REGEN=1 is the same switch, set by the Python local path. */
+  bool getLocalSupplyRegen() const {
+    if (localSupplyRegen) return true;
+    const char* raw = std::getenv("LOCAL_SUPPLY_REGEN");
+    return raw && *raw && *raw != '0' && *raw != 'n' && *raw != 'N' &&
+           *raw != 'f' && *raw != 'F';
+  }
+
+  void setLocalSupplyRegen(bool b) { localSupplyRegen = b; }
+
   void setCommandManager(CommandManager* a = nullptr) {
     commands.setCommandManager(a);
   }
@@ -687,6 +722,8 @@ class SolverCreate : public Solver {
     m->addShortField<Cls>(Tags::constraints, &Cls::getConstraints,
                           &Cls::setConstraints);
     m->addShortField<Cls>(Tags::plantype, &Cls::getPlanType, &Cls::setPlanType);
+    m->addStringRefField<Cls>(Tags::algorithm, &Cls::getAlgorithm,
+                              &Cls::setAlgorithm);
     m->addDoubleField<Cls>(SolverCreate::tag_iterationthreshold,
                            &Cls::getIterationThreshold,
                            &Cls::setIterationThreshold);
@@ -737,6 +774,9 @@ class SolverCreate : public Solver {
 
   /* Type of plan to be created. */
   short plantype = 1;
+
+  PooledString algorithm;
+
 
   /* Time increments for a lazy replan.
    * The solver is expected to return always a next-feasible date when the
@@ -817,6 +857,10 @@ class SolverCreate : public Solver {
 
   /* Flag to specify whether we erase the previous plan first or not. */
   bool erasePreviousFirst = true;
+
+  /* When set, a local reschedule may create work orders. MRP and FAS set
+   * this. GA and CP leave it off. */
+  bool localSupplyRegen = false;
 
  protected:
   /* This class is used to store the solver status during the
@@ -901,6 +945,7 @@ class SolverCreate : public Solver {
    *
    * It stores the solver state maintained by each solver thread.
    */
+ public:
   class SolverData {
     friend class SolverCreate;
 
@@ -984,7 +1029,17 @@ class SolverCreate : public Solver {
 
     void backward_sweep();
 
+    void createDeliveries();
+
     void scanExcess(bool constrained);
+
+    void setPropagate(bool b) {
+      if (sol) sol->setPropagate(b);
+    }
+
+    void setBatchGrouping(bool b) {
+      if (sol) sol->setBatchGrouping(b);
+    }
 
     /* Pointer to the command manager. */
     CommandManager* mgr = nullptr;
@@ -999,6 +1054,10 @@ class SolverCreate : public Solver {
 
     /* Internal solver to remove material. */
     OperatorDelete* operator_delete = nullptr;
+
+    OperatorForward* operator_forward = nullptr;
+
+    OperatorBackward* operator_backward = nullptr;
 
     /* Points to the demand being planned. */
     Problem::List* constraints = nullptr;
@@ -1076,6 +1135,11 @@ class SolverCreate : public Solver {
 
     /* Pointer to the solver status one level higher on the stack. */
     State* prevstate;
+
+    // Resources whose plan changed during the current forward level.
+    set<Resource*> resources;
+
+    void collectResources(OperationPlan*);
   };
 
   /* When autocommit is switched off, this command structure will contain
@@ -1143,6 +1207,311 @@ class SolverCreate : public Solver {
   /* Get a reference to the command list. */
   SolverData& getCommands() { return commands; }
 };
+
+class OperatorForward : public Solver, public NonCopyable {
+ public:
+  using Solver::solve;
+
+  /* Constructor. */
+  OperatorForward(SolverCreate::SolverData* d, int c = -1,
+                  CommandManager* mgr = nullptr)
+      : cmds(mgr), data(d), cluster(c) {
+    // We'll never use this class from Python, but still need to do a dummy
+    // initialization.
+    PyObject_INIT(this, &PyBaseObject_Type);
+    if (d)
+      setLogLevel(d->getLogLevel());
+    else
+      throw LogicException("SolverData must be provided");
+  }
+
+  bool getPropagate() const { return propagate; }
+
+  void setPropagate(bool b) { propagate = b; }
+
+  void setCommandManager(CommandManager* m) { cmds = m; }
+
+  /* Solve a single cluster. */
+  void solve(void* = nullptr) override;
+
+  /* Resolve material shortages by delaying consumers. */
+  void solve(const Buffer*, void* = nullptr) override;
+
+  /* Infinite buffers require no propagation. */
+  void solve(const BufferInfinite*, void* = nullptr) override {}
+
+  /* Propagate the infeasilities on a single resource.
+   * Solve overloads by delaying operationplans.
+   */
+  void solve(const Resource*, void* = nullptr) override;
+
+  /* Propagate the infeasilities on a single resource.
+   * Solve overloads by delaying operationplans.
+   */
+  void solve(const ResourceBuckets*, void* = nullptr) override;
+
+  /* Infinite resources require no propagation. */
+  void solve(const ResourceInfinite*, void* = nullptr) override {}
+
+  /* Solve infeasibilities on an operationplan by postponing the downstream
+   * consumers.
+   */
+  void solve(OperationPlan*, void* = nullptr);
+
+  /* Move out all operationplans to start beyond the current date and the
+   * fence.
+   */
+  void solve(const Operation*, void* = nullptr) override;
+
+  bool getAcceptTabuCandidate() const { return acceptTabuCandidate; }
+
+  void setAcceptTabuCandidate(bool b) { acceptTabuCandidate = b; }
+
+  /* Add a command to move the start date of the operationplan. */
+  void addMoveStartDate(OperationPlan* op, Date d) {
+    auto i = original_dates.lower_bound(op);
+    if (i != original_dates.end() && i->first != op)
+      original_dates.insert(i, make_pair(op, op->getStart()));
+    if (data->getSolver()->getAutocommit())
+      op->setStart(d);
+    else
+      cmds->add(new CommandMoveOperationPlan(op, d, Date::infinitePast));
+    if (op->getDemand() || (op->getOwner() && op->getOwner()->getDemand()))
+      moved_deliveries = true;
+    if (data->getSolver()->getAlgorithm() == "heuristic_2" &&
+        data->getSolver()->isCapacityConstrained())
+      data->collectResources(op);
+  }
+
+  /* Add a command to move the end date of the operationplan. */
+  void addMoveEndDate(OperationPlan* op, Date d) {
+    auto i = original_dates.lower_bound(op);
+    if (i != original_dates.end() && i->first != op)
+      original_dates.insert(i, make_pair(op, op->getStart()));
+    if (data->getSolver()->getAutocommit())
+      op->getOperation()->setOperationPlanParameters(op, op->getQuantity(),
+                                                     Date::infinitePast, d,
+                                                     true, true, false, true);
+    else
+      cmds->add(new CommandMoveOperationPlan(op, Date::infinitePast, d, -1.0,
+                                             false, true));
+    if (op->getDemand() || (op->getOwner() && op->getOwner()->getDemand()))
+      moved_deliveries = true;
+    if (data->getSolver()->getAlgorithm() == "heuristic_2" &&
+        data->getSolver()->isCapacityConstrained())
+      data->collectResources(op);
+  }
+
+  void addResize(FlowPlan* flplan, double qty, bool) {
+    if (data->getSolver()->getAutocommit())
+      flplan->setQuantity(qty, true);
+    else {
+      logger << "Warning:can't undo this flowplan resize" << endl;  // TODO
+      flplan->setQuantity(qty, true);
+    }
+    auto* op = flplan->getOperationPlan();
+    if (op &&
+        (op->getDemand() || (op->getOwner() && op->getOwner()->getDemand())))
+      moved_deliveries = true;
+  }
+
+  /* Compare candidate operationplans. */
+  bool compareCandidates(OperationPlan*, OperationPlan*,
+                         Date = Date::infinitePast) const;
+
+  static bool compare_loadplans(const LoadPlan*&, const LoadPlan*&);
+
+  struct compareLoadPlans {
+    OperatorForward* data = nullptr;
+    compareLoadPlans(OperatorForward* d) : data(d) {}
+    bool operator()(const LoadPlan*&, const LoadPlan*&);
+  };
+
+  void clearMovedDeliveries() { moved_deliveries = false; }
+
+  bool getMovedDeliveries() const { return moved_deliveries; }
+
+ private:
+  CommandManager* cmds = nullptr;
+
+  bool propagate = true;
+
+  /* Used internally to avoid infinite loops. */
+  static constexpr unsigned short MAX_LOOP = 10000;
+
+  /* Flag whether a candidate on the tabu list is acceptable as candidate
+   * or not. */
+  bool acceptTabuCandidate = false;
+
+  SolverCreate::SolverData* data = nullptr;
+
+  /* Keeps track of previous moves. This is used to maintain stability
+   * during moves. */
+  map<OperationPlan*, Date> original_dates;
+
+  /* An identifier of the cluster being planned. */
+  int cluster;
+
+  direction excess_scanner = direction::both;
+
+  bool moved_deliveries = false;
+
+  /* Add a operationplan to the tabu list. Operationplans in this list can't
+   * be touched by the move solver.
+   */
+  void addTabu(OperationPlan* o, double weight = DBL_MAX) {
+    if (o) tabu[o] = weight;
+  }
+
+  /* Empty the list of tabu operationplans. */
+  void resetTabu() { tabu.clear(); }
+
+  /* Only candidates passing this function are acceptable. */
+  bool isValidCandidate(OperationPlan* opplan) const;
+
+  /* A list of (almost) untouchable operationplans. */
+  map<OperationPlan*, double> tabu;
+
+  /* A list of operationplans that we can't resolve. */
+  set<OperationPlan*> unresolvables;
+
+  /* Flowplan currently being propagated. */
+  FlowPlan* curFlowPlan = nullptr;
+
+  /* Loadplan currently being propagated. */
+  LoadPlan* curLoadPlan = nullptr;
+
+  /* OperationPlan currently being propagated. */
+  OperationPlan* curOperationPlan = nullptr;
+};
+
+class OperatorBackward : public Solver, public NonCopyable {
+ public:
+  using Solver::solve;
+
+  OperatorBackward(SolverCreate::SolverData* d, int c = -1,
+                   CommandManager* mgr = nullptr)
+      : cmds(mgr), cluster(c), data(d) {
+    // We'll never use this class from Python, but still need to do a dummy
+    // initialization.
+    PyObject_INIT(this, &PyBaseObject_Type);
+    if (d)
+      setLogLevel(d->getLogLevel());
+    else
+      throw LogicException("SolverData must be provided");
+  }
+
+  CommandManager* getCommandManager() const { return cmds; }
+
+  void setCommandManager(CommandManager* m) { cmds = m; }
+
+  /* Cluster-level entry (unused; present so OperatorBackward is concrete). */
+  void solve(void* = nullptr) override {}
+
+  /* Keeps track of previous moves. This is used to maintain stability during
+   * moves. */
+  map<OperationPlan*, Date> original_dates;
+
+  /* Add a command to move the start date of the operationplan. */
+  void addMoveStartDate(OperationPlan* op, Date d) {
+    auto i = original_dates.lower_bound(op);
+    if (i != original_dates.end() && i->first != op)
+      original_dates.insert(i, make_pair(op, op->getEnd()));
+    if (data->getSolver()->getAutocommit())
+      op->setStart(d);
+    else
+      cmds->add(new CommandMoveOperationPlan(op, d, Date::infinitePast));
+  }
+
+  /* Add a command to move the end date of the operationplan. */
+  void addMoveEndDate(OperationPlan* op, Date d) {
+    auto i = original_dates.lower_bound(op);
+    if (i != original_dates.end() && i->first != op)
+      original_dates.insert(i, make_pair(op, op->getEnd()));
+    if (data->getSolver()->getAutocommit())
+      op->setEnd(d);
+    else
+      cmds->add(new CommandMoveOperationPlan(op, Date::infinitePast, d));
+  }
+
+  void addResize(FlowPlan* flplan, double qty) {
+    flplan->setQuantity(qty);
+    if (!data->getSolver()->getAutocommit())
+      throw LogicException("Warning: can't undo this flowplan resize");
+  }
+
+  /* An identifier of the cluster being planned. */
+  int cluster;
+
+  direction excess_scanner = direction::both;
+
+  bool getPropagate() const { return propagate; }
+
+  void setPropagate(bool b) { propagate = b; }
+
+  void solve(const Resource*, void* = nullptr) override;
+
+  void solve(const ResourceBuckets*, void* = nullptr) override;
+
+  void solve(const ResourceInfinite*, void* = nullptr) override {}
+
+  void solve(OperationPlan*, void* = nullptr);
+
+  /* Add a operationplan to the tabu list. Operationplans in this list can't
+   * be touched by the move solver.
+   */
+  void addTabu(OperationPlan* o, double weight = DBL_MAX) {
+    if (o) tabu[o] = weight;
+  }
+
+  /* Empty the list of tabu operationplans. */
+  void resetTabu() { tabu.clear(); }
+
+  bool getAcceptTabuCandidate() const { return acceptTabuCandidate; }
+
+  void setAcceptTabuCandidate(bool b) { acceptTabuCandidate = b; }
+
+ private:
+  CommandManager* cmds;
+
+  SolverCreate::SolverData* data = nullptr;
+  /* Flag whether a candidate on the tabu list is acceptable as candidate
+   * or not. */
+  bool acceptTabuCandidate = false;
+
+  /* Compare candidate operationplans. */
+  bool compareCandidates(OperationPlan*, OperationPlan*,
+                         Date = Date::infinitePast) const;
+
+  static bool compare_loadplans(const LoadPlan*&, const LoadPlan*&);
+
+  struct compareLoadPlans {
+    OperatorBackward* data = nullptr;
+    compareLoadPlans(OperatorBackward* d) : data(d) {}
+    bool operator()(const LoadPlan*&, const LoadPlan*&);
+  };
+
+  /* Only candidates passing this function are acceptable. */
+  bool isValidCandidate(OperationPlan* opplan) const;
+
+  /* A list of (almost) untouchable operationplans. */
+  map<OperationPlan*, double> tabu;
+
+  bool propagate = true;
+
+  /* Flowplan currently being propagated. */
+  FlowPlan* curFlowPlan = nullptr;
+
+  /* Loadplan currently being propagated. */
+  LoadPlan* curLoadPlan = nullptr;
+
+  /* OperationPlan currently being propagated. */
+  OperationPlan* curOperationPlan = nullptr;
+
+  /* Used internally to avoid infinite loops. */
+  static constexpr unsigned short MAX_LOOP = 5000;
+};
+
 
 class SolverPropagateStatus : public Solver {
  public:

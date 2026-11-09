@@ -182,6 +182,7 @@ class Tags {
   static const Keyword plan;
   static const Keyword planned;
   static const Keyword planned_quantity;
+  static const Keyword algorithm;
   static const Keyword plantype;
   static const Keyword policy;
   static const Keyword posttime;

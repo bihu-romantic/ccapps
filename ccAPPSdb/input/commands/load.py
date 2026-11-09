@@ -2178,7 +2178,13 @@ class loadOperationPlans(LoadTask):
 
     @classmethod
     def getWeight(cls, **kwargs):
-        return -1 if kwargs.get("skipLoad", False) else 1
+        return (
+            -1
+            if kwargs.get("skipLoad", False)
+            or os.environ.get("FAS_FRESH_BASELINE", "").lower()
+            in ("1", "true", "yes")
+            else 1
+        )
 
     @classmethod
     def run(cls, database=DEFAULT_DB_ALIAS, **kwargs):
@@ -2211,12 +2217,16 @@ class loadOperationPlans(LoadTask):
                     ).lower()
                     == "true"
                 )
-                # A direct GA rolling run still uses the normal supply task
-                # pipeline for loading/exporting, but it must load the full
-                # existing plan network (including proposed MOs/POs/DOs)
-                # instead of only the fixed prefix used by an MRP rebuild.
-                direct_ga = os.environ.get("GA_DIRECT", "").lower() in ("1", "true", "yes")
-                if "supply" in os.environ and not direct_ga:
+                # Reschedule (any solver) keeps the full existing plan network
+                # (including proposed MOs/POs/DOs), not only the fixed prefix
+                # used by an MRP/FAS rebuild.
+                local_skip_supply = (
+                    os.environ.get("CP_LOCAL_SKIP_SUPPLY", "").lower()
+                    in ("1", "true", "yes", "on")
+                    or os.environ.get("LOCAL_SKIP_SUPPLY", "").lower()
+                    in ("1", "true", "yes", "on")
+                )
+                if "supply" in os.environ and not local_skip_supply:
                     confirmed_filter = """ and (
                       operationplan.status in ('confirmed', 'approved', 'completed')
                       or exists (
@@ -2234,10 +2244,9 @@ class loadOperationPlans(LoadTask):
                     confirmed_filter = " and operationplan.status <> 'closed'"
                     parent_filter = " where status <> 'closed' "
                     create_flag = False
-                # In direct GA mode the complete routing hierarchy already
-                # exists in the database. Create all child objects first and
-                # only then restore owner links, so loading can't move dates
-                # while a routing is still only partially present.
+                # When the complete routing hierarchy already exists (skip
+                # supply / full load), create children first then restore
+                # owner links so dates aren't moved on a partial routing.
                 pending_owner_links = []
                 cnt_mo = 0
                 cnt_po = 0
@@ -2425,7 +2434,12 @@ class loadOperationPlans(LoadTask):
                         if dmd and opplan:
                             opplan.demand = dmd
                     except Exception as e:
-                        logger.error("**** %s ****" % e)
+                        # Baseline orphan refs often fail SIG_ADD/activate;
+                        # keep loading the rest without ERROR spam.
+                        if "Can't create operationplan" in str(e):
+                            logger.warning("**** %s ****" % e)
+                        else:
+                            logger.error("**** %s ****" % e)
         with transaction.atomic(using=database):
             with connections[database].chunked_cursor() as cursor:
                 cursor.execute(
@@ -2501,7 +2515,7 @@ class loadOperationPlans(LoadTask):
                                     opplan.consume_material = False
                             if i[6]:
                                 try:
-                                    if direct_ga:
+                                    if not create_flag:
                                         pending_owner_links.append((opplan, i[6]))
                                     else:
                                         opplan.owner = ccAPPS.operationplan(reference=i[6])
@@ -2522,8 +2536,11 @@ class loadOperationPlans(LoadTask):
                                 setattr(opplan, a[0], i[idx])
                                 idx += 1
                     except Exception as e:
-                        logger.error("**** %s ****" % e)
-                if direct_ga:
+                        if "Can't create operationplan" in str(e):
+                            logger.warning("**** %s ****" % e)
+                        else:
+                            logger.error("**** %s ****" % e)
+                if not create_flag:
                     for opplan, owner_reference in pending_owner_links:
                         try:
                             opplan.restoreOwner(
@@ -2596,7 +2613,13 @@ class loadOperationPlanMaterials(LoadTask):
 
     @classmethod
     def getWeight(cls, **kwargs):
-        return -1 if kwargs.get("skipLoad", False) else 1
+        return (
+            -1
+            if kwargs.get("skipLoad", False)
+            or os.environ.get("FAS_FRESH_BASELINE", "").lower()
+            in ("1", "true", "yes")
+            else 1
+        )
 
     @classmethod
     def run(cls, database=DEFAULT_DB_ALIAS, **kwargs):
@@ -2621,15 +2644,16 @@ class loadOperationPlanMaterials(LoadTask):
                     """
                     % (
                         "where %s" % cls.filter if cls.filter else "",
-                        # In a direct GA rolling run proposed MOs are part of
-                        # the existing network being rescheduled.  Loading
-                        # only the fixed prefix drops their real FlowPlans and
-                        # leaves the C++ decoder with an incomplete network.
+                        # Skip-supply keeps proposed MOs in the network being
+                        # repaired. Loading only the fixed prefix drops their
+                        # FlowPlans and leaves the C++ decoder / CP incomplete.
                         (
                             "and operationplan.status in ('approved', 'confirmed', 'completed')"
                             if "supply" in os.environ
-                            and os.environ.get("GA_DIRECT", "").lower()
-                            not in ("1", "true", "yes")
+                            and os.environ.get("CP_LOCAL_SKIP_SUPPLY", "").lower()
+                            not in ("1", "true", "yes", "on")
+                            and os.environ.get("LOCAL_SKIP_SUPPLY", "").lower()
+                            not in ("1", "true", "yes", "on")
                             else ""
                         ),
                     )

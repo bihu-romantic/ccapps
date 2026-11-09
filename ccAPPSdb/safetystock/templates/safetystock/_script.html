@@ -1,0 +1,105 @@
+<script>
+(() => {
+  'use strict';
+  const data = JSON.parse(document.getElementById('ip-data').textContent);
+  const rows = data.rows;
+  const el = id => document.getElementById(id);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const num = (v, digits=1) => Number.isFinite(Number(v)) ? Number(v).toLocaleString('zh-CN',{maximumFractionDigits:digits}) : '—';
+  const date = value => String(value).slice(0,10);
+  const day = value => new Date(String(value).slice(0,10)+'T00:00:00');
+  const add = (value, n) => {const d=day(value); d.setDate(d.getDate()+n);return d;};
+  const iso = value => `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+  const riskText = {critical:'缓冲严重不足',attention:'需要关注',healthy:'库存健康',excess:'库存偏高'};
+  const pill = r => `<span class="ip-pill ${r.risk}">${riskText[r.risk]}${r.ratio === null ? '' : ' · '+num(r.ratio*100,0)+'%'}</span>`;
+  const labels = {service_level:'周期服务水平 (%)',leadtime_days:'提前期覆盖 (天)',leadtime_deviation:'提前期标准差 (天)',demand_deviation:'日需求标准差覆盖',ss_min_qty:'SS 最小数量',ss_max_qty:'SS 最大数量',ss_min_poc:'SS 最小覆盖天数',ss_max_poc:'SS 最大覆盖天数',roq_min_qty:'ROQ 最小数量',roq_max_qty:'ROQ 最大数量',roq_min_poc:'ROQ 最小覆盖天数',roq_max_poc:'ROQ 最大覆盖天数',fixed_order_cost:'单次固定补货成本',holding_cost:'年持有成本率',do_not_stock:'不备库存'};
+  let selected = null;
+  function table(headers, body) {return `<table class="ip-table"><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td class="ip-empty" colspan="${headers.length}">暂无相关数据</td></tr>`}</tbody></table>`;}
+  function projection(r) {
+    const end=add(r.asof,60), changes=new Map();
+    for(const event of r.events){const d=date(event.date);if(day(d)<=end) changes.set(d,(changes.get(d)||0)+event.quantity);}
+    let stock=r.onhand;
+    const points=[{date:date(r.asof),stock}];
+    [...changes.keys()].sort().forEach(d=>{stock+=changes.get(d);points.push({date:d,stock});});
+    points.push({date:iso(end),stock});return points;
+  }
+  function lineChart(r) {
+    const points=projection(r), W=1100,H=225,L=56,R=22,T=18,B=35;
+    const start=day(r.asof).getTime(), end=add(r.asof,60).getTime();
+    const low=Math.min(0,...points.map(p=>p.stock)), high=Math.max(1,r.ss+r.roq,...points.map(p=>p.stock))*1.12;
+    const x=d=>L+(day(d).getTime()-start)/(end-start)*(W-L-R);
+    const y=v=>T+(high-v)/(high-low)*(H-T-B);
+    let grid='',ticks='';for(let i=0;i<=4;i++){const v=low+(high-low)*i/4;grid+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#edf0f4"/><text x="${L-10}" y="${y(v)+4}" text-anchor="end">${num(v,0)}</text>`;}
+    for(let i=0;i<=6;i++){const d=iso(add(r.asof,i*10));ticks+=`<text x="${x(d)}" y="${H-10}" text-anchor="middle">${d.slice(5)}</text>`;}
+    let path=`M ${x(points[0].date)} ${y(points[0].stock)}`;
+    for(const p of points.slice(1)) path+=` H ${x(p.date)} V ${y(p.stock)}`;
+    const band=`<rect x="${L}" y="${y(r.ss+r.roq)}" width="${W-L-R}" height="${Math.max(0,y(r.ss)-y(r.ss+r.roq))}" fill="#f2f8f5"/>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(r.item)}未来60天库存投影">${band}${grid}<path d="${path} L ${W-R} ${y(low)} L ${L} ${y(low)} Z" fill="#83bba4" opacity=".07"/><path d="${path}" fill="none" stroke="#4b8f77" stroke-width="2"/><line x1="${L}" x2="${W-R}" y1="${y(r.ss)}" y2="${y(r.ss)}" stroke="#d7a05b" stroke-dasharray="5 5"/><text x="${W-R-5}" y="${y(r.ss)-6}" text-anchor="end">安全库存 ${num(r.ss)}</text>${ticks}</svg>`;
+  }
+  function stockBar(r){
+    const W=600,L=15,R=35,top=48,height=28;
+    const max=Math.max(1,r.ss+r.roq,r.onhand,r.projected)*1.12;
+    const x=v=>L+Math.max(0,v)/max*(W-L-R);
+    const marker=(value,yy,fill,label)=>`<path d="M ${x(value)} ${yy-5} l 5 5 l -5 5 l -5 -5 Z" fill="${fill}" stroke="#477764"/><line x1="${x(value)}" x2="${x(value)}" y1="${yy+5}" y2="${top+height+5}" stroke="#8ba797" stroke-dasharray="2 3"/><text x="${Math.max(70,Math.min(W-78,x(value)))}" y="${yy-11}" text-anchor="middle">${label} ${num(value)}</text>`;
+    return `<svg class="ip-stock-svg" viewBox="0 0 ${W} 140" role="img" aria-label="SS ${num(r.ss)}, ROQ ${num(r.roq)}, 当前库存 ${num(r.onhand)}"><rect x="${L}" y="${top}" width="${W-L-R}" height="${height}" rx="5" fill="#f2f4f6"/><rect x="${L}" y="${top}" width="${x(r.ss)-L}" height="${height}" rx="4" fill="#e8b06b"/><rect x="${x(r.ss)}" y="${top}" width="${x(r.ss+r.roq)-x(r.ss)}" height="${height}" fill="#b5d9cd"/>${marker(r.onhand,30,'#477764','当前')}<text x="${x(r.ss)}" y="100" text-anchor="middle">SS ${num(r.ss)}</text><text x="${Math.min(W-55,x(r.ss+r.roq))}" y="100" text-anchor="middle">目标 ${num(r.ss+r.roq)}</text><path d="M ${x(r.projected)} 112 l 5 5 l -5 5 l -5 -5 Z" fill="white" stroke="#477764"/><text x="${Math.max(85,Math.min(W-100,x(r.projected)))}" y="136" text-anchor="middle">提前期末 ${num(r.projected)}</text></svg>`;
+  }
+  function historyChart(r){
+    const months=[], totals=new Map(r.history.map(h=>[h.month,h.quantity]));
+    const current=day(r.asof);current.setDate(1);
+    for(let i=12;i>=1;i--){const d=new Date(current.getFullYear(),current.getMonth()-i,1);months.push({month:iso(d).slice(0,7),quantity:totals.get(iso(d).slice(0,7))||0});}
+    const W=1100,H=255,L=55,T=20,base=210,step=(W-L-20)/12,high=Math.max(1,...months.map(m=>m.quantity))*1.15;
+    let svg='';for(let i=0;i<=4;i++){const v=high*i/4,y=base-v/high*(base-T);svg+=`<line x1="${L}" x2="1080" y1="${y}" y2="${y}" stroke="#edf0f4"/><text x="44" y="${y+4}" text-anchor="end">${num(v,0)}</text>`;}
+    months.forEach((m,i)=>{const h=m.quantity/high*(base-T),x=L+i*step+step*.2;svg+=`<rect x="${x}" y="${base-h}" width="${step*.6}" height="${h}" rx="3" fill="${i===11?'#3e806b':'#bdd9ce'}"><title>${m.month}：${num(m.quantity)}件</title></rect><text x="${L+(i+.5)*step}" y="235" text-anchor="middle">${m.month.slice(2)}</text>`;});
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="过去12个月的本地销售需求">${svg}</svg>`;
+  }
+  function renderDetail(r){
+    el('ip-detail').hidden=!r;if(!r)return;
+    el('ip-selected').textContent=r.item;
+    el('ip-selected-sub').textContent=`${r.location}  /  ${r.category}  /  单位成本 ${num(r.cost,2)}`;
+    el('ip-selected-state').innerHTML=pill(r);
+    el('ip-order-count').textContent=r.orders.length;
+    el('ip-stock-bar').innerHTML=stockBar(r);
+    const gap=Math.max(0,r.ss-Math.min(r.onhand,r.projected));
+    el('ip-stock-note').textContent=gap>0?`当前或提前期末库存距安全库存还差 ${num(gap)} 件。查看补货事务，核对补货到达日期。`:`当前与提前期末库存均覆盖安全库存。补货目标上限为 ${num(r.ss+r.roq)} 件。`;
+    const stats=[['当前库存',r.onhand,'期初实物库存'],['安全库存 SS',r.ss,'风险缓冲目标'],['补货批量 ROQ',r.roq,'经济批量与规则'],['日均需求',r.mean,'含下游调拨需求'],['提前期',r.leadtime,'自然日'],['提前期末库存',r.projected,'已生成计划投影']];
+    el('ip-detail-stats').innerHTML=stats.map(([label,v,note])=>`<div class="ip-stat"><label>${label}</label><strong>${num(v)}</strong><small>${note}</small></div>`).join('');
+    el('ip-mini-chart').innerHTML=lineChart(r);el('ip-plan-chart').innerHTML=lineChart(r);
+    let stock=r.onhand;const weeks=[];
+    for(let i=0;i<9;i++){const start=add(r.asof,i*7),end=add(r.asof,(i+1)*7);const events=r.events.filter(e=>day(e.date)>=start&&day(e.date)<end);const incoming=events.filter(e=>e.quantity>0).reduce((s,e)=>s+e.quantity,0);const out=-events.filter(e=>e.quantity<0).reduce((s,e)=>s+e.quantity,0);const opening=stock;stock+=incoming-out;weeks.push([iso(start),opening,incoming,out,stock]);}
+    el('ip-plan-table').innerHTML=table(['周期起始','期初库存','计划流入','计划流出','期末库存','安全库存','目标上限'],weeks.map(w=>`<tr>${w.map((v,i)=>`<td>${i?num(v):v}</td>`).join('')}<td>${num(r.ss)}</td><td>${num(r.ss+r.roq)}</td></tr>`).join(''));
+    el('ip-history-chart').innerHTML=historyChart(r);
+    el('ip-history-note').textContent=`图表仅展示本地点实际销售。SS/ROQ使用最近 ${r.details.history_days} 个完整日的需求，中心仓计算还会汇总下游门店需求。因此无本地销售的中心仓仍可能有补货目标。未来预测尚未启用。`;
+    const types={PO:'采购入库',DO:'调拨',MO:'制造',DLVR:'交货',WO:'工序'};
+    const statuses={proposed:'建议',confirmed:'已确认',approved:'已批准',closed:'已关闭',completed:'已完成'};
+    el('ip-orders-table').innerHTML=table(['参考号','类型 / 方向','日期','数量','状态','供应商 / 路径'],r.orders.map(o=>`<tr><td>${esc(o.reference)}</td><td>${types[o.type]||esc(o.type)} · ${o.quantity>=0?'流入':'流出'}</td><td>${date(o.date)}</td><td class="${o.quantity>=0?'ip-event-positive':'ip-event-negative'}">${o.quantity>=0?'+':''}${num(o.quantity)}</td><td>${statuses[o.status]||esc(o.status)}</td><td>${esc(o.supplier||[o.origin,o.destination].filter(Boolean).join(' → '))}</td></tr>`).join(''));
+    const p=r.details.params;
+    const formulas=`<div class="ip-policy-grid"><div class="ip-formula"><strong>安全库存 SS · ${num(r.ss)} 件</strong><code>z × √(L × σd² + d² × σL²)</code><br>周期服务水平 ${num(p.service_level)}%，提前期 ${num(r.leadtime)} 天<br>历史日需求标准差 ${num(r.deviation,3)}，最后应用上下限约束</div><div class="ip-formula"><strong>补货批量 ROQ · ${num(r.roq)} 件</strong><code>√(2 × 年需求 × 固定补货成本 / 年单位持有成本)</code><br>固定成本 ${num(p.fixed_order_cost)}，年持有成本率 ${num(p.holding_cost*100)}%<br>应用模式：最低库存=SS，目标上限=SS+ROQ</div></div>`;
+    const policyRows=Object.entries(p).filter(([,v])=>v!==null).map(([k,v])=>`<tr><td>${esc(labels[k]||k)}</td><td>${num(v,4)}</td><td>${esc(r.details.sources[k]||'系统默认 / 全局参数')}</td></tr>`).join('');
+    el('ip-policy-content').innerHTML=formulas+table(['参数','有效值','来源'],policyRows)+`<p class="ip-help">计算时间：${esc(r.calculated_at.replace('T',' ').slice(0,19))}；业务日期：${date(r.asof)}。${r.details.warnings.map(esc).join('；')}</p>`;
+  }
+  function renderRows(){
+    const search=el('ip-search').value.toLowerCase().trim(),segment=el('ip-segment').value,location=el('ip-location').value,state=el('ip-state').value;
+    const visible=rows.filter(r=>(!search||(r.item+' '+r.location).toLowerCase().includes(search))&&(!segment||r.details.segments.includes(segment))&&(!location||r.location===location)&&(!state||r.risk===state));
+    if(!visible.some(r=>r.id===selected))selected=visible[0]?.id??null;
+    el('ip-count').textContent=`${visible.length} / ${rows.length} 个库存点`;
+    el('ip-rows').innerHTML=visible.map(r=>`<tr tabindex="0" data-id="${r.id}" aria-selected="${selected===r.id}" class="${selected===r.id?'selected':''}"><td>${esc(r.item)}</td><td>${esc(r.location)}</td><td>${pill(r)}</td><td class="ip-num">${num(r.onhand)}</td><td class="ip-num">${num(r.mean,2)}</td><td class="ip-num">${num(r.leadtime)} 天</td><td class="ip-num">${num(r.ss)}</td><td class="ip-num">${num(r.roq)}</td></tr>`).join('')||'<tr><td class="ip-empty" colspan="8">没有匹配的库存点，请调整筛选条件。</td></tr>';
+    renderDetail(visible.find(r=>r.id===selected));
+  }
+  el('ip-total').textContent=rows.length;
+  el('ip-risk').textContent=rows.filter(r=>['critical','attention'].includes(r.risk)).length;
+  el('ip-value').textContent=num(rows.reduce((v,r)=>v+r.onhand*r.cost,0),0);
+  el('ip-orders').textContent=data.purchases+data.transfers;
+  el('ip-orders-desc').textContent=`${data.purchases} 张采购建议 · ${data.transfers} 张调拨建议`;
+  el('ip-asof').textContent=rows.length?date(rows[0].asof):'未计算';
+  [...new Set(rows.map(r=>r.location))].sort().forEach(location=>{const option=document.createElement('option');option.value=option.textContent=location;el('ip-location').append(option);});
+  for(const id of ['ip-search','ip-segment','ip-location','ip-state'])el(id).addEventListener(id==='ip-search'?'input':'change',renderRows);
+  el('ip-reset').addEventListener('click',()=>{for(const id of ['ip-search','ip-segment','ip-location','ip-state'])el(id).value='';renderRows();});
+  function choose(event){const row=event.target.closest('tr[data-id]');if(row){selected=Number(row.dataset.id);renderRows();}}
+  el('ip-rows').addEventListener('click',choose);
+  el('ip-rows').addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();choose(event);}});
+  const tabs=[...document.querySelectorAll('.ip-tabs button')];
+  function activate(tab){tabs.forEach(b=>{b.classList.toggle('active',b===tab);b.setAttribute('aria-selected',String(b===tab));el('ip-panel-'+b.dataset.tab).hidden=b!==tab;});}
+  tabs.forEach((tab,i)=>{tab.addEventListener('click',()=>activate(tab));tab.addEventListener('keydown',event=>{if(['ArrowRight','ArrowLeft'].includes(event.key)){event.preventDefault();const next=tabs[(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];activate(next);next.focus();}});});
+  renderRows();
+})();
+</script>

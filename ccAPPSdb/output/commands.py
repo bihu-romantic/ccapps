@@ -103,6 +103,16 @@ class TruncatePlan(PlanTask):
         demands=None,
         **kwargs,
     ):
+        # Task weights are calculated before the solver runs.  A local CP/GA
+        # repair can set ``noexport`` only after its final validation, while
+        # this truncate task is already queued.  Recheck at execution time so
+        # a rejected candidate never erases the last valid database plan.
+        if "noexport" in os.environ:
+            logger.info(
+                "Skipping plan truncation: solver rejected the in-memory plan "
+                "(noexport=1)"
+            )
+            return
         import ccAPPS
 
         cursor = connections[database].cursor()

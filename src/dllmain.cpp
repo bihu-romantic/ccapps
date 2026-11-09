@@ -28,6 +28,7 @@
 #include "ccAPPS/database.h"
 #include "ccAPPS/solveraco.h"
 #include "ccAPPS/solverexact.h"
+#include "ccAPPS/solverlocal.h"
 #include "ccAPPS/solverga.h"
 #include "ccAPPS/solverautofix.h"
 #include "ccAPPS/solverfas.h"
@@ -80,6 +81,45 @@ void ccAPPSInitialize(bool procesInitializationFiles) {
     PythonInterpreter::registerGlobalMethod(
         "run_cp", run_cp, METH_NOARGS,
         "Run CP-SAT scheduling and place dates on resource calendars.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_last_run_applied", cp_last_run_applied, METH_NOARGS,
+        "Return the number of assignments exported by the latest CP run.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_last_local_ok", cp_last_local_ok, METH_NOARGS,
+        "Return whether the latest reschedule CP run cleared its trigger.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_last_run_stage", cp_last_run_stage, METH_NOARGS,
+        "Return the terminal stage of the latest CP run.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_last_local_outcome", cp_last_local_outcome, METH_NOARGS,
+        "Return level_used and outcome metrics from the latest local CP run.");
+    PythonInterpreter::registerGlobalMethod(
+        "local_last_outcome", local_last_outcome, METH_NOARGS,
+        "Shared reschedule outcome (solver-agnostic alias).");
+    PythonInterpreter::registerGlobalMethod(
+        "local_last_ok", local_last_ok, METH_NOARGS,
+        "Shared reschedule ok flag (solver-agnostic alias).");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_last_preflight_conflicts", cp_last_preflight_conflicts, METH_NOARGS,
+        "Return human-readable seed conflict lines from model preflight.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_mark_candidate_no_supply", cp_mark_candidate_no_supply, METH_NOARGS,
+        "Mark a local insert as rejected because no supply path exists.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_local_snapshot", cp_local_snapshot, METH_NOARGS,
+        "Save the in-memory schedule before a local CP cascade.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_local_restore", cp_local_restore, METH_NOARGS,
+        "Restore the in-memory schedule during a local CP cascade.");
+    PythonInterpreter::registerGlobalMethod(
+        "cp_local_snapshot_clear", cp_local_snapshot_clear, METH_NOARGS,
+        "Discard the local CP cascade snapshot.");
+    PythonInterpreter::registerGlobalMethod(
+        "run_cp_partitioned", run_cp_partitioned, METH_NOARGS,
+        "Run short-horizon CP-SAT in workshop partitions with fixed material boundaries.");
+    PythonInterpreter::registerGlobalMethod(
+        "run_cp_alns", run_cp_alns, METH_NOARGS,
+        "ALNS lot-split/merge with short CP-SAT LNS neighborhood repair.");
 
     // Initialize the forecast module
     int nok = 0;

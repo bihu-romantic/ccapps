@@ -559,6 +559,8 @@ PyObject* Resource::PlanIterator::iternext() {
 
     // Find the load of all resources in this bucket
     for (auto& i : res_list) {
+      const double loadBefore = bucket_load;
+      const double confirmedBefore = bucket_load_confirmed;
       i.cur_date = cpp_end_date;
       if (i.bucketized) {
         // Bucketized resource
@@ -616,6 +618,27 @@ PyObject* Resource::PlanIterator::iternext() {
 
         // Measure from the previous event till the end of the bucket
         update(&i, i.cur_date);
+      }
+
+      // Personnel utilization is processing time, not assignment span.
+      // calculateOperationTime intersects the operation, location and
+      // resource calendars, excluding pauses even if staff works overnight.
+      if (!i.bucketized && i.res->getCategory() == "人员") {
+        bucket_load = loadBefore;
+        bucket_load_confirmed = confirmedBefore;
+        for (const auto& event : i.res->getLoadPlans()) {
+          if (event.getEventType() != 1 || event.getQuantity() >= 0) continue;
+          const OperationPlan* plan = event.getOperationPlan();
+          if (!plan || !plan->getOperation()) continue;
+          const Date start = max(plan->getStart(), cpp_start_date);
+          const Date end = min(plan->getEnd(), cpp_end_date);
+          if (end <= start) continue;
+          Duration worked;
+          plan->getOperation()->calculateOperationTime(plan, start, end, &worked, true);
+          const double hours = -event.getQuantity() * double(worked) / 3600.0;
+          bucket_load += hours;
+          if (!plan->getProposed()) bucket_load_confirmed += hours;
+        }
       }
 
       // Measure setup

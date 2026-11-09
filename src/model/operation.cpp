@@ -949,8 +949,10 @@ Flow* Operation::findFlow(const Buffer* b, Date d) const {
   return nullptr;
 }
 
-void Operation::deleteOperationPlans(bool deleteLockedOpplans) {
-  OperationPlan::deleteOperationPlans(this, deleteLockedOpplans);
+void Operation::deleteOperationPlans(bool deleteLockedOpplans,
+                                     bool deleteDeliveries) {
+  OperationPlan::deleteOperationPlans(this, deleteLockedOpplans,
+                                      deleteDeliveries);
 }
 
 OperationPlanState OperationFixedTime::setOperationPlanParameters(
@@ -2171,6 +2173,71 @@ double Operation::setOperationPlanQuantity(OperationPlan* oplan, double f,
       if (upd) oplan->update();
     }
     return f;
+  } else if (getBoolProperty("fc_batch_policy", false)) {
+    // plan.lot_split → fc_lot_split (commands.py; legacy fc_fas_lot_split).
+    // On: shape via fc_lot_economic_batch (>2n gate) and SNP. Off: no eco/SNP.
+    // Property absent (unit tests): legacy fc_economic_batch + SNP.
+    const bool hasLotSwitch = hasProperty("fc_lot_split") ||
+                              hasProperty("fc_fas_lot_split");
+    const bool lotSplit =
+        hasLotSwitch &&
+        (getBoolProperty("fc_lot_split", false) ||
+         getBoolProperty("fc_fas_lot_split", false));
+    const double snp = max(1.0, getDoubleProperty("fc_snp", 1.0));
+    const bool exact = getBoolProperty("fc_exact_quantity", false);
+    double economic = 0.0;
+    if (!hasLotSwitch)
+      economic = getDoubleProperty("fc_economic_batch", 0.0);
+    else if (lotSplit) {
+      economic = getDoubleProperty("fc_lot_economic_batch", 0.0);
+      if (economic <= ROUNDING_ERROR)
+        economic = getDoubleProperty("fc_fas_economic_batch", 0.0);
+    }
+    double q = f;
+    const bool allowShape = !hasLotSwitch || lotSplit;
+    if (allowShape && economic > 1.0 && f >= economic - ROUNDING_ERROR)
+      q = economic;
+    else if (allowShape && !exact && f > ROUNDING_ERROR)
+      q = (roundDown ? floor(f / snp + 1e-9)
+                     : ceil(f / snp - 1e-9)) * snp;
+
+    // A shared output may be requested by another member's demand. Cap the
+    // entire operation by every lifecycle-restricted output's remaining need.
+    for (const auto& flow : getFlows()) {
+      if (flow.getQuantity() <= 0.0) continue;
+      const auto* buffer = flow.getBuffer();
+      const double limit = buffer->getDoubleProperty("fc_production_limit", -1.0);
+      if (limit < 0.0) continue;
+      double produced = 0.0;
+      for (const auto& event : buffer->getFlowPlans()) {
+        if (event.getEventType() != 1 || event.getQuantity() <= 0.0) continue;
+        const auto* fp = static_cast<const FlowPlan*>(&event);
+        if (fp->getOperationPlan() == oplan ||
+            fp->getOperationPlan()->getOperation()->hasType<OperationInventory>())
+          continue;
+        produced += event.getQuantity();
+      }
+      q = min(q, max(0.0, (limit - produced) / flow.getQuantity()));
+    }
+    // A lifecycle cap can reduce a previously SNP-rounded lot to a fractional
+    // remainder.  Keep the cap, but round the final operation quantity down
+    // again so we never manufacture a sub-SNP tail merely to consume the last
+    // floating-point sliver of an output limit.  Exact-quantity operations are
+    // intentionally exempt: their cap represents the requested exact amount.
+    // Master switch off: do not re-introduce SNP tails either.
+    if (allowShape && !exact && q > ROUNDING_ERROR)
+      q = floor(q / snp + 1e-9) * snp;
+    else if (exact && q > ROUNDING_ERROR) {
+      // FC exact demands are whole production units. A capacity boundary is
+      // represented at one-second precision, while quantity is a double, so
+      // the inverse duration calculation can return values such as
+      // 17.99399399 for an 18-piece lot. Normalize only a sub-centi-unit
+      // difference; larger fractional exact quantities remain untouched.
+      const double whole = round(q);
+      if (fabs(q - whole) < 0.01) q = whole;
+    }
+    if (!execute) return q;
+    oplan->quantity = q;
   } else if (fabs(f - oplan->quantity) < ROUNDING_ERROR / 100) {
     // No real change
     if (!execute) return oplan->quantity;
