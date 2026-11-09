@@ -10,6 +10,16 @@ import logging
 from threading import Thread
 
 
+def should_preserve_task_message(message):
+    """Keep a solver outcome. Ordinary step text is replaced as before.
+
+    A non-reschedule run never writes a local_outcome message, so its
+    progress text still changes on every step. CP and FAS reschedule both
+    publish local_outcome=; wiping that text made the status API lose ok/fail.
+    """
+    return (message or "").startswith("local_outcome=")
+
+
 def planning_success_status(message):
     """Return the terminal status/message for a completed planner process.
 
@@ -234,7 +244,7 @@ class PlanTaskSequence(PlanTask):
                     # supply step is running. Later steps must keep that
                     # result, or the status API loses the boolean ok/fail.
                     self.task.refresh_from_db(using=database)
-                    if not (self.task.message or "").startswith("local_outcome="):
+                    if not should_preserve_task_message(self.task.message):
                         self.task.message = step.description
                     self.task.save(using=database)
 

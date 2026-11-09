@@ -1334,6 +1334,14 @@ size_t countNewResourceOverloads() {
   return overloads;
 }
 
+// Material no-root completion, material seeds outside the CP horizon, and
+// the combined baseline/outage gate are FAS repair policy. CP, GA, and MRP
+// call this same scope helper and must keep the previous rules.
+bool fasLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "fas";
+}
+
 void evaluateLocalRescheduleOutcome(const string& mode) {
   g_lastLocalOk = 0;
   const bool combined = isCombinedLocalMode(mode);
@@ -1367,30 +1375,37 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     } else {
       windowLate = countLocalWindowLateDemands();
     }
-    // A combined repair may move work outside the named trigger. Fail when
-    // that movement makes a previously complete order short, leaves the named
-    // material short, or introduces a shortage or overload the loaded plan
-    // did not already have. Pre-existing factory shortages are not a reason
-    // to roll the repair back. A zero-capacity window on a changed resource
-    // must end with no proposed load inside it.
-    const size_t newlyIncomplete = countNewIncompleteOrders();
-    orderIncomplete = max(orderIncomplete, newlyIncomplete);
-    if (orderIncomplete) ok = false;
+    // FAS compares the exported plan with the loaded one and requires a
+    // zero-capacity window to contain no proposed load. Other solvers keep
+    // the global shortage and overload gate.
     size_t namedMaterial = 0;
-    if (hasMaterialTrigger)
-      namedMaterial = countNamedMaterialShortages(g_lastChangedMaterials);
-    const size_t newMaterial = countNewMaterialShortages();
-    materialLeft = namedMaterial + newMaterial;
-    if (materialLeft) ok = false;
-    overloads = countNewResourceOverloads();
-    if (overloads) ok = false;
     size_t outageLoads = 0;
-    if (hasResourceTrigger) {
-      loadsOnChanged = countLoadsOnChangedResources(
-          g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
-      outageLoads = countLoadsInChangedOutage();
-      if (outageLoads) ok = false;
+    if (fasLocalPolicy()) {
+      const size_t newlyIncomplete = countNewIncompleteOrders();
+      orderIncomplete = max(orderIncomplete, newlyIncomplete);
+      if (hasMaterialTrigger)
+        namedMaterial = countNamedMaterialShortages(g_lastChangedMaterials);
+      const size_t newMaterial = countNewMaterialShortages();
+      materialLeft = namedMaterial + newMaterial;
+      overloads = countNewResourceOverloads();
+      if (hasResourceTrigger) {
+        loadsOnChanged = countLoadsOnChangedResources(
+            g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
+        outageLoads = countLoadsInChangedOutage();
+      }
+    } else {
+      orderIncomplete = max(orderIncomplete, countGlobalOpenOrderIncomplete());
+      materialLeft = countGlobalMaterialShortages();
+      overloads = countGlobalResourceOverloads();
+      if (hasResourceTrigger) {
+        loadsOnChanged = countLoadsOnChangedResources(
+            g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
+      }
     }
+    if (orderIncomplete) ok = false;
+    if (materialLeft) ok = false;
+    if (overloads) ok = false;
+    if (outageLoads) ok = false;
     g_lastIncomplete = orderIncomplete + materialLeft + overloads + outageLoads;
     g_lastNamedLate = namedLate;
     g_lastWindowLate = windowLate;
@@ -1941,11 +1956,11 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
                                         rangeEnd);
     }
     if (!selected && wantMaterialSeeds) {
-      // Do not require the short CP horizon. A buffer change is irrelevant
-      // to that window: the work order that produces or consumes the buffer
-      // is the seed even when it sits later. Closed purchase and stock
-      // records are inventory, not a manufacturing root.
+      // FAS treats a buffer change as a seed even outside the short CP
+      // horizon. Other solvers still require the root to overlap that window.
       selected = localRootHasMaterial(root, affectedMaterials);
+      if (!fasLocalPolicy())
+        selected = selected && localRootOverlaps(root, rangeStart, rangeEnd);
       if (selected && (root->getConfirmed() || root->getClosed() ||
                        root->getCompleted())) {
         const string ot = root->getOrderType();
@@ -1976,8 +1991,8 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
     // short. A shortage and no work order that can move is a real miss:
     // stop before the solver rewrites the plan and say why.
     const bool materialWithoutOtherSeeds =
-        (mode == "material" || combined) && !wantOrderSeeds &&
-        !wantResourceSelect;
+        fasLocalPolicy() && (mode == "material" || combined) &&
+        !wantOrderSeeds && !wantResourceSelect;
     if (materialWithoutOtherSeeds) {
       const size_t left = affectedMaterials.empty()
                               ? 0

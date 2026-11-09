@@ -209,9 +209,16 @@ bool fasPendingOpenInsert() {
 
 }  // namespace
 
+struct FasSolverFlag {
+  FasSolverFlag() { setenv("LOCAL_SOLVER", "fas", 1); }
+  ~FasSolverFlag() { unsetenv("LOCAL_SOLVER"); }
+};
+
 PyObject* run_fas(PyObject*, PyObject*) {
   // Shared local scope (hot/freeze). FAS only repairs the movable set when
   // local.reschedule / cp.local_reschedule is on; confirmed trees stay pinned.
+  // LOCAL_SOLVER tells the shared scope helper which FAS-only gates to use.
+  FasSolverFlag fasSolverFlag;
   // An explicit level is a FAS repair boundary. CP size caps must not widen
   // it into a full replan that drops orders the caller did not ask to rebuild.
   LocalScopeGuard localScope;

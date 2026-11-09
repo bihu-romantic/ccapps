@@ -966,19 +966,22 @@ def _apply_reschedule_changes(database, values):
         database, values.get("_materials") or []
     )
     resources = _apply_resource_changes(database, values.get("_resources") or [])
-    Parameter.objects.using(database).update_or_create(
-        name="local.revert_changes",
-        defaults={
-            "value": json.dumps(
-                {
-                    "demands": demands,
-                    "buffers": buffers,
-                    "purchases": purchases,
-                    "resources": resources,
-                }
-            )
-        },
-    )
+    # The snapshot is how a failed FAS solve puts master data back. Other
+    # solvers do not use this rollback, so they must not write it.
+    if str(values.get("_solver") or "") == "fas":
+        Parameter.objects.using(database).update_or_create(
+            name="local.revert_changes",
+            defaults={
+                "value": json.dumps(
+                    {
+                        "demands": demands,
+                        "buffers": buffers,
+                        "purchases": purchases,
+                        "resources": resources,
+                    }
+                )
+            },
+        )
 
 
 def _apply_order_changes(database, orders):

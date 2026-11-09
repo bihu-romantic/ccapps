@@ -279,6 +279,97 @@ class FasLocalRescheduleTests(unittest.TestCase):
         self.assertIsNotNone(producer)
         self.assertGreaterEqual(follower.start, producer.end)
 
+    def test_quantity_decrease_updates_end_and_routing_step(self):
+        if _isolate("quantity_end"):
+            return
+        location = ccAPPS.location(name="FC_FACTORY")
+        item = ccAPPS.item(name="01.04.00792", category="自制")
+        ccAPPS.buffer(name="FG @ FC_FACTORY", item=item, location=location, onhand=0)
+        routing = ccAPPS.operation_routing(
+            name="route", location=location, item=item
+        )
+        step = ccAPPS.operation_time_per(
+            name="step", location=location, duration_per=76
+        )
+        ccAPPS.suboperation(owner=routing, operation=step, priority=1)
+        ccAPPS.flow(
+            operation=step,
+            item=item,
+            location=location,
+            quantity=1,
+            type="flow_end",
+        )
+        demand = ccAPPS.demand(
+            name="SO-QTY",
+            item=item,
+            location=location,
+            quantity=600,
+            status="open",
+            due=ORIGIN + timedelta(days=20),
+            priority=1,
+        )
+        start = ORIGIN
+        end = start + timedelta(seconds=600 * 76)
+        parent = ccAPPS.operationplan(
+            operation=routing,
+            quantity=600,
+            start=start,
+            end=end,
+            status="proposed",
+            demand=demand,
+        )
+        demand.quantity = 300
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ccAPPSdb.settings")
+        os.environ.setdefault("POSTGRES_HOST", "127.0.0.1")
+        os.environ.setdefault("POSTGRES_USER", "ccapps")
+        os.environ.setdefault("POSTGRES_PASSWORD", "ccapps")
+        os.environ.setdefault("POSTGRES_DBNAME", "ccapps")
+        import django
+
+        django.setup()
+        from ccAPPSdb.execute.commands import follow_changed_demand_quantity
+
+        follow_changed_demand_quantity(
+            {
+                "LOCAL_NEW_DEMANDS": "SO-QTY",
+                "LOCAL_DELETED_DEMANDS": "SO-QTY",
+            },
+            list(ccAPPS.operationplans()),
+        )
+        self.assertAlmostEqual(float(parent.quantity), 300.0)
+        self.assertEqual(parent.end - parent.start, timedelta(seconds=300 * 76))
+        children = [
+            plan
+            for plan in ccAPPS.operationplans()
+            if getattr(plan, "owner", None) is parent
+        ]
+        self.assertTrue(children, msg="routing step plan was not created")
+        for child in children:
+            self.assertAlmostEqual(float(child.quantity), 300.0)
+
+    def test_material_no_root_success_is_fas_only(self):
+        if _isolate("material_mrp"):
+            return
+        location = ccAPPS.location(name="FC_FACTORY")
+        item = ccAPPS.item(name="01.01.00660B", category="自制")
+        ccAPPS.buffer(
+            name="01.01.00660B @ FC_FACTORY",
+            item=item,
+            location=location,
+            onhand=10,
+        )
+        self._local(
+            LOCAL_RESCHEDULE_TYPE="material",
+            LOCAL_RESCHEDULE_LEVEL="auto",
+            LOCAL_CHANGED_MATERIALS="01.01.00660B",
+        )
+        os.environ.pop("LOCAL_SOLVER", None)
+        ccAPPS.solver_mrp(constraints=52, plantype=1, loglevel=0).solve()
+        outcome = ccAPPS.cp_last_local_outcome()
+        self.assertNotEqual(outcome.get("stage"), "local_material_feasible")
+        self.assertNotEqual(outcome.get("stage"), "local_material_no_root")
+        self.assertFalse(outcome.get("local_ok"), msg=outcome)
+
 
 if __name__ == "__main__":
     case = os.environ.get("CCAPPS_FAS_CASE")
@@ -287,6 +378,8 @@ if __name__ == "__main__":
             "material_ok": "test_material_onhand_without_work_order_is_ok",
             "material_short": "test_material_shortage_without_work_order_fails_clearly",
             "mixed_stop": "test_mixed_stop_clears_h04_and_keeps_orders",
+            "quantity_end": "test_quantity_decrease_updates_end_and_routing_step",
+            "material_mrp": "test_material_no_root_success_is_fas_only",
         }[case]
         result = unittest.TextTestRunner(verbosity=2).run(
             FasLocalRescheduleTests(suite)
