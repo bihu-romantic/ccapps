@@ -189,17 +189,77 @@ constexpr long kFASQueueWeight = 1L;
 // from 9.9h to 11.1h.
 constexpr long kFASContentionUnit = 1800L;
 
+// A pure insert has no historical work order, so the shared scope matches
+// nothing and would skip the solve. FAS can still create that order when the
+// named demand is open and short.
+bool fasPendingOpenInsert() {
+  if (!localRescheduleEnabled()) return false;
+  const auto allow = localSupplyExpansionNames();
+  for (const string& name : allow) {
+    Demand* demand = Demand::find(name);
+    if (!demand || demand->getStatus() != Demand::STATUS_OPEN) continue;
+    if (demand->getDue() == Date::infinitePast ||
+        demand->getDue() == Date::infiniteFuture)
+      continue;
+    if (demand->getQuantity() - demand->getPlannedQuantity() > ROUNDING_ERROR)
+      return true;
+  }
+  return false;
+}
+
 }  // namespace
+
+struct FasSolverFlag {
+  FasSolverFlag() { setenv("LOCAL_SOLVER", "fas", 1); }
+  ~FasSolverFlag() { unsetenv("LOCAL_SOLVER"); }
+};
 
 PyObject* run_fas(PyObject*, PyObject*) {
   // Shared local scope (hot/freeze). FAS only repairs the movable set when
   // local.reschedule / cp.local_reschedule is on; confirmed trees stay pinned.
+  // LOCAL_SOLVER tells the shared scope helper which FAS-only gates to use.
+  FasSolverFlag fasSolverFlag;
+  // An explicit level is a FAS repair boundary. CP size caps must not widen
+  // it into a full replan that drops orders the caller did not ask to rebuild.
   LocalScopeGuard localScope;
+  setenv("LOCAL_KEEP_EXPLICIT_LEVEL", "1", 1);
   applyLocalRescheduleScope(localScope);
-  if (localScope.skipOptimization) {
+  unsetenv("LOCAL_KEEP_EXPLICIT_LEVEL");
+  const bool insertWithoutRoots =
+      localScope.skipOptimization && fasPendingOpenInsert();
+  if (insertWithoutRoots) {
+    // Pin the loaded plan. New supply created below stays proposed and is
+    // the only work this pass places.
+    size_t frozen = 0;
+    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end();
+         ++plan) {
+      OperationPlan* node = &*plan;
+      if (!node || node->getConfirmed() || node->getCompleted() ||
+          node->getClosed())
+        continue;
+      if (!node->getProposed() && !node->getApproved()) continue;
+      const string status = node->getStatus();
+      try {
+        node->setBoolProperty("local_frozen", true);
+        node->setBoolProperty("cp_local_frozen", true);
+        node->setStatusRaw("confirmed");
+        localScope.frozen.push_back({node, status});
+        ++frozen;
+      } catch (...) {
+      }
+    }
+    localScope.skipOptimization = false;
+    setenv("FAS_LOCAL_INSERT_ONLY", "1", 1);
+    logger << "FAS local insert: no historical root work order; froze "
+           << frozen
+           << " loaded operationplan(s) and creating supply for the open insert\n"
+           << flush;
+  } else if (localScope.skipOptimization) {
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
+        localLastStage() != "local_delete_not_applied" &&
+        localLastStage() != "local_material_feasible" &&
+        localLastStage() != "local_material_no_root")
       localSetStage("local_scope_empty");
     Py_RETURN_NONE;
   }
@@ -208,7 +268,13 @@ PyObject* run_fas(PyObject*, PyObject*) {
   fas.setLogLevel(1);
   fas.solve();
   fas.commitPlan();
+  unsetenv("FAS_LOCAL_INSERT_ONLY");
   if (localRescheduleEnabled()) {
+    // Push loads off a zero-capacity window after the forward pass. A stop
+    // is a delay, and downstream consumers move with the producer so the
+    // exported plan does not grow a new shortage.
+    const size_t delayed = localDelayChangedResourcePlans();
+    if (delayed > localLastApplied()) localSetLastApplied(delayed);
     // Outcome destructor needs a non-zero applied gate for order/resource.
     if (localLastApplied() == 0) localSetLastApplied(1);
   }
@@ -658,6 +724,31 @@ void SolverFAS::solve(void*) {
   // different (and often needlessly fragmented) supply plan before its
   // forward scheduler even started.
   stable_sort(demandsToExpand.begin(), demandsToExpand.end(), demandOrder);
+  // Insert with no historical root: expand and schedule only the named open
+  // order. Other local repairs keep the previous "every short open demand"
+  // selection.
+  const bool localInsertOnly = [&]() {
+    if (!localRepair) return false;
+    const char* raw = getenv("FAS_LOCAL_INSERT_ONLY");
+    return raw && *raw && *raw != '0';
+  }();
+  if (localInsertOnly) {
+    const auto allow = localSupplyExpansionNames();
+    auto named = [&](Demand* demand) {
+      return demand && allow.count(demand->getName());
+    };
+    demands.erase(remove_if(demands.begin(), demands.end(),
+                            [&](Demand* demand) { return !named(demand); }),
+                  demands.end());
+    demandsToExpand.erase(
+        remove_if(demandsToExpand.begin(), demandsToExpand.end(),
+                  [&](Demand* demand) { return !named(demand); }),
+        demandsToExpand.end());
+    if (getLogLevel() >= 0)
+      logger << "FAS local insert: scheduling " << demands.size()
+             << " open demand(s), expanding " << demandsToExpand.size()
+             << "\n";
+  }
   // Let the shared MRP queue kernel expand exactly FAS's selected queue. It
   // preserves MRP's batching and purchasing rules without taking over order
   // selection or scheduling dates.
@@ -680,7 +771,17 @@ void SolverFAS::solve(void*) {
   supplyExpander.setResourceIterationMax(getResourceIterationMax());
   supplyExpander.setAutoFence(getAutoFence());
   supplyExpander.setErasePreviousFirst(false);
-  supplyExpander.setLocalSupplyRegen(true);
+  if (localInsertOnly) {
+    // An insert adds one order onto the loaded plan. Cluster-wide excess
+    // cleanup and purchase rebuild would delete unrelated proposed supply.
+    // getLocalSupplyRegen() also reads LOCAL_SUPPLY_REGEN, which the
+    // reschedule path sets to 1 for every FAS run, so clear it for this
+    // expansion only.
+    supplyExpander.setLocalSupplyRegen(false);
+    setenv("LOCAL_SUPPLY_REGEN", "0", 1);
+  } else {
+    supplyExpander.setLocalSupplyRegen(true);
+  }
   // Alternate evaluation runs inside the caller's bookmark transaction.
   // Keep all operationplans created by that trial reversible; only the
   // top-level FAS expansion may autocommit at demand boundaries.
@@ -737,6 +838,7 @@ void SolverFAS::solve(void*) {
              << entry.second.size() << " orders\n";
     supplyExpander.planSelectedDemands(entry.second, entry.first);
   }
+  if (localInsertOnly) setenv("LOCAL_SUPPLY_REGEN", "1", 1);
 
   // Close tiny replenishment residues on discrete, integer customer demand.
   // SolverCreate can stop after its retry limit with e.g. 17.99399399 of an
@@ -2275,7 +2377,11 @@ void SolverFAS::solve(void*) {
   // the forward pass finds no complete slot before that boundary are valid
   // unplanned orders, not a fatal solver error. Remove their complete pegged
   // supply networks after dispatch so no iterator is invalidated mid-pass.
-  if (!failedDemands.empty() || !failedRoots.empty()) {
+  // Local repair must not do that. Dropping an already planned order is what
+  // left mixed reschedules with order_incomplete and a rolled-back plan while
+  // the capacity calendar stayed at zero. Keep the supply; the resource delay
+  // after this pass moves it out of the stop.
+  if (!localRepair && (!failedDemands.empty() || !failedRoots.empty())) {
     unordered_set<OperationPlan*> seenRoots = failedRoots;
     for (const auto& entry : demandByJob)
       if (entry.second && failedDemands.count(entry.second)) {
@@ -2299,6 +2405,15 @@ void SolverFAS::solve(void*) {
       for (const auto& reason : failedReasons)
         logger << "FAS: unplanned reason " << reason.first << '='
                << reason.second << '\n';
+  } else if (localRepair &&
+             (!failedDemands.empty() || !failedRoots.empty()) &&
+             getLogLevel() >= 0) {
+    logger << "FAS local repair: kept existing supply for "
+           << failedDemands.size()
+           << " order(s) that did not find a new slot\n";
+    for (const auto& reason : failedReasons)
+      logger << "FAS local repair reason " << reason.first << '='
+             << reason.second << '\n';
   }
 
   if (trial) {
@@ -2311,7 +2426,9 @@ void SolverFAS::solve(void*) {
   // need to run first keeps that delay for the rest of the schedule.
   // Improve by relocating jobs in the decision sequence (same decoder, new
   // order) — matching Python fjsp_forward_schedule._improve_job_order.
-  if (failedDemands.empty())
+  // Job-order improvement replans the whole selected network. A local
+  // reschedule only has to clear the trigger, so leave the existing sequence.
+  if (!localRepair && failedDemands.empty())
     improveJobOrder(networkRoots, safetyStockPlans, jobSequence);
 
   // Final material sweep. The greedy forward pass (and job-order improve)

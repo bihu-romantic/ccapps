@@ -887,6 +887,27 @@ def _validate_reschedule_refs(database, values):
                             n for n in insert_only if n in already
                         )
                     )
+            # FAS only creates supply for open demands. A closed row with no
+            # plan used to be accepted, its due rewritten, and the solve then
+            # matched no root work order. Scenario 9 has no open demand
+            # without a plan: write a new open demand (same item, location,
+            # customer and a due after currentdate) and insert that name.
+            if values.get("_solver") == "fas" and insert_only:
+                status_rows = dict(
+                    Demand.objects.using(database)
+                    .filter(name__in=insert_only)
+                    .values_list("name", "status")
+                )
+                not_open = [
+                    n for n in insert_only if status_rows.get(n) != "open"
+                ]
+                if not_open:
+                    parts.append(
+                        "insert orders must be open demands so FAS can create "
+                        "a plan (set status=open on the demand first; closed "
+                        "demands are not planned): "
+                        + ", ".join(not_open)
+                    )
     if category in ("material", "all"):
         names = [row["name"] for row in (values.get("_materials") or []) if row.get("name")]
         if names:
@@ -921,15 +942,46 @@ def _validate_reschedule_refs(database, values):
         raise ValidationError("; ".join(parts))
 
 
+def _json_ready(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def _apply_reschedule_changes(database, values):
     """Write this request's new quantities and windows before the solve.
 
     Orders update the demand. Materials update on-hand or a purchase order.
     Resources get a capacity-calendar window; capacity defaults to 0 (down).
+    The previous values are kept so a failed solve can put them back. The
+    plan export is already skipped on failure; without this restore the
+    demand, on-hand and calendar would stay while the plan rolled back.
     """
-    _apply_order_changes(database, values.get("_orders") or [])
-    _apply_material_changes(database, values.get("_materials") or [])
-    _apply_resource_changes(database, values.get("_resources") or [])
+    from ccAPPSdb.common.models import Parameter
+
+    demands = _apply_order_changes(database, values.get("_orders") or [])
+    buffers, purchases = _apply_material_changes(
+        database, values.get("_materials") or []
+    )
+    resources = _apply_resource_changes(database, values.get("_resources") or [])
+    # The snapshot is how a failed FAS solve puts master data back. Other
+    # solvers do not use this rollback, so they must not write it.
+    if str(values.get("_solver") or "") == "fas":
+        Parameter.objects.using(database).update_or_create(
+            name="local.revert_changes",
+            defaults={
+                "value": json.dumps(
+                    {
+                        "demands": demands,
+                        "buffers": buffers,
+                        "purchases": purchases,
+                        "resources": resources,
+                    }
+                )
+            },
+        )
 
 
 def _apply_order_changes(database, orders):
@@ -938,6 +990,7 @@ def _apply_order_changes(database, orders):
     from ccAPPSdb.input.models.demand import Demand
     from ccAPPSdb.input.models.item import Item
 
+    revert = []
     for row in orders:
         if row.get("action") == "delete":
             continue
@@ -952,9 +1005,24 @@ def _apply_order_changes(database, orders):
             fields["item_id"] = row["item"]
         if not fields:
             continue
-        updated = Demand.objects.using(database).filter(name=row["name"]).update(**fields)
-        if not updated:
+        current = (
+            Demand.objects.using(database)
+            .filter(name=row["name"])
+            .values("quantity", "due", "item_id")
+            .first()
+        )
+        if current is None:
             raise ValidationError(f"order not found in demand: {row['name']}")
+        revert.append(
+            {
+                "name": row["name"],
+                "quantity": _json_ready(current["quantity"]),
+                "due": _json_ready(current["due"]),
+                "item": current["item_id"],
+            }
+        )
+        Demand.objects.using(database).filter(name=row["name"]).update(**fields)
+    return revert
 
 
 def _apply_material_changes(database, materials):
@@ -963,6 +1031,8 @@ def _apply_material_changes(database, materials):
     from ccAPPSdb.input.models.buffer import Buffer
     from ccAPPSdb.input.models.operationplan import OperationPlan
 
+    buffers_revert = []
+    purchases_revert = []
     for row in materials:
         name = row["name"]
         if row.get("onhand") not in (None, ""):
@@ -978,6 +1048,14 @@ def _apply_material_changes(database, materials):
                 raise ValidationError(
                     f"material {name} is in more than one location; pass location"
                 )
+            for buf in matched:
+                buffers_revert.append(
+                    {
+                        "item": buf.item_id,
+                        "location": buf.location_id,
+                        "onhand": _json_ready(buf.onhand),
+                    }
+                )
             buffers.update(onhand=onhand)
         has_po = any(row.get(key) not in (None, "") for key in ("po", "quantity", "arrival"))
         if not has_po:
@@ -989,18 +1067,31 @@ def _apply_material_changes(database, materials):
             raise ValidationError(
                 f"material {name} purchase change needs po, quantity, and arrival"
             )
-        updated = (
+        current = (
             OperationPlan.objects.using(database)
             .filter(reference=po, type="PO", item_id=name)
-            .update(
-                quantity=Decimal(str(quantity)),
-                enddate=_parse_when(arrival, f"material {name} arrival"),
-            )
+            .values("quantity", "enddate")
+            .first()
         )
-        if not updated:
+        if current is None:
             raise ValidationError(
                 f"purchase order {po} for material {name} was not found"
             )
+        purchases_revert.append(
+            {
+                "po": po,
+                "item": name,
+                "quantity": _json_ready(current["quantity"]),
+                "end": _json_ready(current["enddate"]),
+            }
+        )
+        OperationPlan.objects.using(database).filter(
+            reference=po, type="PO", item_id=name
+        ).update(
+            quantity=Decimal(str(quantity)),
+            enddate=_parse_when(arrival, f"material {name} arrival"),
+        )
+    return buffers_revert, purchases_revert
 
 
 def _apply_resource_changes(database, resources):
@@ -1025,6 +1116,7 @@ def _apply_resource_changes(database, resources):
             "sunday": True,
         }
 
+    revert = []
     for row in resources:
         if not row.get("start") and not row.get("end") and row.get("capacity") in (None, ""):
             continue
@@ -1042,8 +1134,11 @@ def _apply_resource_changes(database, resources):
             raise ValidationError(f"resources not found in resource: {row['name']}")
         normal = resource.maximum if resource.maximum is not None else Decimal("1")
         calendar = resource.maximum_calendar
+        created_calendar = False
+        assigned_new = calendar is None
+        previous_calendar = calendar.name if calendar is not None else None
         if calendar is None:
-            calendar, _created = Calendar.objects.using(database).get_or_create(
+            calendar, created_calendar = Calendar.objects.using(database).get_or_create(
                 name=f"{resource.name} capacity",
                 defaults={
                     "defaultvalue": normal,
@@ -1068,6 +1163,26 @@ def _apply_resource_changes(database, resources):
         # calendar already uses 0, so step one below its lowest.
         lowest = buckets.aggregate(lowest=Min("priority"))["lowest"]
         priority = 0 if lowest is None or int(lowest) > 0 else int(lowest) - 1
+        existing = CalendarBucket.objects.using(database).filter(
+            calendar=calendar,
+            startdate=start,
+            enddate=end,
+            priority=priority,
+        ).first()
+        revert.append(
+            {
+                "resource": resource.name,
+                "previous_calendar": previous_calendar,
+                "created_calendar": created_calendar,
+                "assigned_new": assigned_new,
+                "calendar": calendar.name,
+                "startdate": start.isoformat(),
+                "enddate": end.isoformat(),
+                "priority": priority,
+                "existed": existing is not None,
+                "value": _json_ready(existing.value) if existing is not None else None,
+            }
+        )
         CalendarBucket.objects.using(database).update_or_create(
             calendar=calendar,
             startdate=start,
@@ -1075,6 +1190,90 @@ def _apply_resource_changes(database, resources):
             priority=priority,
             defaults={"value": capacity, **_bucket_days()},
         )
+    return revert
+
+
+def revert_reschedule_inputs(database):
+    """Put demand, on-hand and capacity windows back after a failed solve.
+
+    Returns True when a snapshot was applied. A successful solve clears the
+    snapshot so a later run cannot undo a change that already shipped.
+    """
+    from decimal import Decimal
+
+    from ccAPPSdb.common.models import Parameter
+    from ccAPPSdb.input.models.buffer import Buffer
+    from ccAPPSdb.input.models.calendar import Calendar, CalendarBucket
+    from ccAPPSdb.input.models.demand import Demand
+    from ccAPPSdb.input.models.operationplan import OperationPlan
+    from ccAPPSdb.input.models.resource import Resource
+
+    raw = Parameter.getValue("local.revert_changes", database, "")
+    if not raw:
+        return False
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    for row in payload.get("demands") or []:
+        Demand.objects.using(database).filter(name=row["name"]).update(
+            quantity=Decimal(row["quantity"]) if row.get("quantity") is not None else None,
+            due=_parse_when(row["due"], "revert due") if row.get("due") else None,
+            item_id=row.get("item"),
+        )
+    for row in payload.get("buffers") or []:
+        buffers = Buffer.objects.using(database).filter(item_id=row["item"])
+        if row.get("location"):
+            buffers = buffers.filter(location_id=row["location"])
+        buffers.update(
+            onhand=Decimal(row["onhand"]) if row.get("onhand") is not None else None
+        )
+    for row in payload.get("purchases") or []:
+        OperationPlan.objects.using(database).filter(
+            reference=row["po"], type="PO", item_id=row["item"]
+        ).update(
+            quantity=Decimal(row["quantity"]) if row.get("quantity") is not None else None,
+            enddate=_parse_when(row["end"], "revert arrival") if row.get("end") else None,
+        )
+    for row in payload.get("resources") or []:
+        resource = Resource.objects.using(database).filter(name=row["resource"]).first()
+        if resource is None:
+            continue
+        if row.get("assigned_new") or row.get("created_calendar"):
+            previous = None
+            if row.get("previous_calendar"):
+                previous = Calendar.objects.using(database).filter(
+                    name=row["previous_calendar"]
+                ).first()
+            resource.maximum_calendar = previous
+            resource.save(using=database, update_fields=["maximum_calendar"])
+            if row.get("created_calendar"):
+                Calendar.objects.using(database).filter(name=row["calendar"]).delete()
+                continue
+        buckets = CalendarBucket.objects.using(database).filter(
+            calendar__name=row["calendar"],
+            startdate=_parse_when(row["startdate"], "revert start"),
+            enddate=_parse_when(row["enddate"], "revert end"),
+            priority=row["priority"],
+        )
+        if row.get("existed"):
+            buckets.update(
+                value=Decimal(row["value"]) if row.get("value") is not None else None
+            )
+        else:
+            buckets.delete()
+    Parameter.objects.using(database).update_or_create(
+        name="local.revert_changes", defaults={"value": ""}
+    )
+    return True
+
+
+def clear_reschedule_revert(database):
+    from ccAPPSdb.common.models import Parameter
+
+    Parameter.objects.using(database).update_or_create(
+        name="local.revert_changes", defaults={"value": ""}
+    )
 
 
 def _prepare_pure_order_deletes(database, values):

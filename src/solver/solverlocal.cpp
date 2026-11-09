@@ -719,6 +719,13 @@ static unordered_set<Resource*> g_lastChangedResources;
 static unordered_set<Buffer*> g_lastChangedMaterials;
 static Date g_lastLocalRangeStart;
 static Date g_lastLocalRangeEnd;
+// Plan state after the request is loaded and before this repair moves dates.
+// Combined success is "did not create a new problem", because a factory plan
+// can already carry shortages the local trigger was not asked to erase.
+static bool g_haveLocalBaseline = false;
+static unordered_set<string> g_baselineIncomplete;
+static unordered_set<Buffer*> g_baselineShortageBuffers;
+static unordered_set<Resource*> g_baselineOverloadResources;
 bool isCombinedLocalMode(const string& mode) {
   return mode == "all" || mode == "combined" || mode == "mixed";
 }
@@ -975,6 +982,98 @@ Date capacityRetry(OperationPlan* plan, Date start, Date end) {
   return Date::infinitePast;
 }
 
+bool loadHitsZeroCapacity(Resource* resource, const Date& start, const Date& end);
+
+struct SupplySlip {
+  OperationPlan* plan = nullptr;
+  Date oldEnd;
+  Date newEnd;
+};
+
+// Local freeze marks a plan confirmed for this solve only. Downstream of a
+// delayed producer has to move with it, including those temporarily confirmed
+// plans. Real history and caller-confirmed work stay put.
+bool prepareLocalMovable(OperationPlan* plan) {
+  if (!plan || !plan->getOperation() || plan->getQuantity() <= ROUNDING_ERROR)
+    return false;
+  if (plan->getCompleted() || plan->getClosed()) return false;
+  if (plan->getBoolProperty("local_history_frozen", false)) return false;
+  if (plan->getConfirmed()) {
+    const bool frozenHere = plan->getBoolProperty("local_frozen", false) ||
+                            plan->getBoolProperty("cp_local_frozen", false);
+    if (!frozenHere) return false;
+    plan->setStatusRaw("proposed");
+  }
+  return plan->getProposed() || plan->getApproved();
+}
+
+void collectProducedBuffers(OperationPlan* plan,
+                            unordered_set<Buffer*>& produced) {
+  for (OperationPlan* cursor = plan; cursor; cursor = cursor->getOwner()) {
+    for (auto flow = cursor->beginFlowPlans(); flow != cursor->endFlowPlans();
+         ++flow)
+      if (flow->getQuantity() > ROUNDING_ERROR && flow->getBuffer())
+        produced.insert(flow->getBuffer());
+  }
+}
+
+// Keep the gap between a delayed producer and the plans that were waiting on
+// its receipt. Shifting only the machine load would start those consumers
+// before the new receipt and fail the material gate.
+size_t pushConsumersAfterSlips(vector<SupplySlip> slips) {
+  if (slips.empty()) return 0;
+  unordered_set<OperationPlan*> anchored;
+  for (const SupplySlip& slip : slips)
+    if (slip.plan) anchored.insert(slip.plan);
+  size_t pushed = 0;
+  for (int pass = 0; pass < 8 && !slips.empty(); ++pass) {
+    vector<SupplySlip> extra;
+    for (const SupplySlip& slip : slips) {
+      if (!slip.plan) continue;
+      const Duration delta = slip.newEnd - slip.oldEnd;
+      if (delta <= Duration(0L)) continue;
+      unordered_set<Buffer*> produced;
+      collectProducedBuffers(slip.plan, produced);
+      if (produced.empty()) continue;
+      for (auto candidate = OperationPlan::begin();
+           candidate != OperationPlan::end(); ++candidate) {
+        OperationPlan* consumer = &*candidate;
+        if (!consumer || anchored.count(consumer)) continue;
+        if (consumer->getStart() < slip.oldEnd) continue;
+        if (!prepareLocalMovable(consumer)) continue;
+        bool uses = false;
+        for (auto flow = consumer->beginFlowPlans();
+             flow != consumer->endFlowPlans(); ++flow) {
+          if (flow->getQuantity() < -ROUNDING_ERROR && flow->getBuffer() &&
+              produced.count(flow->getBuffer())) {
+            uses = true;
+            break;
+          }
+        }
+        if (!uses) continue;
+        const Date oldStart = consumer->getStart();
+        const Date oldEnd = consumer->getEnd();
+        const Date ask = oldStart + delta;
+        if (!ask || ask <= oldStart) continue;
+        const Duration consumerDur =
+            oldEnd > oldStart ? oldEnd - oldStart : Duration(0L);
+        consumer->setStartAndEnd(ask, ask + consumerDur);
+        if (consumer->getStart() == oldStart && consumer->getEnd() == oldEnd)
+          continue;
+        anchored.insert(consumer);
+        extra.push_back({consumer, oldEnd, consumer->getEnd()});
+        ++pushed;
+      }
+    }
+    slips.swap(extra);
+  }
+  if (pushed)
+    logger << "Local delay: pushed " << pushed
+           << " downstream plan(s) to keep material after the moved producer\n"
+           << flush;
+  return pushed;
+}
+
 size_t delayChangedResourcePlansImpl() {
   if (g_lastChangedResources.empty()) return 0;
   for (Resource* resource : g_lastChangedResources) {
@@ -1002,6 +1101,7 @@ size_t delayChangedResourcePlansImpl() {
   }
   struct Row {
     OperationPlan* plan = nullptr;
+    Resource* resource = nullptr;
     Date start;
     string reference;
   };
@@ -1018,7 +1118,8 @@ size_t delayChangedResourcePlansImpl() {
         continue;
       if (!plan->getProposed() && !plan->getApproved()) continue;
       seen.insert(plan);
-      rows.push_back({plan, plan->getStart(), plan->getReference()});
+      rows.push_back(
+          {plan, resource, plan->getStart(), plan->getReference()});
     }
   }
   sort(rows.begin(), rows.end(), [](const Row& left, const Row& right) {
@@ -1028,43 +1129,217 @@ size_t delayChangedResourcePlansImpl() {
   const Date horizon =
       Plan::instance().getCurrent() + Duration(366L * 86400L);
   size_t moved = 0;
+  vector<SupplySlip> slips;
   for (const Row& row : rows) {
     OperationPlan* plan = row.plan;
     const Date originalStart = row.start;
     const Date originalEnd = plan->getEnd();
-    if (capacityRetry(plan, originalStart, originalEnd) == Date::infinitePast)
-      continue;
+    const bool inOutage =
+        loadHitsZeroCapacity(row.resource, originalStart, originalEnd);
+    const Date retry0 = capacityRetry(plan, originalStart, originalEnd);
+    if (!inOutage && retry0 == Date::infinitePast) continue;
+    // A zero-capacity bucket is a closed interval. Start after it. Stepping
+    // one second at a time never leaves a multi-hour stop inside the attempt
+    // budget, which left the other loads sitting in the outage.
     Date ask = originalStart;
+    if (inOutage) {
+      CalendarBucket* closed = nullptr;
+      if (row.resource && row.resource->getMaximumCalendar())
+        calendarCapacityAt(row.resource->getMaximumCalendar(), originalStart,
+                           &closed);
+      if (closed && closed->getEnd() > originalStart)
+        ask = closed->getEnd();
+      else if (retry0 != Date::infinitePast && retry0 > originalStart)
+        ask = retry0;
+      else
+        ask = originalEnd > originalStart ? originalEnd
+                                          : originalStart + Duration(3600L);
+    }
     if (!ask || ask < Plan::instance().getCurrent())
       ask = Plan::instance().getCurrent();
+    const Duration dur = originalEnd > originalStart
+                             ? originalEnd - originalStart
+                             : Duration(3600L);
     bool placed = false;
     for (int attempt = 0; attempt < 500 && ask < horizon; ++attempt) {
-      plan->setOperationPlanParameters(plan->getQuantity(), ask,
-                                       Date::infinitePast, false, true, false);
+      // setOperationPlanParameters searches backward and lands inside the
+      // stop again. Pin the dates, then step past whatever still overlaps
+      // the zero-capacity bucket.
+      plan->setStartAndEnd(ask, ask + dur);
       const Date start = plan->getStart();
       const Date end = plan->getEnd();
       if (!start || !end || end <= start) break;
-      const Date retry = capacityRetry(plan, start, end);
-      if (retry == Date::infinitePast) {
+      if (!loadHitsZeroCapacity(row.resource, start, end)) {
         placed = true;
         break;
       }
-      ask = retry > ask ? retry : (end > ask ? end : ask + Duration(1L));
+      CalendarBucket* closed = nullptr;
+      if (row.resource && row.resource->getMaximumCalendar())
+        calendarCapacityAt(row.resource->getMaximumCalendar(), start, &closed);
+      if (closed && closed->getEnd() > ask)
+        ask = closed->getEnd();
+      else
+        ask = end > ask ? end : ask + Duration(3600L);
     }
     if (!placed) {
       plan->setOperationPlanParameters(plan->getQuantity(), originalStart,
                                        Date::infinitePast, false, true, false);
       continue;
     }
-    if (plan->getStart() != originalStart || plan->getEnd() != originalEnd)
+    if (plan->getStart() != originalStart || plan->getEnd() != originalEnd) {
       ++moved;
+      slips.push_back({plan, originalEnd, plan->getEnd()});
+    }
   }
   if (moved)
     logger << "Local delay: moved " << moved
            << " proposed operationplan(s) to the next open capacity on "
               "changed resources\n"
            << flush;
-  return moved;
+  return moved + pushConsumersAfterSlips(slips);
+}
+
+bool loadHitsZeroCapacity(Resource* resource, const Date& start,
+                          const Date& end) {
+  if (!resource || !start || !end || end <= start) return false;
+  Calendar* calendar = resource->getMaximumCalendar();
+  if (!calendar) return resource->getMaximum() <= ROUNDING_ERROR;
+  Date cursor = start;
+  for (int guard = 0; guard < 10000 && cursor < end; ++guard) {
+    CalendarBucket* bucket = nullptr;
+    const double capacity = calendarCapacityAt(calendar, cursor, &bucket);
+    Date next = end;
+    if (bucket && bucket->getEnd() > cursor && bucket->getEnd() < next)
+      next = bucket->getEnd();
+    if (next <= cursor) next = cursor + Duration(1L);
+    // A one-second midnight edge is the calendar's default, not the stop.
+    if (capacity <= ROUNDING_ERROR && next - cursor > Duration(2L))
+      return true;
+    cursor = next;
+  }
+  return false;
+}
+
+size_t countLoadsInChangedOutage() {
+  if (g_lastChangedResources.empty()) return 0;
+  size_t left = 0;
+  unordered_set<OperationPlan*> seen;
+  for (Resource* resource : g_lastChangedResources) {
+    if (!resource) continue;
+    for (auto load = resource->getLoadPlans().begin();
+         load != resource->getLoadPlans().end(); ++load) {
+      if (load->getEventType() != 1) continue;
+      OperationPlan* plan = load->getOperationPlan();
+      if (!plan || seen.count(plan)) continue;
+      if (plan->getCompleted() || plan->getClosed() || plan->getConfirmed())
+        continue;
+      if (plan->getBoolProperty("local_history_frozen", false)) continue;
+      if (!plan->getProposed() && !plan->getApproved()) continue;
+      if (!loadHitsZeroCapacity(resource, plan->getStart(), plan->getEnd()))
+        continue;
+      seen.insert(plan);
+      ++left;
+      logger << "Changed resource outage still holds " << plan->getReference()
+             << " on " << resource->getName() << " " << plan->getStart()
+             << ".." << plan->getEnd() << "\n";
+    }
+  }
+  return left;
+}
+
+void snapshotLocalBaseline() {
+  g_baselineIncomplete.clear();
+  g_baselineShortageBuffers.clear();
+  g_baselineOverloadResources.clear();
+  for (auto demand = Demand::begin(); demand != Demand::end(); ++demand) {
+    const unsigned short status = demand->getStatus();
+    if (!(status & (Demand::STATUS_OPEN | Demand::STATUS_QUOTE))) continue;
+    if (demand->getQuantity() > ROUNDING_ERROR &&
+        demandDeliveredOrPlanned(&*demand) + ROUNDING_ERROR <
+            demand->getQuantity())
+      g_baselineIncomplete.insert(demand->getName());
+  }
+  for (auto buffer = Buffer::begin(); buffer != Buffer::end(); ++buffer) {
+    if (purchasedInfiniteLedger(&*buffer)) continue;
+    if (buffer->getDetectProblems()) buffer->updateProblems();
+    if (bufferHasMaterialShortage(&*buffer))
+      g_baselineShortageBuffers.insert(&*buffer);
+  }
+  for (auto resource = Resource::begin(); resource != Resource::end();
+       ++resource) {
+    resource->updateProblems();
+    for (auto problem = resource->getProblems(); problem != Problem::end();
+         ++problem)
+      if (problem->hasType<ProblemCapacityOverload>()) {
+        g_baselineOverloadResources.insert(&*resource);
+        break;
+      }
+  }
+  g_haveLocalBaseline = true;
+  logger << "Local baseline: incomplete=" << g_baselineIncomplete.size()
+         << " material_shortages=" << g_baselineShortageBuffers.size()
+         << " overloaded_resources=" << g_baselineOverloadResources.size()
+         << "\n"
+         << flush;
+}
+
+size_t countNewIncompleteOrders() {
+  size_t incomplete = 0;
+  for (auto demand = Demand::begin(); demand != Demand::end(); ++demand) {
+    const unsigned short status = demand->getStatus();
+    if (!(status & (Demand::STATUS_OPEN | Demand::STATUS_QUOTE))) continue;
+    if (demand->getQuantity() <= ROUNDING_ERROR) continue;
+    if (demandDeliveredOrPlanned(&*demand) + ROUNDING_ERROR >=
+        demand->getQuantity())
+      continue;
+    if (g_baselineIncomplete.count(demand->getName())) continue;
+    ++incomplete;
+    logger << "New incomplete order '" << demand->getName() << "'\n";
+  }
+  return incomplete;
+}
+
+size_t countNewMaterialShortages() {
+  size_t shortages = 0;
+  for (auto buffer = Buffer::begin(); buffer != Buffer::end(); ++buffer) {
+    if (purchasedInfiniteLedger(&*buffer)) continue;
+    if (g_baselineShortageBuffers.count(&*buffer)) continue;
+    if (g_lastChangedMaterials.count(&*buffer)) continue;
+    if (buffer->getDetectProblems()) buffer->updateProblems();
+    if (!bufferHasMaterialShortage(&*buffer)) continue;
+    ++shortages;
+    logger << "New material shortage on '" << buffer->getName() << "'\n";
+  }
+  return shortages;
+}
+
+size_t countNewResourceOverloads() {
+  size_t overloads = 0;
+  for (auto resource = Resource::begin(); resource != Resource::end();
+       ++resource) {
+    if (g_baselineOverloadResources.count(&*resource)) continue;
+    resource->updateProblems();
+    bool described = false;
+    for (auto problem = resource->getProblems(); problem != Problem::end();
+         ++problem)
+      if (problem->hasType<ProblemCapacityOverload>()) {
+        if (!described) {
+          logger << "New capacity overload on '" << resource->getName()
+                 << "'\n";
+          described = true;
+        }
+        ++overloads;
+      }
+  }
+  return overloads;
+}
+
+// Material no-root completion, material seeds outside the CP horizon, and
+// the combined baseline/outage gate are FAS repair policy. CP, GA, and MRP
+// call this same scope helper and must keep the previous rules.
+bool fasLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "fas";
 }
 
 void evaluateLocalRescheduleOutcome(const string& mode) {
@@ -1100,31 +1375,47 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     } else {
       windowLate = countLocalWindowLateDemands();
     }
-    // Combined rescheduling is allowed to move/drop work outside the named
-    // trigger.  No previously planned open order may silently become short.
-    orderIncomplete = max(orderIncomplete, countGlobalOpenOrderIncomplete());
-    if (orderIncomplete) ok = false;
-    // A combined repair can move operations far beyond the objects named in
-    // the trigger.  Its success gate must therefore validate the exported
-    // plan globally.  Checking only the changed material/resource set let GA
-    // report "ok" while introducing shortages on other buffers and overloads
-    // on other molds.
-    materialLeft = countGlobalMaterialShortages();
-    if (materialLeft) ok = false;
-    overloads = countGlobalResourceOverloads();
-    if (overloads) ok = false;
-    if (hasResourceTrigger) {
-      loadsOnChanged = countLoadsOnChangedResources(
-          g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
+    // FAS compares the exported plan with the loaded one and requires a
+    // zero-capacity window to contain no proposed load. Other solvers keep
+    // the global shortage and overload gate.
+    size_t namedMaterial = 0;
+    size_t outageLoads = 0;
+    if (fasLocalPolicy()) {
+      const size_t newlyIncomplete = countNewIncompleteOrders();
+      orderIncomplete = max(orderIncomplete, newlyIncomplete);
+      if (hasMaterialTrigger)
+        namedMaterial = countNamedMaterialShortages(g_lastChangedMaterials);
+      const size_t newMaterial = countNewMaterialShortages();
+      materialLeft = namedMaterial + newMaterial;
+      overloads = countNewResourceOverloads();
+      if (hasResourceTrigger) {
+        loadsOnChanged = countLoadsOnChangedResources(
+            g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
+        outageLoads = countLoadsInChangedOutage();
+      }
+    } else {
+      orderIncomplete = max(orderIncomplete, countGlobalOpenOrderIncomplete());
+      materialLeft = countGlobalMaterialShortages();
+      overloads = countGlobalResourceOverloads();
+      if (hasResourceTrigger) {
+        loadsOnChanged = countLoadsOnChangedResources(
+            g_lastChangedResources, g_lastLocalRangeStart, g_lastLocalRangeEnd);
+      }
     }
-    g_lastIncomplete = orderIncomplete + materialLeft + overloads;
+    if (orderIncomplete) ok = false;
+    if (materialLeft) ok = false;
+    if (overloads) ok = false;
+    if (outageLoads) ok = false;
+    g_lastIncomplete = orderIncomplete + materialLeft + overloads + outageLoads;
     g_lastNamedLate = namedLate;
     g_lastWindowLate = windowLate;
     g_lastLocalOk = ok ? 1 : 0;
     logger << "CP local outcome: type=all applied=" << g_lastLocalApplied
            << " order_incomplete=" << orderIncomplete
            << " material_shortages=" << materialLeft
+           << " named_material_shortages=" << namedMaterial
            << " capacity_overloads=" << overloads
+           << " outage_loads=" << outageLoads
            << " loads_on_changed=" << loadsOnChanged
            << " named_late=" << namedLate
            << " window_late=" << windowLate
@@ -1521,6 +1812,11 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
   g_lastIncomplete = 0;
   g_lastNamedLate = 0;
   g_lastWindowLate = 0;
+  g_lastPreflightConflicts.clear();
+  g_haveLocalBaseline = false;
+  g_baselineIncomplete.clear();
+  g_baselineShortageBuffers.clear();
+  g_baselineOverloadResources.clear();
   // A delete trigger describes a database mutation that must already have
   // happened. Never let CP "reschedule" an order that the caller intended to
   // delete and then report success merely because it is on time.
@@ -1660,9 +1956,11 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
                                         rangeEnd);
     }
     if (!selected && wantMaterialSeeds) {
-      selected = localRootHasMaterial(root, affectedMaterials) &&
-                 localRootOverlaps(root, rangeStart, rangeEnd);
-      // Firm PO/STCK supply is pinned via lockedMaterial, not rescheduled.
+      // FAS treats a buffer change as a seed even outside the short CP
+      // horizon. Other solvers still require the root to overlap that window.
+      selected = localRootHasMaterial(root, affectedMaterials);
+      if (!fasLocalPolicy())
+        selected = selected && localRootOverlaps(root, rangeStart, rangeEnd);
       if (selected && (root->getConfirmed() || root->getClosed() ||
                        root->getCompleted())) {
         const string ot = root->getOrderType();
@@ -1686,6 +1984,39 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
       guard.skipOptimization = true;
       logger << "CP local delete: no residual work-order tree; complete\n"
              << flush;
+      return;
+    }
+    // Material on-hand with no manufacturing consumer or producer is a data
+    // change, not a failed solve. Succeed when the named buffers are not
+    // short. A shortage and no work order that can move is a real miss:
+    // stop before the solver rewrites the plan and say why.
+    const bool materialWithoutOtherSeeds =
+        fasLocalPolicy() && (mode == "material" || combined) &&
+        !wantOrderSeeds && !wantResourceSelect;
+    if (materialWithoutOtherSeeds) {
+      const size_t left = affectedMaterials.empty()
+                              ? 0
+                              : countNamedMaterialShortages(affectedMaterials);
+      g_lastIncomplete = left;
+      g_lastNamedLate = 0;
+      g_lastWindowLate = 0;
+      guard.skipOptimization = true;
+      if (left == 0) {
+        g_lastLocalOk = 1;
+        g_lastLocalStage = "local_material_feasible";
+        logger << "CP local material: no work order uses the changed buffer; "
+                  "on-hand change leaves no shortage; complete\n"
+               << flush;
+      } else {
+        g_lastLocalOk = 0;
+        g_lastLocalStage = "local_material_no_root";
+        g_lastPreflightConflicts =
+            "material on-hand change leaves a shortage and no work order can "
+            "repair it";
+        logger << "CP local material: shortages_left=" << left
+               << " and no root work order can repair it\n"
+               << flush;
+      }
       return;
     }
     logger << "CP local reschedule: type=" << mode
@@ -1759,7 +2090,7 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
       level = 3;
     logger << "CP local auto picked level=" << level
            << " from size caps (direct entry)\n";
-  } else if (level < 3) {
+  } else if (level < 3 && envInt("LOCAL_KEEP_EXPLICIT_LEVEL", 0) == 0) {
     const LocalScopeMetrics& chosen = level == 2 ? metrics2 : metrics1;
     if (!localScopeFits(chosen, maxRoots, maxTasks, maxVariables)) {
       logger << "CP local level=" << level
@@ -1784,6 +2115,7 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
   }
   g_lastLocalLevel = level;
   if (level == 3) {
+    if (combined) snapshotLocalBaseline();
     logger << "CP local selected level=3 global; future work is movable, "
               "history remains frozen\n"
            << flush;
@@ -1868,6 +2200,7 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
   // remains an independent, explicitly enabled feature.
   if (getenv("CP_WINDOW_SELECT") == nullptr)
     setenv("CP_WINDOW_SELECT", "1", 0);
+  if (combined) snapshotLocalBaseline();
   const long long bomExtra =
       level == 1 ? static_cast<long long>(guard.hotRoots) -
                        static_cast<long long>(directRoots)

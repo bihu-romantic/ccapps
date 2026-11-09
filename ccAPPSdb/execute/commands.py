@@ -115,6 +115,106 @@ class MakePlanFeasible(PlanTask):
             print("     %s: %s" % (i, probs[i]))
 
 
+
+def follow_changed_demand_quantity(env, plans):
+    """Shrink proposed supply pegged to a changed order.
+
+    A quantity decrease is not a new-supply expansion. The loaded
+    manufacturing order otherwise keeps the old quantity, so a time-per
+    order also keeps its old duration. Scale the top-level plan; the
+    engine copies that quantity onto routing steps and recomputes the end.
+    Increases stay with supply expansion.
+    """
+
+    def split(key):
+        return {
+            part.strip()
+            for part in str(env.get(key) or "").replace(";", ",").split(",")
+            if part.strip()
+        }
+
+    changed = split("LOCAL_NEW_DEMANDS") & split("LOCAL_DELETED_DEMANDS")
+    if not changed:
+        return
+
+    def top_plan(plan):
+        while getattr(plan, "owner", None) is not None:
+            plan = plan.owner
+        return plan
+
+    grouped = {}
+    demands = {}
+    for plan in plans:
+        demand = getattr(plan, "demand", None)
+        if demand is None or getattr(demand, "name", None) not in changed:
+            continue
+        root = top_plan(plan)
+        grouped.setdefault(demand.name, {})[id(root)] = root
+        demands[demand.name] = demand
+    for name, roots in grouped.items():
+        demand = demands.get(name)
+        if demand is None:
+            continue
+        target = float(getattr(demand, "quantity", 0) or 0)
+        movable = []
+        fixed = 0.0
+        for plan in roots.values():
+            status = str(getattr(plan, "status", "") or "").lower()
+            qty = float(getattr(plan, "quantity", 0) or 0)
+            if status in ("proposed", "approved"):
+                movable.append(plan)
+            else:
+                fixed += qty
+        movable_qty = sum(float(getattr(plan, "quantity", 0) or 0) for plan in movable)
+        desired = max(0.0, target - fixed)
+        if not movable or movable_qty <= desired + 1e-4:
+            continue
+        scale = 0.0 if movable_qty <= 1e-9 else desired / movable_qty
+        consumed = 0.0
+        for index, plan in enumerate(movable):
+            old = float(getattr(plan, "quantity", 0) or 0)
+            new = max(0.0, desired - consumed) if index == len(movable) - 1 else old * scale
+            plan.quantity = new
+            consumed += float(getattr(plan, "quantity", 0) or 0)
+            logger.info(
+                "Local FAS quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
+                name,
+                getattr(plan, "reference", None),
+                old,
+                plan.quantity,
+                plan.start,
+                plan.end,
+            )
+
+
+def should_revert_fas_inputs(solver_mode, failed):
+    """Master-data rollback is part of the FAS reschedule contract only."""
+    return solver_mode == "fas" and bool(failed)
+
+
+def finish_local_solve(solver_mode, database, solve):
+    """Run one local solve and put FAS master data back if it fails.
+
+    The failure may be a false outcome or an exception from the solver.
+    MRP, CP, and GA do not use this snapshot.
+    """
+    try:
+        return solve()
+    except Exception:
+        if should_revert_fas_inputs(solver_mode, True):
+            try:
+                from ccAPPSdb.execute.views import revert_reschedule_inputs
+
+                if revert_reschedule_inputs(database):
+                    logger.info(
+                        "Reverted demand, on-hand and capacity "
+                        "after FAS reschedule failed"
+                    )
+            except Exception:
+                logger.exception("Failed to revert reschedule inputs")
+        raise
+
+
 @PlanTaskRegistry.register
 class SupplyPlanning(PlanTask):
     description = "生成供应计划"
@@ -1667,130 +1767,145 @@ class SupplyPlanning(PlanTask):
                         return allow
 
                     expansion_names = _supply_expansion_names(local_repair_env)
+
                     # MRP and FAS may create work orders. GA and CP may not.
                     os.environ["LOCAL_SUPPLY_REGEN"] = (
                         "1" if solver_mode in ("mrp", "fas") else "0"
                     )
-                    if solver_mode == "fas":
-                        ccAPPS.run_fas()
-                    elif solver_mode == "ga":
-                        ga_quantity_audit = {
-                            p.reference: float(p.quantity)
-                            for p in ccAPPS.operationplans()
-                        }
-                        logger.info(
-                            "Local GA: sequencing existing work orders; "
-                            "not producing new ones"
-                        )
-                        ga_timeout = int(
-                            Parameter.getValue(
-                                "ga.timeout_seconds",
-                                database,
-                                os.environ.get("GA_TIMEOUT_SECONDS", "70"),
+                    def _solve_and_record():
+                        if solver_mode == "fas":
+                            follow_changed_demand_quantity(
+                                local_repair_env, ccAPPS.operationplans()
                             )
-                        )
-                        run_threaded(
-                            ccAPPS.run_ga,
-                            ga_timeout,
-                            "Local GA repair...",
-                            "Local GA completed",
-                            "Local GA timed out after %s seconds",
-                        )
-                        for audit_plan in ccAPPS.operationplans():
-                            old_quantity = ga_quantity_audit.get(audit_plan.reference)
-                            if old_quantity is not None and abs(old_quantity - float(audit_plan.quantity)) > 1e-6:
-                                logger.warning("GA quantity audit: ref=%s operation=%s before=%s after=%s", audit_plan.reference, audit_plan.operation.name, old_quantity, audit_plan.quantity)
-                        audit_plan = None
-                    else:
-                        # Hot plans stay proposed and are rebuilt. Frozen plans
-                        # were confirmed by the scope, so this erase leaves
-                        # them locked.
-                        # Must use cluster=0 when userexit_nextdemand is set
-                        # (global priority queue): default solve() fans out
-                        # one thread per cluster against the same Python
-                        # queue and segfaults under concurrent pop.
-                        cls.solver.erasepreviousfirst = True
-                        logger.info(
-                            "Local MRP: frozen plans kept; remaining "
-                            "proposed cleared and rebuilt"
-                        )
-                        if getattr(cls.solver, "userexit_nextdemand", None):
-                            cls.solver.solve(cluster=0)
-                        else:
-                            cls.solver.solve()
-                    local_outcome = {}
-                    try:
-                        raw_outcome = ccAPPS.cp_last_local_outcome()
-                        if isinstance(raw_outcome, dict):
-                            local_outcome = dict(raw_outcome)
-                    except Exception:
-                        local_outcome = {
-                            "local_ok": bool(ccAPPS.cp_last_local_ok()),
-                            "stage": str(ccAPPS.cp_last_run_stage()),
-                            "applied": int(ccAPPS.cp_last_run_applied()),
-                        }
-                    local_outcome["solver"] = solver_mode
-                    local_outcome["status"] = bool(
-                        local_outcome.pop("local_ok", False)
-                    )
-                    if solver_mode == "fas":
-                        # FAS completion is represented by the task status and
-                        # boolean outcome status. It has no CP-style
-                        # multi-stage lifecycle.
-                        local_outcome.pop("stage", None)
-                        logger.info(
-                            "Local FAS result: status=%s applied=%s",
-                            local_outcome.get("status"),
-                            local_outcome.get("applied"),
-                        )
-                    else:
-                        logger.info(
-                            "Local %s result: status=%s stage=%s applied=%s",
-                            solver_mode.upper(),
-                            local_outcome.get("status"),
-                            local_outcome.get("stage"),
-                            local_outcome.get("applied"),
-                        )
-                    try:
-                        import json as _json
-
-                        outcome_json = _json.dumps(
-                            local_outcome, ensure_ascii=False
-                        )
-                        Parameter.objects.using(database).update_or_create(
-                            name="cp.local_last_outcome",
-                            defaults={"value": outcome_json},
-                        )
-                        Parameter.objects.using(database).update_or_create(
-                            name="local.last_outcome",
-                            defaults={"value": outcome_json},
-                        )
-                        task_id = os.environ.get("CCAPPS_TASKID")
-                        if task_id:
-                            from ccAPPSdb.execute.models import Task
-
-                            Task.objects.using(database).filter(
-                                id=int(task_id)
-                            ).update(
-                                message="local_outcome="
-                                + _json.dumps(
-                                    local_outcome,
-                                    ensure_ascii=False,
-                                    separators=(",", ":"),
+                            ccAPPS.run_fas()
+                        elif solver_mode == "ga":
+                            ga_quantity_audit = {
+                                p.reference: float(p.quantity)
+                                for p in ccAPPS.operationplans()
+                            }
+                            logger.info(
+                                "Local GA: sequencing existing work orders; "
+                                "not producing new ones"
+                            )
+                            ga_timeout = int(
+                                Parameter.getValue(
+                                    "ga.timeout_seconds",
+                                    database,
+                                    os.environ.get("GA_TIMEOUT_SECONDS", "70"),
                                 )
                             )
-                    except Exception:
-                        logger.exception("Failed to persist local.last_outcome")
-                    # A local solver works on the in-memory copy loaded from
-                    # the database.  Do not let the following export steps
-                    # replace the last valid plan when the final outcome gate
-                    # rejects that copy.  The diagnostic parameter above is
-                    # written directly and remains available to the API.
-                    if not local_outcome.get("status", False):
-                        raise RuntimeError(
-                            "%s local reschedule failed final validation: %s"
-                            % (solver_mode.upper(), local_outcome)
+                            run_threaded(
+                                ccAPPS.run_ga,
+                                ga_timeout,
+                                "Local GA repair...",
+                                "Local GA completed",
+                                "Local GA timed out after %s seconds",
+                            )
+                            for audit_plan in ccAPPS.operationplans():
+                                old_quantity = ga_quantity_audit.get(audit_plan.reference)
+                                if old_quantity is not None and abs(old_quantity - float(audit_plan.quantity)) > 1e-6:
+                                    logger.warning("GA quantity audit: ref=%s operation=%s before=%s after=%s", audit_plan.reference, audit_plan.operation.name, old_quantity, audit_plan.quantity)
+                            audit_plan = None
+                        else:
+                            # Hot plans stay proposed and are rebuilt. Frozen plans
+                            # were confirmed by the scope, so this erase leaves
+                            # them locked.
+                            # Must use cluster=0 when userexit_nextdemand is set
+                            # (global priority queue): default solve() fans out
+                            # one thread per cluster against the same Python
+                            # queue and segfaults under concurrent pop.
+                            cls.solver.erasepreviousfirst = True
+                            logger.info(
+                                "Local MRP: frozen plans kept; remaining "
+                                "proposed cleared and rebuilt"
+                            )
+                            if getattr(cls.solver, "userexit_nextdemand", None):
+                                cls.solver.solve(cluster=0)
+                            else:
+                                cls.solver.solve()
+                        local_outcome = {}
+                        try:
+                            raw_outcome = ccAPPS.cp_last_local_outcome()
+                            if isinstance(raw_outcome, dict):
+                                local_outcome = dict(raw_outcome)
+                        except Exception:
+                            local_outcome = {
+                                "local_ok": bool(ccAPPS.cp_last_local_ok()),
+                                "stage": str(ccAPPS.cp_last_run_stage()),
+                                "applied": int(ccAPPS.cp_last_run_applied()),
+                            }
+                        local_outcome["solver"] = solver_mode
+                        local_outcome["status"] = bool(
+                            local_outcome.pop("local_ok", False)
                         )
+                        if solver_mode == "fas":
+                            # FAS completion is represented by the task status and
+                            # boolean outcome status. It has no CP-style
+                            # multi-stage lifecycle.
+                            local_outcome.pop("stage", None)
+                            logger.info(
+                                "Local FAS result: status=%s applied=%s",
+                                local_outcome.get("status"),
+                                local_outcome.get("applied"),
+                            )
+                        else:
+                            logger.info(
+                                "Local %s result: status=%s stage=%s applied=%s",
+                                solver_mode.upper(),
+                                local_outcome.get("status"),
+                                local_outcome.get("stage"),
+                                local_outcome.get("applied"),
+                            )
+                        try:
+                            import json as _json
+
+                            outcome_json = _json.dumps(
+                                local_outcome, ensure_ascii=False
+                            )
+                            Parameter.objects.using(database).update_or_create(
+                                name="cp.local_last_outcome",
+                                defaults={"value": outcome_json},
+                            )
+                            Parameter.objects.using(database).update_or_create(
+                                name="local.last_outcome",
+                                defaults={"value": outcome_json},
+                            )
+                            task_id = os.environ.get("CCAPPS_TASKID")
+                            if task_id:
+                                from ccAPPSdb.execute.models import Task
+
+                                Task.objects.using(database).filter(
+                                    id=int(task_id)
+                                ).update(
+                                    message="local_outcome="
+                                    + _json.dumps(
+                                        local_outcome,
+                                        ensure_ascii=False,
+                                        separators=(",", ":"),
+                                    )
+                                )
+                        except Exception:
+                            logger.exception("Failed to persist local.last_outcome")
+                        # A local solver works on the in-memory copy loaded from
+                        # the database.  Do not let the following export steps
+                        # replace the last valid plan when the final outcome gate
+                        # rejects that copy.  The diagnostic parameter above is
+                        # written directly and remains available to the API.
+                        if not local_outcome.get("status", False):
+                            raise RuntimeError(
+                                "%s local reschedule failed final validation: %s"
+                                % (solver_mode.upper(), local_outcome)
+                            )
+                        if solver_mode == "fas":
+                            try:
+                                from ccAPPSdb.execute.views import clear_reschedule_revert
+
+                                clear_reschedule_revert(database)
+                            except Exception:
+                                logger.exception(
+                                    "Failed to clear reschedule revert snapshot"
+                                )
+                    finish_local_solve(solver_mode, database, _solve_and_record)
                 finally:
                     for key, value in prev_env.items():
                         if value is None:
