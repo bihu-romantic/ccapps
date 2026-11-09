@@ -1787,9 +1787,35 @@ class SupplyPlanning(PlanTask):
                     # rejects that copy.  The diagnostic parameter above is
                     # written directly and remains available to the API.
                     if not local_outcome.get("status", False):
+                        try:
+                            from ccAPPSdb.execute.views import (
+                                revert_reschedule_inputs,
+                            )
+
+                            if revert_reschedule_inputs(database):
+                                logger.info(
+                                    "Reverted demand, on-hand and capacity "
+                                    "after %s reschedule failed validation: %s",
+                                    solver_mode.upper(),
+                                    local_outcome.get("preflight_conflicts")
+                                    or local_outcome.get("stage")
+                                    or "unresolved",
+                                )
+                        except Exception:
+                            logger.exception(
+                                "Failed to revert reschedule inputs"
+                            )
                         raise RuntimeError(
                             "%s local reschedule failed final validation: %s"
                             % (solver_mode.upper(), local_outcome)
+                        )
+                    try:
+                        from ccAPPSdb.execute.views import clear_reschedule_revert
+
+                        clear_reschedule_revert(database)
+                    except Exception:
+                        logger.exception(
+                            "Failed to clear reschedule revert snapshot"
                         )
                 finally:
                     for key, value in prev_env.items():

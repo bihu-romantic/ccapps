@@ -194,12 +194,18 @@ constexpr long kFASContentionUnit = 1800L;
 PyObject* run_fas(PyObject*, PyObject*) {
   // Shared local scope (hot/freeze). FAS only repairs the movable set when
   // local.reschedule / cp.local_reschedule is on; confirmed trees stay pinned.
+  // An explicit level is a FAS repair boundary. CP size caps must not widen
+  // it into a full replan that drops orders the caller did not ask to rebuild.
   LocalScopeGuard localScope;
+  setenv("LOCAL_KEEP_EXPLICIT_LEVEL", "1", 1);
   applyLocalRescheduleScope(localScope);
+  unsetenv("LOCAL_KEEP_EXPLICIT_LEVEL");
   if (localScope.skipOptimization) {
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
+        localLastStage() != "local_delete_not_applied" &&
+        localLastStage() != "local_material_feasible" &&
+        localLastStage() != "local_material_no_root")
       localSetStage("local_scope_empty");
     Py_RETURN_NONE;
   }
@@ -209,6 +215,11 @@ PyObject* run_fas(PyObject*, PyObject*) {
   fas.solve();
   fas.commitPlan();
   if (localRescheduleEnabled()) {
+    // Push loads off a zero-capacity window after the forward pass. A stop
+    // is a delay, and downstream consumers move with the producer so the
+    // exported plan does not grow a new shortage.
+    const size_t delayed = localDelayChangedResourcePlans();
+    if (delayed > localLastApplied()) localSetLastApplied(delayed);
     // Outcome destructor needs a non-zero applied gate for order/resource.
     if (localLastApplied() == 0) localSetLastApplied(1);
   }
@@ -2275,7 +2286,11 @@ void SolverFAS::solve(void*) {
   // the forward pass finds no complete slot before that boundary are valid
   // unplanned orders, not a fatal solver error. Remove their complete pegged
   // supply networks after dispatch so no iterator is invalidated mid-pass.
-  if (!failedDemands.empty() || !failedRoots.empty()) {
+  // Local repair must not do that. Dropping an already planned order is what
+  // left mixed reschedules with order_incomplete and a rolled-back plan while
+  // the capacity calendar stayed at zero. Keep the supply; the resource delay
+  // after this pass moves it out of the stop.
+  if (!localRepair && (!failedDemands.empty() || !failedRoots.empty())) {
     unordered_set<OperationPlan*> seenRoots = failedRoots;
     for (const auto& entry : demandByJob)
       if (entry.second && failedDemands.count(entry.second)) {
@@ -2299,6 +2314,15 @@ void SolverFAS::solve(void*) {
       for (const auto& reason : failedReasons)
         logger << "FAS: unplanned reason " << reason.first << '='
                << reason.second << '\n';
+  } else if (localRepair &&
+             (!failedDemands.empty() || !failedRoots.empty()) &&
+             getLogLevel() >= 0) {
+    logger << "FAS local repair: kept existing supply for "
+           << failedDemands.size()
+           << " order(s) that did not find a new slot\n";
+    for (const auto& reason : failedReasons)
+      logger << "FAS local repair reason " << reason.first << '='
+             << reason.second << '\n';
   }
 
   if (trial) {
@@ -2311,7 +2335,9 @@ void SolverFAS::solve(void*) {
   // need to run first keeps that delay for the rest of the schedule.
   // Improve by relocating jobs in the decision sequence (same decoder, new
   // order) — matching Python fjsp_forward_schedule._improve_job_order.
-  if (failedDemands.empty())
+  // Job-order improvement replans the whole selected network. A local
+  // reschedule only has to clear the trigger, so leave the existing sequence.
+  if (!localRepair && failedDemands.empty())
     improveJobOrder(networkRoots, safetyStockPlans, jobSequence);
 
   // Final material sweep. The greedy forward pass (and job-order improve)
