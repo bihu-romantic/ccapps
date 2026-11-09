@@ -116,7 +116,7 @@ class MakePlanFeasible(PlanTask):
 
 
 
-def follow_changed_demand_quantity(env, plans):
+def follow_changed_demand_quantity(env, plans, label="FAS"):
     """Shrink proposed supply pegged to a changed order.
 
     A quantity decrease is not a new-supply expansion. The loaded
@@ -177,7 +177,8 @@ def follow_changed_demand_quantity(env, plans):
             plan.quantity = new
             consumed += float(getattr(plan, "quantity", 0) or 0)
             logger.info(
-                "Local FAS quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
+                "Local %s quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
+                label,
                 name,
                 getattr(plan, "reference", None),
                 old,
@@ -1687,6 +1688,10 @@ class SupplyPlanning(PlanTask):
                                 "ga.material_mode", database, "postcheck"
                             ),
                             "GA_LOGLEVEL": os.environ.get("GA_LOGLEVEL", "0"),
+                            # Shared scope reads this. fas stays FAS-only;
+                            # ga turns on the named mixed gate and the insert
+                            # supply path, not the FAS material-horizon rule.
+                            "LOCAL_SOLVER": "ga",
                         }
                     )
                 prev_env = {k: os.environ.get(k) for k in local_repair_env}
@@ -1779,13 +1784,35 @@ class SupplyPlanning(PlanTask):
                             )
                             ccAPPS.run_fas()
                         elif solver_mode == "ga":
+                            follow_changed_demand_quantity(
+                                local_repair_env,
+                                ccAPPS.operationplans(),
+                                label="GA",
+                            )
+                            if expansion_names:
+                                logger.info(
+                                    "Local GA: creating supply for open insert "
+                                    "or quantity increase: %s",
+                                    ",".join(sorted(expansion_names)),
+                                )
+                                # The priority-queue callback would walk every
+                                # open demand. Drop it so the expansion filter
+                                # plans only the named insert or increase.
+                                cls.solver.userexit_nextdemand = None
+                                cls.solver.erasepreviousfirst = False
+                                cls.solver.solve()
                             ga_quantity_audit = {
                                 p.reference: float(p.quantity)
                                 for p in ccAPPS.operationplans()
                             }
                             logger.info(
-                                "Local GA: sequencing existing work orders; "
-                                "not producing new ones"
+                                "Local GA: sequencing the loaded plan%s",
+                                (
+                                    " plus new supply for "
+                                    + ",".join(sorted(expansion_names))
+                                    if expansion_names
+                                    else ""
+                                ),
                             )
                             ga_timeout = int(
                                 Parameter.getValue(

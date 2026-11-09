@@ -4690,6 +4690,15 @@ PyObject* run_ga(PyObject*, PyObject*) {
       constraints.clean(&demand);
     }
   }
+  if (localRescheduleEnabled()) {
+    // Push any load still inside a changed resource's closed calendar to
+    // the next open time. Confirmed and already-started plans stay put.
+    const size_t delayed = localDelayChangedResourcePlans();
+    if (delayed)
+      logger << "GA local: delayed " << delayed
+             << " load(s) off changed resources\n"
+             << flush;
+  }
   if (localRescheduleEnabled() && localLastApplied() == 0)
     localSetLastApplied(1);
   if (localRescheduleEnabled())
