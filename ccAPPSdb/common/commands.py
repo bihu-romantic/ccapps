@@ -230,7 +230,12 @@ class PlanTaskSequence(PlanTask):
                 # Update status and message
                 if self.task:
                     self.task.status = "%d%%" % int(progress * 100.0 / task_weight)
-                    self.task.message = step.description
+                    # The solver writes local_outcome= onto this row while the
+                    # supply step is running. Later steps must keep that
+                    # result, or the status API loses the boolean ok/fail.
+                    self.task.refresh_from_db(using=database)
+                    if not (self.task.message or "").startswith("local_outcome="):
+                        self.task.message = step.description
                     self.task.save(using=database)
 
                 # Run the step

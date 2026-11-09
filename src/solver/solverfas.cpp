@@ -189,6 +189,24 @@ constexpr long kFASQueueWeight = 1L;
 // from 9.9h to 11.1h.
 constexpr long kFASContentionUnit = 1800L;
 
+// A pure insert has no historical work order, so the shared scope matches
+// nothing and would skip the solve. FAS can still create that order when the
+// named demand is open and short.
+bool fasPendingOpenInsert() {
+  if (!localRescheduleEnabled()) return false;
+  const auto allow = localSupplyExpansionNames();
+  for (const string& name : allow) {
+    Demand* demand = Demand::find(name);
+    if (!demand || demand->getStatus() != Demand::STATUS_OPEN) continue;
+    if (demand->getDue() == Date::infinitePast ||
+        demand->getDue() == Date::infiniteFuture)
+      continue;
+    if (demand->getQuantity() - demand->getPlannedQuantity() > ROUNDING_ERROR)
+      return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 PyObject* run_fas(PyObject*, PyObject*) {
@@ -196,7 +214,36 @@ PyObject* run_fas(PyObject*, PyObject*) {
   // local.reschedule / cp.local_reschedule is on; confirmed trees stay pinned.
   LocalScopeGuard localScope;
   applyLocalRescheduleScope(localScope);
-  if (localScope.skipOptimization) {
+  const bool insertWithoutRoots =
+      localScope.skipOptimization && fasPendingOpenInsert();
+  if (insertWithoutRoots) {
+    // Pin the loaded plan. New supply created below stays proposed and is
+    // the only work this pass places.
+    size_t frozen = 0;
+    for (auto plan = OperationPlan::begin(); plan != OperationPlan::end();
+         ++plan) {
+      OperationPlan* node = &*plan;
+      if (!node || node->getConfirmed() || node->getCompleted() ||
+          node->getClosed())
+        continue;
+      if (!node->getProposed() && !node->getApproved()) continue;
+      const string status = node->getStatus();
+      try {
+        node->setBoolProperty("local_frozen", true);
+        node->setBoolProperty("cp_local_frozen", true);
+        node->setStatusRaw("confirmed");
+        localScope.frozen.push_back({node, status});
+        ++frozen;
+      } catch (...) {
+      }
+    }
+    localScope.skipOptimization = false;
+    setenv("FAS_LOCAL_INSERT_ONLY", "1", 1);
+    logger << "FAS local insert: no historical root work order; froze "
+           << frozen
+           << " loaded operationplan(s) and creating supply for the open insert\n"
+           << flush;
+  } else if (localScope.skipOptimization) {
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
         localLastStage() != "local_delete_not_applied")
@@ -208,6 +255,7 @@ PyObject* run_fas(PyObject*, PyObject*) {
   fas.setLogLevel(1);
   fas.solve();
   fas.commitPlan();
+  unsetenv("FAS_LOCAL_INSERT_ONLY");
   if (localRescheduleEnabled()) {
     // Outcome destructor needs a non-zero applied gate for order/resource.
     if (localLastApplied() == 0) localSetLastApplied(1);
@@ -658,6 +706,31 @@ void SolverFAS::solve(void*) {
   // different (and often needlessly fragmented) supply plan before its
   // forward scheduler even started.
   stable_sort(demandsToExpand.begin(), demandsToExpand.end(), demandOrder);
+  // Insert with no historical root: expand and schedule only the named open
+  // order. Other local repairs keep the previous "every short open demand"
+  // selection.
+  const bool localInsertOnly = [&]() {
+    if (!localRepair) return false;
+    const char* raw = getenv("FAS_LOCAL_INSERT_ONLY");
+    return raw && *raw && *raw != '0';
+  }();
+  if (localInsertOnly) {
+    const auto allow = localSupplyExpansionNames();
+    auto named = [&](Demand* demand) {
+      return demand && allow.count(demand->getName());
+    };
+    demands.erase(remove_if(demands.begin(), demands.end(),
+                            [&](Demand* demand) { return !named(demand); }),
+                  demands.end());
+    demandsToExpand.erase(
+        remove_if(demandsToExpand.begin(), demandsToExpand.end(),
+                  [&](Demand* demand) { return !named(demand); }),
+        demandsToExpand.end());
+    if (getLogLevel() >= 0)
+      logger << "FAS local insert: scheduling " << demands.size()
+             << " open demand(s), expanding " << demandsToExpand.size()
+             << "\n";
+  }
   // Let the shared MRP queue kernel expand exactly FAS's selected queue. It
   // preserves MRP's batching and purchasing rules without taking over order
   // selection or scheduling dates.
@@ -680,7 +753,17 @@ void SolverFAS::solve(void*) {
   supplyExpander.setResourceIterationMax(getResourceIterationMax());
   supplyExpander.setAutoFence(getAutoFence());
   supplyExpander.setErasePreviousFirst(false);
-  supplyExpander.setLocalSupplyRegen(true);
+  if (localInsertOnly) {
+    // An insert adds one order onto the loaded plan. Cluster-wide excess
+    // cleanup and purchase rebuild would delete unrelated proposed supply.
+    // getLocalSupplyRegen() also reads LOCAL_SUPPLY_REGEN, which the
+    // reschedule path sets to 1 for every FAS run, so clear it for this
+    // expansion only.
+    supplyExpander.setLocalSupplyRegen(false);
+    setenv("LOCAL_SUPPLY_REGEN", "0", 1);
+  } else {
+    supplyExpander.setLocalSupplyRegen(true);
+  }
   // Alternate evaluation runs inside the caller's bookmark transaction.
   // Keep all operationplans created by that trial reversible; only the
   // top-level FAS expansion may autocommit at demand boundaries.
@@ -737,6 +820,7 @@ void SolverFAS::solve(void*) {
              << entry.second.size() << " orders\n";
     supplyExpander.planSelectedDemands(entry.second, entry.first);
   }
+  if (localInsertOnly) setenv("LOCAL_SUPPLY_REGEN", "1", 1);
 
   // Close tiny replenishment residues on discrete, integer customer demand.
   // SolverCreate can stop after its retry limit with e.g. 17.99399399 of an
