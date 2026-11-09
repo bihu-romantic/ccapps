@@ -1342,6 +1342,11 @@ bool fasLocalPolicy() {
   return raw && std::string(raw) == "fas";
 }
 
+bool mrpLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "mrp";
+}
+
 void evaluateLocalRescheduleOutcome(const string& mode) {
   g_lastLocalOk = 0;
   const bool combined = isCombinedLocalMode(mode);
@@ -1380,12 +1385,20 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     // the global shortage and overload gate.
     size_t namedMaterial = 0;
     size_t outageLoads = 0;
-    if (fasLocalPolicy()) {
+    if (fasLocalPolicy() || mrpLocalPolicy()) {
       const size_t newlyIncomplete = countNewIncompleteOrders();
       orderIncomplete = max(orderIncomplete, newlyIncomplete);
       if (hasMaterialTrigger)
         namedMaterial = countNamedMaterialShortages(g_lastChangedMaterials);
-      const size_t newMaterial = countNewMaterialShortages();
+      // FAS also rejects a shortage the loaded plan did not already have.
+      // MRP keeps that report, but a timing gap on some other buffer must
+      // not roll back a repair whose named order and stopped resource are
+      // feasible.
+      const size_t newMaterial =
+          fasLocalPolicy() ? countNewMaterialShortages() : 0;
+      if (mrpLocalPolicy() && countNewMaterialShortages())
+        logger << "MRP local: other buffers still show a shortage after the "
+                  "repair\n";
       materialLeft = namedMaterial + newMaterial;
       overloads = countNewResourceOverloads();
       if (hasResourceTrigger) {
@@ -1991,8 +2004,9 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
     // short. A shortage and no work order that can move is a real miss:
     // stop before the solver rewrites the plan and say why.
     const bool materialWithoutOtherSeeds =
-        fasLocalPolicy() && (mode == "material" || combined) &&
-        !wantOrderSeeds && !wantResourceSelect;
+        (fasLocalPolicy() || mrpLocalPolicy()) &&
+        (mode == "material" || combined) && !wantOrderSeeds &&
+        !wantResourceSelect;
     if (materialWithoutOtherSeeds) {
       const size_t left = affectedMaterials.empty()
                               ? 0
