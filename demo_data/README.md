@@ -16,7 +16,10 @@ demo_data/import.sh manufacturing_demo scenario10
 | `jobshop` | `jobshop` | 机加工车间 |
 | `flow_line` | `flow_line` | 流水线 |
 | `job_schedule` | `job_schedule` | 柔性作业车间，设备 M001、M002… |
+| `fc_factory` | `fc_factory` | 场景 9 富城工厂。业务日期 2026-10-16，含物料、工艺、资源、订单和当时的计划 |
 
-`demo`、`manufacturing_demo`、`distribution_demo` 导入后，订单交期会按今天重算。另外三套保持文件里的日期。
+`demo`、`manufacturing_demo`、`distribution_demo` 导入后，订单交期会按今天重算。`jobshop`、`flow_line`、`job_schedule`、`fc_factory` 保持文件里的日期。
+
+`fc_factory` 大约 7 万条。目标场景里同名的物料、日历、参数会被盖掉，其中包含 `currentdate` 和 `plan.solver`。
 
 `furniture/` 不能导入数据库。`model.xml` 是引擎用的家具厂模型，两份 `plan_*.xml` 是排程结果导出。

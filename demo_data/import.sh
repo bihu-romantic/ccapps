@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-DATASETS=(demo manufacturing_demo distribution_demo jobshop flow_line job_schedule)
+DATASETS=(demo manufacturing_demo distribution_demo jobshop flow_line job_schedule fc_factory)
 
 usage() {
   cat <<EOF
@@ -20,10 +20,11 @@ usage() {
   jobshop             机加工车间
   flow_line           流水线
   job_schedule        柔性作业车间
+  fc_factory          场景9富城工厂
 
 家具厂的三份 xml 在 demo_data/furniture/，不是数据库样例，不能用本脚本导入。
 
-导入是追加。目标场景里已有同名主数据时会冲突。名字里带 demo 的三套，导入后交期会拨到今天。
+导入是追加。目标场景里已有同名主数据时会冲突。名字里带 demo 的三套，导入后交期会拨到今天。fc_factory 保持文件里的日期，同名参数和物料会被这套数据盖掉。
 EOF
 }
 
