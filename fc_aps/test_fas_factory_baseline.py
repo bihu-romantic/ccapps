@@ -5,6 +5,7 @@ dump when that dump is present. A full plan with reschedule off must leave
 plan counts, a sample of start/end/quantity/status, and problem categories
 where the fixture left them.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -20,6 +21,13 @@ EXPECTED_COUNTS = {
     ("MO", "proposed"): 172,
     ("DLVR", "proposed"): 70,
 }
+# Business columns of operationplan after one non-reschedule FAS run.
+# Reference, owner and lastmodified are left out: a supply run rewrites
+# proposed ids and still leaves this fingerprint unchanged. Wall-clock text
+# is read in Europe/Brussels, matching CCAPPS_TIME_ZONE below.
+BUSINESS_FINGERPRINT = (
+    "11bd855e053f3b34e865c1adcb0edf59bcb53794cb16747cadfcb653ace316c5"
+)
 
 
 def _env():
@@ -31,6 +39,10 @@ def _env():
     env.setdefault("DJANGO_SETTINGS_MODULE", "ccAPPSdb.settings")
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     env["PGPASSWORD"] = env["POSTGRES_PASSWORD"]
+    # Pin the engine clock. A machine whose local zone is not Brussels would
+    # otherwise change timestamptz text and this fingerprint.
+    env["CCAPPS_TIME_ZONE"] = "Europe/Brussels"
+    env["PGTZ"] = "Europe/Brussels"
     ortools = ROOT / "third_party" / "or-tools" / "lib"
     env["LD_LIBRARY_PATH"] = str(ortools) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
     return env
@@ -40,12 +52,16 @@ def _connect():
     import psycopg2
 
     env = _env()
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         host=env["POSTGRES_HOST"],
         dbname="ccapps9",
         user=env["POSTGRES_USER"],
         password=env["POSTGRES_PASSWORD"],
     )
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute("set time zone 'Europe/Brussels'")
+    return conn
 
 
 def _query(sql, args=None):
@@ -112,6 +128,37 @@ def _restore():
         raise subprocess.CalledProcessError(
             restored.returncode, restored.args, restored.stdout, restored.stderr
         )
+
+
+def _business_fingerprint():
+    conn = _connect()
+    try:
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("set time zone 'Europe/Brussels'")
+            cur.execute(
+                """
+                select type, status, quantity::text, startdate::text, enddate::text,
+                       coalesce(operation_id, ''), coalesce(item_id, ''),
+                       coalesce(location_id, ''), coalesce(demand_id, ''),
+                       coalesce(source, ''), coalesce(quantity_completed::text, ''),
+                       coalesce(batch, ''), coalesce(name, ''), coalesce(due::text, ''),
+                       coalesce(delay::text, ''), coalesce(criticality::text, ''),
+                       coalesce(color::text, '')
+                from operationplan
+                order by type, status, coalesce(demand_id, ''),
+                         coalesce(operation_id, ''), coalesce(item_id, ''),
+                         coalesce(location_id, ''), startdate, enddate, quantity,
+                         reference
+                """
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    blob = "\n".join(
+        "|".join("" if value is None else str(value) for value in row) for row in rows
+    ).encode()
+    return hashlib.sha256(blob).hexdigest()
 
 
 def _signature():
@@ -213,6 +260,7 @@ class FactoryFasBaselineTests(unittest.TestCase):
             )
         }
         self.assertEqual(problems, {"invalid data": 9013})
+        self.assertEqual(_business_fingerprint(), BUSINESS_FINGERPRINT)
 
     def test_failed_solve_restores_demand_and_onhand(self):
         os.environ.update(_env())
