@@ -434,6 +434,7 @@ def APITask(request, action):
                             # Reschedule API exposes one terminal result only:
                             # true=success, false=failure.
                             row["status"] = success
+                            row["ok"] = success
                             row["local_outcome"] = outcome
                     except Exception:
                         pass
@@ -887,12 +888,12 @@ def _validate_reschedule_refs(database, values):
                             n for n in insert_only if n in already
                         )
                     )
-            # FAS only creates supply for open demands. A closed row with no
-            # plan used to be accepted, its due rewritten, and the solve then
-            # matched no root work order. Scenario 9 has no open demand
-            # without a plan: write a new open demand (same item, location,
-            # customer and a due after currentdate) and insert that name.
-            if values.get("_solver") == "fas" and insert_only:
+            # FAS and MRP only create supply for open demands. A closed row
+            # with no plan used to be accepted and the solve then matched no
+            # root work order. Scenario 9 has no open demand without a plan:
+            # write a new open demand (same item, location, customer and a due
+            # after currentdate) and insert that name.
+            if values.get("_solver") in ("fas", "mrp") and insert_only:
                 status_rows = dict(
                     Demand.objects.using(database)
                     .filter(name__in=insert_only)
@@ -903,9 +904,10 @@ def _validate_reschedule_refs(database, values):
                 ]
                 if not_open:
                     parts.append(
-                        "insert orders must be open demands so FAS can create "
-                        "a plan (set status=open on the demand first; closed "
-                        "demands are not planned): "
+                        "insert orders must be open demands so "
+                        + str(values.get("_solver") or "").upper()
+                        + " can create a plan (set status=open on the demand "
+                        "first; closed demands are not planned): "
                         + ", ".join(not_open)
                     )
     if category in ("material", "all"):
@@ -966,9 +968,9 @@ def _apply_reschedule_changes(database, values):
         database, values.get("_materials") or []
     )
     resources = _apply_resource_changes(database, values.get("_resources") or [])
-    # The snapshot is how a failed FAS solve puts master data back. Other
-    # solvers do not use this rollback, so they must not write it.
-    if str(values.get("_solver") or "") == "fas":
+    # The snapshot is how a failed FAS or MRP solve puts master data back.
+    # CP and GA do not use this rollback, so they must not write it.
+    if str(values.get("_solver") or "") in ("fas", "mrp"):
         Parameter.objects.using(database).update_or_create(
             name="local.revert_changes",
             defaults={

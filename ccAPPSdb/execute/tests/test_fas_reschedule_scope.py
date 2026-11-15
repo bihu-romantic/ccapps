@@ -35,10 +35,11 @@ class FasScopeTests(SimpleTestCase):
         )
         self.assertEqual(planning_success_status("Creating buckets"), ("Done", ""))
 
-    def test_rollback_predicate_is_fas_only(self):
+    def test_rollback_predicate_is_fas_and_mrp(self):
         self.assertTrue(should_revert_fas_inputs("fas", True))
+        self.assertTrue(should_revert_fas_inputs("mrp", True))
         self.assertFalse(should_revert_fas_inputs("fas", False))
-        self.assertFalse(should_revert_fas_inputs("mrp", True))
+        self.assertFalse(should_revert_fas_inputs("mrp", False))
         self.assertFalse(should_revert_fas_inputs("cp", True))
         self.assertFalse(should_revert_fas_inputs("ga", True))
 
@@ -71,7 +72,7 @@ class FasScopeTests(SimpleTestCase):
         )
         self.assertEqual(parent.quantity, 300)
 
-    def test_failed_fas_solve_reverts_and_other_solvers_do_not(self):
+    def test_failed_fas_and_mrp_solves_revert_and_other_solvers_do_not(self):
         from ccAPPSdb.execute import commands
 
         def boom():
@@ -86,13 +87,17 @@ class FasScopeTests(SimpleTestCase):
             revert.reset_mock()
             with self.assertRaises(RuntimeError):
                 commands.finish_local_solve("mrp", "scenario9", boom)
-            revert.assert_not_called()
+            revert.assert_called_once_with("scenario9")
             revert.reset_mock()
             with self.assertRaises(RuntimeError):
                 commands.finish_local_solve("cp", "scenario9", boom)
             revert.assert_not_called()
+            revert.reset_mock()
+            with self.assertRaises(RuntimeError):
+                commands.finish_local_solve("ga", "scenario9", boom)
+            revert.assert_not_called()
 
-    def test_revert_snapshot_is_written_only_for_fas(self):
+    def test_revert_snapshot_is_written_for_fas_and_mrp(self):
         from ccAPPSdb.execute import views
 
         with patch.object(views, "_apply_order_changes", return_value=[]), patch.object(
@@ -100,10 +105,15 @@ class FasScopeTests(SimpleTestCase):
         ), patch.object(views, "_apply_resource_changes", return_value=[]), patch(
             "ccAPPSdb.common.models.Parameter"
         ) as parameter:
-            views._apply_reschedule_changes("scenario9", {"_solver": "mrp"})
-            parameter.objects.using.assert_not_called()
             views._apply_reschedule_changes("scenario9", {"_solver": "cp"})
             parameter.objects.using.assert_not_called()
+            views._apply_reschedule_changes("scenario9", {"_solver": "ga"})
+            parameter.objects.using.assert_not_called()
+            views._apply_reschedule_changes(
+                "scenario9", {"_solver": "mrp", "_orders": []}
+            )
+            parameter.objects.using.assert_called_with("scenario9")
+            parameter.objects.using.reset_mock()
             views._apply_reschedule_changes(
                 "scenario9", {"_solver": "fas", "_orders": []}
             )

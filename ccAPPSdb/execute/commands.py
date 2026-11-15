@@ -188,15 +188,22 @@ def follow_changed_demand_quantity(env, plans):
 
 
 def should_revert_fas_inputs(solver_mode, failed):
-    """Master-data rollback is part of the FAS reschedule contract only."""
-    return solver_mode == "fas" and bool(failed)
+    """Put written master data back when a FAS or MRP reschedule fails.
+
+    Both solvers write demand, on-hand, purchase, and capacity before the
+    solve, then skip plan export if the solve fails. Leaving those writes
+    would make the database disagree with the plan that remains. CP and GA
+    do not use this snapshot. A successful solve and a non-reschedule run
+    never call this.
+    """
+    return solver_mode in ("fas", "mrp") and bool(failed)
 
 
 def finish_local_solve(solver_mode, database, solve):
-    """Run one local solve and put FAS master data back if it fails.
+    """Run one local solve and restore FAS or MRP master data if it fails.
 
     The failure may be a false outcome or an exception from the solver.
-    MRP, CP, and GA do not use this snapshot.
+    CP and GA do not use this snapshot.
     """
     try:
         return solve()
@@ -208,7 +215,8 @@ def finish_local_solve(solver_mode, database, solve):
                 if revert_reschedule_inputs(database):
                     logger.info(
                         "Reverted demand, on-hand and capacity "
-                        "after FAS reschedule failed"
+                        "after %s reschedule failed",
+                        solver_mode.upper(),
                     )
             except Exception:
                 logger.exception("Failed to revert reschedule inputs")
@@ -1807,22 +1815,85 @@ class SupplyPlanning(PlanTask):
                                     logger.warning("GA quantity audit: ref=%s operation=%s before=%s after=%s", audit_plan.reference, audit_plan.operation.name, old_quantity, audit_plan.quantity)
                             audit_plan = None
                         else:
-                            # Hot plans stay proposed and are rebuilt. Frozen plans
-                            # were confirmed by the scope, so this erase leaves
-                            # them locked.
+                            # LOCAL_SOLVER selects the MRP gates in the shared
+                            # scope helper. FAS sets the same variable itself.
+                            os.environ["LOCAL_SOLVER"] = "mrp"
+
+                            def _open_inserts_without_plan(env):
+                                def split(key):
+                                    return {
+                                        part.strip()
+                                        for part in str(env.get(key) or "")
+                                        .replace(";", ",")
+                                        .split(",")
+                                        if part.strip()
+                                    }
+
+                                pure = split("LOCAL_NEW_DEMANDS") - split(
+                                    "LOCAL_DELETED_DEMANDS"
+                                )
+                                if not pure:
+                                    return []
+                                present = set()
+                                for plan in ccAPPS.operationplans():
+                                    demand = getattr(plan, "demand", None)
+                                    if (
+                                        demand is not None
+                                        and getattr(demand, "name", None) in pure
+                                    ):
+                                        present.add(demand.name)
+                                return [
+                                    demand
+                                    for demand in ccAPPS.demands()
+                                    if demand.name in pure
+                                    and demand.name not in present
+                                    and demand.status == "open"
+                                    and float(demand.quantity or 0) > 0
+                                ]
+
+                            insert_queue = _open_inserts_without_plan(
+                                local_repair_env
+                            )
+                            previous_exit = getattr(
+                                cls.solver, "userexit_nextdemand", None
+                            )
+                            if insert_queue:
+                                logger.info(
+                                    "Local MRP insert: %s open demand(s) have "
+                                    "no historical plan",
+                                    len(insert_queue),
+                                )
+
+                                def next_insert_demand(
+                                    _cluster, _queue=insert_queue
+                                ):
+                                    if _queue:
+                                        return _queue.pop(0)
+                                    return None
+
+                                cls.solver.userexit_nextdemand = next_insert_demand
+                            # Hot plans stay proposed and are rebuilt. Frozen
+                            # plans were confirmed by the scope, so this erase
+                            # leaves them locked. An open insert freezes the
+                            # loaded plan in C++ and plans only that demand.
                             # Must use cluster=0 when userexit_nextdemand is set
                             # (global priority queue): default solve() fans out
                             # one thread per cluster against the same Python
                             # queue and segfaults under concurrent pop.
-                            cls.solver.erasepreviousfirst = True
-                            logger.info(
-                                "Local MRP: frozen plans kept; remaining "
-                                "proposed cleared and rebuilt"
-                            )
-                            if getattr(cls.solver, "userexit_nextdemand", None):
-                                cls.solver.solve(cluster=0)
-                            else:
-                                cls.solver.solve()
+                            try:
+                                cls.solver.erasepreviousfirst = True
+                                logger.info(
+                                    "Local MRP: frozen plans kept; remaining "
+                                    "proposed cleared and rebuilt"
+                                )
+                                if getattr(cls.solver, "userexit_nextdemand", None):
+                                    cls.solver.solve(cluster=0)
+                                else:
+                                    cls.solver.solve()
+                            finally:
+                                os.environ.pop("LOCAL_SOLVER", None)
+                                if insert_queue:
+                                    cls.solver.userexit_nextdemand = previous_exit
                         local_outcome = {}
                         try:
                             raw_outcome = ccAPPS.cp_last_local_outcome()
@@ -1896,7 +1967,7 @@ class SupplyPlanning(PlanTask):
                                 "%s local reschedule failed final validation: %s"
                                 % (solver_mode.upper(), local_outcome)
                             )
-                        if solver_mode == "fas":
+                        if solver_mode in ("fas", "mrp"):
                             try:
                                 from ccAPPSdb.execute.views import clear_reschedule_revert
 
