@@ -14,6 +14,8 @@
 
 namespace ccAPPS {
 
+bool mrpLocalPolicy();
+
 namespace {
 
 size_t g_lastLocalApplied = 0;
@@ -1334,9 +1336,9 @@ size_t countNewResourceOverloads() {
   return overloads;
 }
 
-// Material no-root completion, material seeds outside the CP horizon, and
-// the combined baseline/outage gate are FAS repair policy. CP, GA, and MRP
-// call this same scope helper and must keep the previous rules.
+// Material no-root completion and the combined baseline gate are selected
+// by LOCAL_SOLVER. FAS and MRP each have their own branch. CP and GA keep
+// the global shortage and overload gate.
 bool fasLocalPolicy() {
   const char* raw = getenv("LOCAL_SOLVER");
   return raw && std::string(raw) == "fas";
@@ -1380,7 +1382,11 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     // the global shortage and overload gate.
     size_t namedMaterial = 0;
     size_t outageLoads = 0;
-    if (fasLocalPolicy()) {
+    if (fasLocalPolicy() || mrpLocalPolicy()) {
+      // Compare with the loaded plan. A shortage or overload this pass
+      // creates still fails. A shortage that was already there, on a buffer
+      // this request did not name, does not. CP and GA stay on the global
+      // gate below. MRP enters only when LOCAL_SOLVER=mrp.
       const size_t newlyIncomplete = countNewIncompleteOrders();
       orderIncomplete = max(orderIncomplete, newlyIncomplete);
       if (hasMaterialTrigger)
@@ -1512,6 +1518,11 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
 
 
 }  // namespace
+
+bool mrpLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "mrp";
+}
 
 size_t localDelayChangedResourcePlans() {
   return delayChangedResourcePlansImpl();
@@ -1991,8 +2002,9 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
     // short. A shortage and no work order that can move is a real miss:
     // stop before the solver rewrites the plan and say why.
     const bool materialWithoutOtherSeeds =
-        fasLocalPolicy() && (mode == "material" || combined) &&
-        !wantOrderSeeds && !wantResourceSelect;
+        (fasLocalPolicy() || mrpLocalPolicy()) &&
+        (mode == "material" || combined) && !wantOrderSeeds &&
+        !wantResourceSelect;
     if (materialWithoutOtherSeeds) {
       const size_t left = affectedMaterials.empty()
                               ? 0
