@@ -10,6 +10,7 @@ from ccAPPSdb.common.commands import (
 from ccAPPSdb.execute.commands import (
     follow_changed_demand_quantity,
     restore_nextdemand_hook,
+    should_revert_cp_inputs,
     should_revert_fas_inputs,
 )
 
@@ -43,6 +44,11 @@ class FasScopeTests(SimpleTestCase):
         self.assertFalse(should_revert_fas_inputs("mrp", False))
         self.assertFalse(should_revert_fas_inputs("cp", True))
         self.assertFalse(should_revert_fas_inputs("ga", True))
+        self.assertTrue(should_revert_cp_inputs("cp", True))
+        self.assertFalse(should_revert_cp_inputs("cp", False))
+        self.assertFalse(should_revert_cp_inputs("fas", True))
+        self.assertFalse(should_revert_cp_inputs("mrp", True))
+        self.assertFalse(should_revert_cp_inputs("ga", True))
 
     def test_quantity_follow_sets_the_top_plan(self):
         parent = Message("SO-QTY", 600)
@@ -114,7 +120,7 @@ class FasScopeTests(SimpleTestCase):
                 commands.finish_local_solve("ga", "scenario9", boom)
             revert.assert_not_called()
 
-    def test_revert_snapshot_is_written_for_fas_and_mrp(self):
+    def test_revert_snapshot_is_written_for_fas_mrp_and_cp(self):
         from ccAPPSdb.execute import views
 
         with patch.object(views, "_apply_order_changes", return_value=[]), patch.object(
@@ -122,10 +128,11 @@ class FasScopeTests(SimpleTestCase):
         ), patch.object(views, "_apply_resource_changes", return_value=[]), patch(
             "ccAPPSdb.common.models.Parameter"
         ) as parameter:
-            views._apply_reschedule_changes("scenario9", {"_solver": "cp"})
-            parameter.objects.using.assert_not_called()
             views._apply_reschedule_changes("scenario9", {"_solver": "ga"})
             parameter.objects.using.assert_not_called()
+            views._apply_reschedule_changes("scenario9", {"_solver": "cp"})
+            parameter.objects.using.assert_called_with("scenario9")
+            parameter.objects.using.reset_mock()
             views._apply_reschedule_changes(
                 "scenario9", {"_solver": "mrp", "_orders": []}
             )

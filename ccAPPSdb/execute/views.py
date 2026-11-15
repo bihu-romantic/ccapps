@@ -968,9 +968,9 @@ def _apply_reschedule_changes(database, values):
         database, values.get("_materials") or []
     )
     resources = _apply_resource_changes(database, values.get("_resources") or [])
-    # The snapshot is how a failed FAS or MRP solve puts master data back.
-    # CP and GA do not use this rollback, so they must not write it.
-    if str(values.get("_solver") or "") in ("fas", "mrp"):
+    # The snapshot is how a failed solve puts master data back when the
+    # plan is not exported. FAS, MRP and CP use it. GA does not.
+    if str(values.get("_solver") or "") in ("fas", "mrp", "cp"):
         Parameter.objects.using(database).update_or_create(
             name="local.revert_changes",
             defaults={

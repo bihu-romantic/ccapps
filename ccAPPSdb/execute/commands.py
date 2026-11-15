@@ -177,7 +177,7 @@ def follow_changed_demand_quantity(env, plans):
             plan.quantity = new
             consumed += float(getattr(plan, "quantity", 0) or 0)
             logger.info(
-                "Local FAS quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
+                "Local quantity follow: demand=%s ref=%s %s -> %s start=%s end=%s",
                 name,
                 getattr(plan, "reference", None),
                 old,
@@ -202,11 +202,22 @@ def should_revert_fas_inputs(solver_mode, failed):
 
     Both solvers write demand, on-hand, purchase, and capacity before the
     solve, then skip plan export if the solve fails. Leaving those writes
-    would make the database disagree with the plan that remains. CP and GA
-    do not use this snapshot. A successful solve and a non-reschedule run
+    would make the database disagree with the plan that remains. GA does
+    not use this snapshot. A successful solve and a non-reschedule run
     never call this.
     """
     return solver_mode in ("fas", "mrp") and bool(failed)
+
+
+def should_revert_cp_inputs(solver_mode, failed):
+    """Put written master data back when CP rejects the candidate plan.
+
+    CP skips plan export when the local outcome is false, so the demand,
+    on-hand and capacity written for that attempt would describe a plan
+    that was not kept. A successful CP solve and a non-reschedule run do
+    not call this. GA does not use this snapshot.
+    """
+    return solver_mode == "cp" and bool(failed)
 
 
 def finish_local_solve(solver_mode, database, solve):
@@ -2703,6 +2714,34 @@ class SupplyPlanning(PlanTask):
                         cp_environment["CP_THROUGHPUT_OBJECTIVE"],
                         cp_environment["CP_LOT_SPLIT"],
                     )
+                    previous_local_solver = os.environ.get("LOCAL_SOLVER")
+                    if local_enabled and local_skip_supply:
+                        # CP-only gates in the shared scope helper. FAS and
+                        # MRP set the same variable on their own paths.
+                        os.environ["LOCAL_SOLVER"] = "cp"
+
+                    def _shrink_changed_cp_quantity():
+                        if not (
+                            local_enabled
+                            and local_skip_supply
+                            and solver_mode == "cp"
+                        ):
+                            return
+                        # A decrease is not new supply. CP sequences the
+                        # loaded tree, so the top plan has to match the
+                        # demand before the model is built.
+                        follow_changed_demand_quantity(
+                            {
+                                "LOCAL_NEW_DEMANDS": os.environ.get(
+                                    "CP_LOCAL_NEW_DEMANDS", ""
+                                ),
+                                "LOCAL_DELETED_DEMANDS": os.environ.get(
+                                    "CP_LOCAL_DELETED_DEMANDS", ""
+                                ),
+                            },
+                            ccAPPS.operationplans(),
+                        )
+
                     try:
                         # Default: single CP solve.
                         # CP_PARTITION=1 → workshop-parallel run_cp_partitioned.
@@ -2737,6 +2776,7 @@ class SupplyPlanning(PlanTask):
                                 # Smallest repair first. Stop when CP has a
                                 # solution that clears the trigger. Capacity is
                                 # hard inside CP; local_ok judges the trigger.
+                                _shrink_changed_cp_quantity()
                                 ccAPPS.cp_local_snapshot()
                                 try:
                                     for attempt_level in ("1", "2", "3"):
@@ -2761,8 +2801,16 @@ class SupplyPlanning(PlanTask):
                                             terminal_stage
                                             == "local_delete_complete"
                                         )
+                                        # No manufacturing consumer: the
+                                        # on-hand write is the whole change.
+                                        material_kept = (
+                                            terminal_stage
+                                            == "local_material_feasible"
+                                        )
                                         if local_ok and (
-                                            applied or delete_complete
+                                            applied
+                                            or delete_complete
+                                            or material_kept
                                         ):
                                             logger.info(
                                                 "CP local cascade: level %s ok "
@@ -2813,6 +2861,7 @@ class SupplyPlanning(PlanTask):
                                     and local_level in ("1", "2", "3", "custom")
                                 )
                                 if fixed_local_guard:
+                                    _shrink_changed_cp_quantity()
                                     ccAPPS.cp_local_snapshot()
                                 try:
                                     ccAPPS.run_cp()
@@ -3069,6 +3118,37 @@ class SupplyPlanning(PlanTask):
                                 "(noexport=1)",
                                 cp_applied,
                             )
+                            if should_revert_cp_inputs(solver_mode, True):
+                                try:
+                                    from ccAPPSdb.execute.views import (
+                                        revert_reschedule_inputs,
+                                    )
+
+                                    if revert_reschedule_inputs(database):
+                                        logger.info(
+                                            "Reverted demand, on-hand and "
+                                            "capacity after CP reschedule "
+                                            "rejected the candidate"
+                                        )
+                                except Exception:
+                                    logger.exception(
+                                        "Failed to revert CP reschedule inputs"
+                                    )
+                        elif (
+                            local_skip_supply
+                            and solver_mode == "cp"
+                            and cp_local_ok
+                        ):
+                            try:
+                                from ccAPPSdb.execute.views import (
+                                    clear_reschedule_revert,
+                                )
+
+                                clear_reschedule_revert(database)
+                            except Exception:
+                                logger.exception(
+                                    "Failed to clear CP reschedule revert snapshot"
+                                )
                         # CP partial export may delete unselected baseline trees.
                         # Never touch the pre-CP pointer list — those objects
                         # can already be freed. Demote whatever approved work
@@ -3084,6 +3164,11 @@ class SupplyPlanning(PlanTask):
                                 os.environ.pop(key, None)
                             else:
                                 os.environ[key] = value
+                        if local_enabled and local_skip_supply:
+                            if previous_local_solver is None:
+                                os.environ.pop("LOCAL_SOLVER", None)
+                            else:
+                                os.environ["LOCAL_SOLVER"] = previous_local_solver
                         # Dedicated reschedule API calls are one-shot.
                         # Clear their persistent trigger after this engine run
                         # so a later ordinary runplan can't accidentally reuse

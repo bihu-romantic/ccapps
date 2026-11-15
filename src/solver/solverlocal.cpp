@@ -15,6 +15,7 @@
 namespace ccAPPS {
 
 bool mrpLocalPolicy();
+bool cpLocalPolicy();
 
 namespace {
 
@@ -1524,6 +1525,11 @@ bool mrpLocalPolicy() {
   return raw && std::string(raw) == "mrp";
 }
 
+bool cpLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "cp";
+}
+
 size_t localDelayChangedResourcePlans() {
   return delayChangedResourcePlansImpl();
 }
@@ -2001,8 +2007,12 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
     // change, not a failed solve. Succeed when the named buffers are not
     // short. A shortage and no work order that can move is a real miss:
     // stop before the solver rewrites the plan and say why.
+    // CP does not create a work order for a buffer nothing already uses.
+    // A named on-hand change with no shortage is master data, same as when
+    // FAS or MRP find no root. A shortage nobody can move still fails.
+    // Combined order/resource repairs stay on their own gates.
     const bool materialWithoutOtherSeeds =
-        (fasLocalPolicy() || mrpLocalPolicy()) &&
+        (fasLocalPolicy() || mrpLocalPolicy() || cpLocalPolicy()) &&
         (mode == "material" || combined) && !wantOrderSeeds &&
         !wantResourceSelect;
     if (materialWithoutOtherSeeds) {

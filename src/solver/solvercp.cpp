@@ -4834,7 +4834,9 @@ PyObject* run_cp(PyObject*, PyObject*) {
   if (localFreeze.skipOptimization) {
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
+        localLastStage() != "local_delete_not_applied" &&
+        localLastStage() != "local_material_feasible" &&
+        localLastStage() != "local_material_no_root")
       localSetStage("local_scope_empty");
     Py_RETURN_NONE;
   }
