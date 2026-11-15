@@ -187,6 +187,16 @@ def follow_changed_demand_quantity(env, plans):
             )
 
 
+def restore_nextdemand_hook(solver, previous_exit, installed):
+    """Put the previous next-demand hook back.
+
+    The insert callback pops the queue as it runs, so an empty queue does
+    not mean the hook was never installed.
+    """
+    if installed:
+        solver.userexit_nextdemand = previous_exit
+
+
 def should_revert_fas_inputs(solver_mode, failed):
     """Put written master data back when a FAS or MRP reschedule fails.
 
@@ -1857,6 +1867,7 @@ class SupplyPlanning(PlanTask):
                             previous_exit = getattr(
                                 cls.solver, "userexit_nextdemand", None
                             )
+                            installed_insert_exit = False
                             if insert_queue:
                                 logger.info(
                                     "Local MRP insert: %s open demand(s) have "
@@ -1872,6 +1883,7 @@ class SupplyPlanning(PlanTask):
                                     return None
 
                                 cls.solver.userexit_nextdemand = next_insert_demand
+                                installed_insert_exit = True
                             # Hot plans stay proposed and are rebuilt. Frozen
                             # plans were confirmed by the scope, so this erase
                             # leaves them locked. An open insert freezes the
@@ -1892,8 +1904,11 @@ class SupplyPlanning(PlanTask):
                                     cls.solver.solve()
                             finally:
                                 os.environ.pop("LOCAL_SOLVER", None)
-                                if insert_queue:
-                                    cls.solver.userexit_nextdemand = previous_exit
+                                restore_nextdemand_hook(
+                                    cls.solver,
+                                    previous_exit,
+                                    installed_insert_exit,
+                                )
                         local_outcome = {}
                         try:
                             raw_outcome = ccAPPS.cp_last_local_outcome()

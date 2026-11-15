@@ -9,6 +9,7 @@ from ccAPPSdb.common.commands import (
 )
 from ccAPPSdb.execute.commands import (
     follow_changed_demand_quantity,
+    restore_nextdemand_hook,
     should_revert_fas_inputs,
 )
 
@@ -59,6 +60,22 @@ class FasScopeTests(SimpleTestCase):
             once(),
         )
         self.assertEqual(parent.quantity, 300)
+
+    def test_insert_hook_is_restored_after_the_queue_is_emptied(self):
+        queue = ["open-insert"]
+
+        def hook(_cluster, _queue=queue):
+            if _queue:
+                return _queue.pop(0)
+            return None
+
+        solver = type("Solver", (), {"userexit_nextdemand": "previous"})()
+        installed = bool(queue)
+        solver.userexit_nextdemand = hook
+        self.assertEqual(hook(0), "open-insert")
+        self.assertFalse(queue)
+        restore_nextdemand_hook(solver, "previous", installed)
+        self.assertEqual(solver.userexit_nextdemand, "previous")
 
     def test_quantity_follow_leaves_an_increase_alone(self):
         parent = Message("SO-QTY", 300)

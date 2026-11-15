@@ -1195,6 +1195,94 @@ def _apply_resource_changes(database, resources):
     return revert
 
 
+def remember_deleted_mrp_orders(database, demand_names):
+    """Save an MRP delete so a failed solve can put the rows back.
+
+    The demand and its operation-plan tree are removed before the solver
+    runs. FAS does not use this snapshot. A worker that is killed before
+    revert still cannot rebuild the rows.
+    """
+    if not demand_names:
+        return
+    from django.core import serializers
+
+    from ccAPPSdb.common.models import Parameter
+    from ccAPPSdb.input.models.demand import Demand
+    from ccAPPSdb.input.models.operationplan import (
+        OperationPlan,
+        OperationPlanMaterial,
+        OperationPlanResource,
+    )
+
+    with connections[database].cursor() as cursor:
+        cursor.execute(
+            """
+            WITH RECURSIVE deleted_tree(reference) AS (
+              SELECT reference
+              FROM operationplan
+              WHERE demand_id = ANY(%s)
+              UNION
+              SELECT child.reference
+              FROM operationplan child
+              JOIN deleted_tree parent ON child.owner_id = parent.reference
+            )
+            SELECT reference FROM deleted_tree
+            """,
+            [list(demand_names)],
+        )
+        references = [row[0] for row in cursor.fetchall()]
+    demands = list(
+        Demand.objects.using(database).filter(name__in=list(demand_names))
+    )
+    by_ref = {
+        plan.reference: plan
+        for plan in OperationPlan.objects.using(database).filter(
+            reference__in=references
+        )
+    }
+    ordered = []
+    seen = set()
+    pending = list(by_ref.values())
+    while pending:
+        next_pending = []
+        for plan in pending:
+            owner = plan.owner_id
+            if owner is None or owner in seen or owner not in by_ref:
+                ordered.append(plan)
+                seen.add(plan.reference)
+            else:
+                next_pending.append(plan)
+        if len(next_pending) == len(pending):
+            ordered.extend(next_pending)
+            break
+        pending = next_pending
+    resources = list(
+        OperationPlanResource.objects.using(database).filter(
+            operationplan_id__in=references
+        )
+    )
+    materials = list(
+        OperationPlanMaterial.objects.using(database).filter(
+            operationplan_id__in=references
+        )
+    )
+    fixture = serializers.serialize(
+        "json", [*demands, *ordered, *resources, *materials]
+    )
+    raw = Parameter.getValue("local.revert_changes", database, "")
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    payload["deleted_fixture"] = fixture
+    Parameter.objects.using(database).update_or_create(
+        name="local.revert_changes",
+        defaults={"value": json.dumps(payload)},
+    )
+
+
 def revert_reschedule_inputs(database):
     """Put demand, on-hand and capacity windows back after a failed solve.
 
@@ -1217,6 +1305,12 @@ def revert_reschedule_inputs(database):
         payload = json.loads(raw)
     except json.JSONDecodeError:
         return False
+    deleted_fixture = payload.get("deleted_fixture")
+    if deleted_fixture:
+        from django.core import serializers
+
+        for wrapped in serializers.deserialize("json", deleted_fixture):
+            wrapped.save(using=database)
     for row in payload.get("demands") or []:
         Demand.objects.using(database).filter(name=row["name"]).update(
             quantity=Decimal(row["quantity"]) if row.get("quantity") is not None else None,
@@ -1327,6 +1421,9 @@ def _prepare_pure_order_deletes(database, values):
             [pure_deleted],
         )
         affected_resources = [row[0] for row in cursor.fetchall()]
+
+    if str(values.get("_solver") or "") == "mrp":
+        remember_deleted_mrp_orders(database, pure_deleted)
 
     for demand in demands:
         demand.delete(using=database)

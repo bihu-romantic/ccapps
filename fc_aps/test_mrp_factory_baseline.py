@@ -1,14 +1,16 @@
 """Non-reschedule MRP plan on a clean demo_data/fc_factory load.
 
-Skipped unless PostgreSQL can restore scenario9 from the fc_factory dump.
-The dump is produced by loading demo_data/fc_factory into scenario9; it is
-not committed. Timestamps are read in Europe/Brussels.
+Default CI does not execute this file. It runs ./test/runtest.py and
+./frepplectl.py test freppledb. The live checks skip when the fc_factory
+dump is absent; that dump is not committed.
 
 The command under test is a supply run with plan.solver=mrp,
 local.reschedule=0 and plan.skip_supply=0. Reference, owner and
 lastmodified are left out of the fingerprint. A supply import does not
 keep proposed manufacturing orders, so the committed plan is the MRP
-result, not the fixture's proposed rows.
+result, not the fixture's proposed rows. The fingerprint below was
+measured with the clock pinned to Europe/Brussels on the committed
+library and on a Release rebuild of this source.
 """
 import hashlib
 import os
@@ -27,6 +29,7 @@ EXPECTED_COUNTS = {
     ("MO", "proposed"): 198,
     ("STCK", "closed"): 2404,
 }
+DEMAND = "FC_UNIN_QY_01.04.00792_SCQY2610000136_R00071"
 
 
 def _env():
@@ -172,6 +175,8 @@ class FactoryMrpBaselineTests(unittest.TestCase):
             _connect().close()
         except Exception as exc:
             raise unittest.SkipTest("scenario9 is not reachable: %s" % exc)
+
+    def _prepare_mrp_parameters(self):
         _restore()
         _query(
             """
@@ -186,6 +191,7 @@ class FactoryMrpBaselineTests(unittest.TestCase):
         )
 
     def test_non_reschedule_mrp_matches_fingerprint(self):
+        self._prepare_mrp_parameters()
         env = _env()
         proc = subprocess.run(
             [
@@ -235,6 +241,60 @@ class FactoryMrpBaselineTests(unittest.TestCase):
         }
         self.assertEqual(problems, {"invalid data": 9013})
         self.assertEqual(_business_fingerprint(), BUSINESS_FINGERPRINT)
+
+    def test_failed_mrp_delete_restores_the_demand_and_plan(self):
+        self._prepare_mrp_parameters()
+        os.environ.update(_env())
+        sys.path.insert(0, str(ROOT))
+        import django
+
+        django.setup()
+        from ccAPPSdb.common.models import Parameter
+        from ccAPPSdb.execute.views import (
+            remember_deleted_mrp_orders,
+            revert_reschedule_inputs,
+        )
+        from ccAPPSdb.input.models.demand import Demand
+
+        before = _query(
+            """
+            select type, status, quantity::text as quantity
+            from operationplan
+            where demand_id = %s
+            order by type, quantity
+            """,
+            (DEMAND,),
+        )
+        self.assertTrue(before)
+        Parameter.objects.using("scenario9").update_or_create(
+            name="local.revert_changes",
+            defaults={"value": "{}"},
+        )
+        remember_deleted_mrp_orders("scenario9", [DEMAND])
+        Demand.objects.using("scenario9").filter(name=DEMAND).delete()
+        self.assertEqual(
+            _query("select name from demand where name = %s", (DEMAND,)),
+            [],
+        )
+        self.assertTrue(revert_reschedule_inputs("scenario9"))
+        demand = _query(
+            "select status, quantity::text as quantity from demand where name = %s",
+            (DEMAND,),
+        )
+        self.assertEqual(demand[0]["status"], "open")
+        self.assertEqual(demand[0]["quantity"], "600.00000000")
+        self.assertEqual(
+            _query(
+                """
+                select type, status, quantity::text as quantity
+                from operationplan
+                where demand_id = %s
+                order by type, quantity
+                """,
+                (DEMAND,),
+            ),
+            before,
+        )
 
 
 if __name__ == "__main__":

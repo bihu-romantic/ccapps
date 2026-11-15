@@ -1,9 +1,11 @@
 """MRP reschedule matrix on a clean demo_data/fc_factory load.
 
-Skipped unless PostgreSQL scenario9 can be restored from the fc_factory dump
-and bin/libccAPPS.so was built from this source. The committed engine binary
-does not contain the MRP local-insert path, so a CI run without that rebuild
-skips instead of failing.
+The dump is not in the repository. Default CI runs ./test/runtest.py and
+./frepplectl.py test freppledb, so it does not execute this file. The
+committed bin/libccAPPS.so also predates the MRP local-insert path, and a
+rebuild of this source would ship newer FAS reschedule code than that
+binary. The matrix therefore skips unless a local rebuild and the dump
+are both present.
 """
 import importlib.util
 import json
@@ -37,8 +39,10 @@ def _baseline():
 def _skip_reason(base):
     if not ENGINE.is_file() or b"MRP local insert" not in ENGINE.read_bytes():
         return (
-            "bin/libccAPPS.so has no MRP local-insert path; rebuild the engine "
-            "before running the live matrix"
+            "bin/libccAPPS.so has no MRP local-insert path. The committed "
+            "library is older than this source and also has no FAS local-insert "
+            "path, so this matrix is not run against it. Rebuild the engine "
+            "locally; that binary is not committed."
         )
     if not Path(base.DUMP).is_file():
         return (
@@ -310,6 +314,7 @@ class FactoryMrpMatrixTests(unittest.TestCase):
         self.assertEqual(http, 202)
         self.assertEqual(task["status"], "Done")
         self.assertTrue(outcome["status"])
+        self.assertEqual(outcome["stage"], "local_delete_complete")
         self.assertEqual(
             self.base._query("select name from demand where name = %s", (DELETE,)),
             [],
@@ -328,12 +333,13 @@ class FactoryMrpMatrixTests(unittest.TestCase):
         self.assertEqual(task["status"], "Done")
         self.assertTrue(outcome["status"])
         plans = self._plans(QTY)
+        self.assertEqual(plans[0]["type"], "MO")
         self.assertEqual(plans[0]["quantity"], "300.00000000")
         self.assertIn("2026-10-19 18:21:38", plans[0]["startdate"])
         self.assertIn("2026-10-20 00:41:38", plans[0]["enddate"])
 
     def test_h04_stop_clears_the_window(self):
-        self.assertGreater(self._overlap(), 0)
+        self.assertEqual(self._overlap(), 5)
         http, _payload, task, outcome = self._post(
             {
                 "category": "resource",
@@ -378,6 +384,7 @@ class FactoryMrpMatrixTests(unittest.TestCase):
         # shortage on 03.01.03846 that the loaded plan did not have. MRP
         # rejects that plan and puts the on-hand change and the capacity
         # calendar back, so the database matches the plan that remains.
+        started = time.time()
         http, _payload, task, outcome = self._post(
             {
                 "category": "all",
@@ -400,12 +407,22 @@ class FactoryMrpMatrixTests(unittest.TestCase):
         self.assertEqual(http, 202)
         self.assertEqual(task["status"], "Failed")
         self.assertFalse(outcome["status"])
+        self.assertEqual(outcome["level_used"], 2)
         self.assertGreater(outcome["incomplete"], 0)
+        fresh = [
+            path.read_text(errors="replace")
+            for path in (ROOT / "logs").glob("CCAPPS_scenario9-*.log")
+            if path.stat().st_mtime >= started
+        ]
+        self.assertTrue(
+            any("03.01.03846" in text and "New material shortage" in text for text in fresh),
+            msg=outcome,
+        )
         plans = self._plans(QTY)
         self.assertEqual(plans[0]["quantity"], "600.00000000")
         self.assertIn("2026-10-18 18:40:58", plans[0]["startdate"])
         self.assertEqual(self._onhand(), "87.00000000")
-        self.assertGreater(self._overlap(), 0)
+        self.assertEqual(self._overlap(), 5)
         calendar = self.base._query(
             """
             select maximum_calendar_id as calendar from resource where name = 'H04'
@@ -468,9 +485,31 @@ class FactoryMrpMatrixTests(unittest.TestCase):
             },
         ]
         for body in bodies:
+            before_onhand = self._onhand()
+            before_qty = self.base._query(
+                "select quantity::text as quantity, due::text as due from demand where name = %s",
+                (QTY,),
+            )
+            before_calendar = self.base._query(
+                "select maximum_calendar_id as calendar from resource where name = 'H04'"
+            )
             http, payload, _task, _outcome = self._post(body)
             self.assertEqual(http, 400, msg=payload)
             self.assertTrue(payload.get("message"))
+            self.assertEqual(self._onhand(), before_onhand)
+            self.assertEqual(
+                self.base._query(
+                    "select quantity::text as quantity, due::text as due from demand where name = %s",
+                    (QTY,),
+                ),
+                before_qty,
+            )
+            self.assertEqual(
+                self.base._query(
+                    "select maximum_calendar_id as calendar from resource where name = 'H04'"
+                ),
+                before_calendar,
+            )
 
 
 if __name__ == "__main__":
