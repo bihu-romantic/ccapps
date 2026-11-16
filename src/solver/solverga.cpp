@@ -4525,9 +4525,13 @@ PyObject* run_ga(PyObject*, PyObject*) {
   LocalScopeGuard localScope;
   applyLocalRescheduleScope(localScope);
   if (localScope.skipOptimization) {
+    // A material change with no work order already recorded why it stopped.
+    // Do not replace that stage with an empty-scope label.
     if (localLastStage() != "local_l1_lock_all" &&
         localLastStage() != "local_delete_complete" &&
-        localLastStage() != "local_delete_not_applied")
+        localLastStage() != "local_delete_not_applied" &&
+        localLastStage() != "local_material_feasible" &&
+        localLastStage() != "local_material_no_root")
       localSetStage("local_scope_empty");
     Py_RETURN_NONE;
   }
@@ -5537,6 +5541,16 @@ void SolverGA::alignDeliveryCommitments() {
     if (op->getConfirmed() || op->getCompleted() || op->getClosed()) continue;
     deliveries.push_back(op);
   }
+  // Operationplan iteration order follows allocation. Sorting by reference
+  // keeps delivery alignment the same on every run of one seed.
+  sort(deliveries.begin(), deliveries.end(),
+       [](const OperationPlan* left, const OperationPlan* right) {
+         if (!left || !right) return left < right;
+         const string& leftRef = left->getReference();
+         const string& rightRef = right->getReference();
+         if (leftRef != rightRef) return leftRef < rightRef;
+         return left < right;
+       });
   size_t moved = 0;
   for (OperationPlan* op : deliveries) {
     Date due = Date::infinitePast;
@@ -5673,9 +5687,18 @@ void SolverGA::alignDeliveryCommitments() {
     string reference;
   };
   const Date current = Plan::instance().getCurrent();
-  for (auto& entry : claimsByBuffer) {
-    Buffer* buffer = entry.first;
-    auto& claims = entry.second;
+  vector<Buffer*> claimBuffers;
+  claimBuffers.reserve(claimsByBuffer.size());
+  for (auto& entry : claimsByBuffer) claimBuffers.push_back(entry.first);
+  sort(claimBuffers.begin(), claimBuffers.end(),
+       [](const Buffer* left, const Buffer* right) {
+         if (!left || !right) return left < right;
+         if (left->getName() != right->getName())
+           return left->getName() < right->getName();
+         return left < right;
+       });
+  for (Buffer* buffer : claimBuffers) {
+    auto& claims = claimsByBuffer[buffer];
     stable_sort(claims.begin(), claims.end(),
                 [](const DeliveryClaim& left, const DeliveryClaim& right) {
                   const Date leftDue = left.demand

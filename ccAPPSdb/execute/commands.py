@@ -198,22 +198,24 @@ def restore_nextdemand_hook(solver, previous_exit, installed):
 
 
 def should_revert_fas_inputs(solver_mode, failed):
-    """Put written master data back when a FAS or MRP reschedule fails.
+    """Put written master data back when a FAS, MRP, or GA reschedule fails.
 
-    Both solvers write demand, on-hand, purchase, and capacity before the
+    Those solvers write demand, on-hand, purchase, and capacity before the
     solve, then skip plan export if the solve fails. Leaving those writes
-    would make the database disagree with the plan that remains. CP and GA
-    do not use this snapshot. A successful solve and a non-reschedule run
-    never call this.
+    would make the database disagree with the plan that remains. GA is
+    included because a failed sequencing pass has the same split: the plan
+    that stays is the loaded one, while the request's master data would
+    otherwise stick. CP does not use this snapshot. A successful solve and
+    a non-reschedule run never call this.
     """
-    return solver_mode in ("fas", "mrp") and bool(failed)
+    return solver_mode in ("fas", "mrp", "ga") and bool(failed)
 
 
 def finish_local_solve(solver_mode, database, solve):
-    """Run one local solve and restore FAS or MRP master data if it fails.
+    """Run one local solve and restore FAS, MRP, or GA master data if it fails.
 
     The failure may be a false outcome or an exception from the solver.
-    CP and GA do not use this snapshot.
+    CP does not use this snapshot.
     """
     try:
         return solve()
@@ -1678,6 +1680,10 @@ class SupplyPlanning(PlanTask):
                 if solver_mode == "ga":
                     local_repair_env.update(
                         {
+                            # Selects the GA branch of the shared scope helper.
+                            # FAS sets the same variable itself; MRP sets it
+                            # around its own solve. CP never sets it to ga.
+                            "LOCAL_SOLVER": "ga",
                             "GA_SEED": Parameter.getValue(
                                 "ga.seed", database, "123456"
                             ),
@@ -1982,7 +1988,7 @@ class SupplyPlanning(PlanTask):
                                 "%s local reschedule failed final validation: %s"
                                 % (solver_mode.upper(), local_outcome)
                             )
-                        if solver_mode in ("fas", "mrp"):
+                        if solver_mode in ("fas", "mrp", "ga"):
                             try:
                                 from ccAPPSdb.execute.views import clear_reschedule_revert
 
