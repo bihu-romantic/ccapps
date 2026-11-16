@@ -15,6 +15,7 @@
 namespace ccAPPS {
 
 bool mrpLocalPolicy();
+bool gaLocalPolicy();
 
 namespace {
 
@@ -1337,8 +1338,8 @@ size_t countNewResourceOverloads() {
 }
 
 // Material no-root completion and the combined baseline gate are selected
-// by LOCAL_SOLVER. FAS and MRP each have their own branch. CP and GA keep
-// the global shortage and overload gate.
+// by LOCAL_SOLVER. FAS, MRP and GA each compare with the loaded plan. CP
+// keeps the global shortage and overload gate.
 bool fasLocalPolicy() {
   const char* raw = getenv("LOCAL_SOLVER");
   return raw && std::string(raw) == "fas";
@@ -1377,16 +1378,20 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
     } else {
       windowLate = countLocalWindowLateDemands();
     }
-    // FAS compares the exported plan with the loaded one and requires a
-    // zero-capacity window to contain no proposed load. Other solvers keep
+    // FAS, MRP and GA compare the exported plan with the loaded one and
+    // require a zero-capacity window to contain no proposed load. CP keeps
     // the global shortage and overload gate.
     size_t namedMaterial = 0;
     size_t outageLoads = 0;
-    if (fasLocalPolicy() || mrpLocalPolicy()) {
+    if (fasLocalPolicy() || mrpLocalPolicy() || gaLocalPolicy()) {
       // Compare with the loaded plan. A shortage or overload this pass
       // creates still fails. A shortage that was already there, on a buffer
-      // this request did not name, does not. CP and GA stay on the global
-      // gate below. MRP enters only when LOCAL_SOLVER=mrp.
+      // this request did not name, does not. CP stays on the global gate
+      // below. MRP enters only when LOCAL_SOLVER=mrp, and GA only when
+      // LOCAL_SOLVER=ga. GA sequences an existing plan, so a shortage the
+      // loaded factory already had is not a failed repair.
+      if (gaLocalPolicy())
+        logger << "GA local baseline gate\n";
       const size_t newlyIncomplete = countNewIncompleteOrders();
       orderIncomplete = max(orderIncomplete, newlyIncomplete);
       if (hasMaterialTrigger)
@@ -1522,6 +1527,11 @@ void evaluateLocalRescheduleOutcome(const string& mode) {
 bool mrpLocalPolicy() {
   const char* raw = getenv("LOCAL_SOLVER");
   return raw && std::string(raw) == "mrp";
+}
+
+bool gaLocalPolicy() {
+  const char* raw = getenv("LOCAL_SOLVER");
+  return raw && std::string(raw) == "ga";
 }
 
 size_t localDelayChangedResourcePlans() {
@@ -2002,7 +2012,7 @@ void applyLocalRescheduleScope(LocalScopeGuard& guard) {
     // short. A shortage and no work order that can move is a real miss:
     // stop before the solver rewrites the plan and say why.
     const bool materialWithoutOtherSeeds =
-        (fasLocalPolicy() || mrpLocalPolicy()) &&
+        (fasLocalPolicy() || mrpLocalPolicy() || gaLocalPolicy()) &&
         (mode == "material" || combined) && !wantOrderSeeds &&
         !wantResourceSelect;
     if (materialWithoutOtherSeeds) {

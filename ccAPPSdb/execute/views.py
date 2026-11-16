@@ -888,12 +888,13 @@ def _validate_reschedule_refs(database, values):
                             n for n in insert_only if n in already
                         )
                     )
-            # FAS and MRP only create supply for open demands. A closed row
+            # FAS and MRP only create supply for open demands. GA sequences
+            # existing work and also does not plan a closed row. A closed row
             # with no plan used to be accepted and the solve then matched no
             # root work order. Scenario 9 has no open demand without a plan:
             # write a new open demand (same item, location, customer and a due
             # after currentdate) and insert that name.
-            if values.get("_solver") in ("fas", "mrp") and insert_only:
+            if values.get("_solver") in ("fas", "mrp", "ga") and insert_only:
                 status_rows = dict(
                     Demand.objects.using(database)
                     .filter(name__in=insert_only)
@@ -903,13 +904,21 @@ def _validate_reschedule_refs(database, values):
                     n for n in insert_only if status_rows.get(n) != "open"
                 ]
                 if not_open:
-                    parts.append(
-                        "insert orders must be open demands so "
-                        + str(values.get("_solver") or "").upper()
-                        + " can create a plan (set status=open on the demand "
-                        "first; closed demands are not planned): "
-                        + ", ".join(not_open)
-                    )
+                    solver_name = str(values.get("_solver") or "").upper()
+                    if values.get("_solver") == "ga":
+                        reason = (
+                            "insert orders must be open demands so GA can "
+                            "sequence them (set status=open on the demand "
+                            "first; closed demands are not planned): "
+                        )
+                    else:
+                        reason = (
+                            "insert orders must be open demands so "
+                            + solver_name
+                            + " can create a plan (set status=open on the "
+                            "demand first; closed demands are not planned): "
+                        )
+                    parts.append(reason + ", ".join(not_open))
     if category in ("material", "all"):
         names = [row["name"] for row in (values.get("_materials") or []) if row.get("name")]
         if names:
@@ -968,9 +977,9 @@ def _apply_reschedule_changes(database, values):
         database, values.get("_materials") or []
     )
     resources = _apply_resource_changes(database, values.get("_resources") or [])
-    # The snapshot is how a failed FAS or MRP solve puts master data back.
-    # CP and GA do not use this rollback, so they must not write it.
-    if str(values.get("_solver") or "") in ("fas", "mrp"):
+    # The snapshot is how a failed FAS, MRP, or GA solve puts master data
+    # back. CP does not use this rollback, so it must not write it.
+    if str(values.get("_solver") or "") in ("fas", "mrp", "ga"):
         Parameter.objects.using(database).update_or_create(
             name="local.revert_changes",
             defaults={
