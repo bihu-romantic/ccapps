@@ -1,0 +1,9 @@
+.env
+data/
+*.tar
+*.tar.gz
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.log

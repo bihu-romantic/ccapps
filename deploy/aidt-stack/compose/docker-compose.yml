@@ -1,0 +1,128 @@
+# AIDT 全栈：DB + ccAPPS Web + scenario1 worker + MRP MCP
+# 对照 175：aidt_ccapps_db / aidt_ccapps_app / aidt_ccapps_worker_scenario1 / aidt_ccappss_mrp_mcp
+#
+# 用法（在仓库根目录）：
+#   git checkout release
+#   cp .env.example .env
+#   cd compose && docker compose --env-file ../.env up -d --build
+# 详见 docs/deployment.md
+
+name: aidt-ccapps
+
+services:
+  db:
+    image: postgis/postgis:18-3.6-alpine
+    container_name: aidt_ccapps_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ccapps}
+      POSTGRES_USER: ${POSTGRES_USER:-ccapps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-40}
+      - -c
+      - work_mem=2MB
+    volumes:
+      - ${AIDT_PGDATA:-../data/pgdata}:/var/lib/postgresql/data
+    networks: [aidt-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ccapps} -d ${POSTGRES_DB:-ccapps}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    image: ${CCAPPS_IMAGE:-ccapps-aidt:app}
+    container_name: aidt_ccapps_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${CCAPPS_HOST_PORT:-8011}:8001"
+    environment:
+      PORT: 8001
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DBNAME: ${POSTGRES_DB:-ccapps}
+      POSTGRES_USER: ${POSTGRES_USER:-ccapps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-ccAPPSdb.settings}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      CCAPPS_BOOTSTRAP: ${CCAPPS_BOOTSTRAP:-true}
+      CCAPPS_LOGDIR: /var/lib/ccapps/logs
+      CCAPPS_STATIC: /var/lib/ccapps/static
+      CCAPPS_CONFIGDIR: /app/config
+      CCAPPS_APP: /app
+    volumes:
+      # 175 实际把宿主 ccAPPSdb 覆盖进容器；需要热更新 Python 业务代码时再挂
+      # - ./overlays/ccAPPSdb:/app/ccAPPSdb
+      - aidt_logs:/var/lib/ccapps/logs
+      - aidt_static:/var/lib/ccapps/static
+      - aidt_config:/app/config
+    networks: [aidt-net]
+
+  worker_scenario1:
+    image: ${CCAPPS_WORKER_IMAGE:-${CCAPPS_IMAGE:-ccapps-aidt:app}}
+    container_name: aidt_ccapps_worker_scenario1
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    entrypoint: ["python"]
+    command: ["/app/ccAPPSctl.py", "runworker", "--database=scenario1", "--continuous"]
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DBNAME: ${POSTGRES_DB:-ccapps}
+      POSTGRES_USER: ${POSTGRES_USER:-ccapps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-ccAPPSdb.settings}
+      CCAPPS_BOOTSTRAP: "false"
+      CCAPPS_LOGDIR: /var/lib/ccapps/logs
+      CCAPPS_STATIC: /var/lib/ccapps/static
+      CCAPPS_CONFIGDIR: /app/config
+      CCAPPS_APP: /app
+    volumes:
+      # - ./overlays/ccAPPSdb:/app/ccAPPSdb
+      - aidt_logs:/var/lib/ccapps/logs
+      - aidt_config:/app/config
+    networks: [aidt-net]
+
+  mrp_mcp:
+    build: ../mcp-aidt
+    image: ccapps-mcp-aidt:latest
+    container_name: aidt_ccappss_mrp_mcp
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${MCP_HOST_PORT:-9005}:9000"
+    environment:
+      CCAPPS_BASE_URL: ${CCAPPS_BASE_URL:-http://app:8001}
+      CCAPPS_API_TOKEN: ${CCAPPS_API_TOKEN:?set CCAPPS_API_TOKEN}
+      DEFAULT_SCENARIO: ${DEFAULT_SCENARIO:-scenario1}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 9000
+    networks: [aidt-net]
+
+networks:
+  aidt-net:
+    name: aidt-net
+
+volumes:
+  aidt_logs:
+  aidt_static:
+  aidt_config:

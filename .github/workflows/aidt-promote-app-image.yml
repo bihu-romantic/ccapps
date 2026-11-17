@@ -1,0 +1,81 @@
+name: Promote app image
+
+# 不从零编译引擎。把本机/跳板机上已有的 ccapps-aidt:app|worker
+# （或任意源镜像）提升到 GHCR，供 compose 拉取。
+on:
+  workflow_dispatch:
+    inputs:
+      app_source:
+        description: "Source image for app (e.g. ccapps-aidt:app)"
+        required: true
+        default: "ccapps-aidt:app"
+      worker_source:
+        description: "Source image for worker (e.g. ccapps-aidt:worker)"
+        required: true
+        default: "ccapps-aidt:worker"
+      tag:
+        description: "Destination tag on GHCR"
+        required: true
+        default: "latest"
+      dry_run:
+        description: "If true, only print planned tags (no push)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lowercase owner
+        id: owner
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Plan
+        id: plan
+        run: |
+          OWNER="${{ steps.owner.outputs.name }}"
+          TAG="${{ inputs.tag }}"
+          echo "app_dest=ghcr.io/${OWNER}/ccapps-aidt-app:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "worker_dest=ghcr.io/${OWNER}/ccapps-aidt-worker:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Promote ${{ inputs.app_source }} -> ghcr.io/${OWNER}/ccapps-aidt-app:${TAG}"
+          echo "Promote ${{ inputs.worker_source }} -> ghcr.io/${OWNER}/ccapps-aidt-worker:${TAG}"
+          echo "dry_run=${{ inputs.dry_run }}"
+
+      - name: Skip push on dry_run
+        if: inputs.dry_run == 'true'
+        run: |
+          echo "dry_run=true — not pulling/pushing images."
+          echo "Run again with dry_run=false on a runner that can reach the source images,"
+          echo "or push locally:"
+          echo "  docker tag ${{ inputs.app_source }} ${{ steps.plan.outputs.app_dest }}"
+          echo "  docker tag ${{ inputs.worker_source }} ${{ steps.plan.outputs.worker_dest }}"
+          echo "  echo \$GHCR_TOKEN | docker login ghcr.io -u USER --password-stdin"
+          echo "  docker push ${{ steps.plan.outputs.app_dest }}"
+          echo "  docker push ${{ steps.plan.outputs.worker_dest }}"
+
+      - name: Log in to GHCR
+        if: inputs.dry_run == 'false'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        if: inputs.dry_run == 'false'
+        run: |
+          set -euo pipefail
+          docker pull "${{ inputs.app_source }}"
+          docker pull "${{ inputs.worker_source }}"
+          docker tag "${{ inputs.app_source }}" "${{ steps.plan.outputs.app_dest }}"
+          docker tag "${{ inputs.worker_source }}" "${{ steps.plan.outputs.worker_dest }}"
+          docker push "${{ steps.plan.outputs.app_dest }}"
+          docker push "${{ steps.plan.outputs.worker_dest }}"

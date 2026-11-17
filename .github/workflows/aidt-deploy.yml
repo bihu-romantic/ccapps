@@ -1,0 +1,73 @@
+name: Deploy (placeholder)
+
+# 当前阶段不自动部署。配置好 secrets 后可手动触发；
+# enable_deploy 必须为 true 才会执行真实 SSH 步骤。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Logical target name (e.g. staging)"
+        required: true
+        default: "staging"
+      enable_deploy:
+        description: "Must be true to run real deploy commands"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder notice
+        run: |
+          echo "Deploy workflow is a placeholder."
+          echo "target=${{ inputs.target }}"
+          echo "enable_deploy=${{ inputs.enable_deploy }}"
+          echo "Required secrets (later): DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH"
+          if [ "${{ inputs.enable_deploy }}" != "true" ]; then
+            echo "enable_deploy!=true — exiting without remote changes."
+          fi
+
+      - name: Checkout
+        if: inputs.enable_deploy == 'true'
+        uses: actions/checkout@v4
+
+      - name: Check deploy secrets
+        if: inputs.enable_deploy == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          missing=0
+          [ -n "$DEPLOY_HOST" ] || { echo "missing DEPLOY_HOST"; missing=1; }
+          [ -n "$DEPLOY_USER" ] || { echo "missing DEPLOY_USER"; missing=1; }
+          [ -n "$DEPLOY_SSH_KEY" ] || { echo "missing DEPLOY_SSH_KEY"; missing=1; }
+          if [ "$missing" -ne 0 ]; then
+            echo "Secrets not configured — refuse to deploy."
+            exit 1
+          fi
+
+      - name: SSH compose up
+        if: inputs.enable_deploy == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}'
+            if [ -z "$DEPLOY_PATH" ]; then DEPLOY_PATH="$HOME/ccapps-aidt"; fi
+            cd "$DEPLOY_PATH"
+            git fetch origin
+            git checkout release-aidt
+            git pull --ff-only origin release-aidt
+            cd deploy/aidt-stack/compose
+            docker compose --env-file ../.env pull || true
+            docker compose --env-file ../.env up -d --build
+            docker compose --env-file ../.env ps
